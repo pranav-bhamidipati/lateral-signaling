@@ -133,7 +133,7 @@ def ci_sim_nl(n_tc, params, steps, dt, S_init=None, I_0=None, update_fun=update_
 
 ############# Lattice functions (X, A, meta_df)
 
-def hex_grid(n, r=1, sigma=0.0):
+def hex_grid_square(n, r=1, sigma=0.0):
     """Returns XY coordinates of n points on a square regular 2D hexagonal grid with edge 
     length r, passed through a Gaussian filter with std. dev. = sigma * r."""
     
