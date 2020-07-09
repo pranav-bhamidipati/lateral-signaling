@@ -151,6 +151,8 @@ def E0(t, I_t, n_cells):
     return E
 
 
+def I_t(t): return 1
+
 alpha_space = np.linspace(0.5, 5, 10)
 k_s_space = np.logspace(-5, -0.5, 10)
 p_s_space = 2
