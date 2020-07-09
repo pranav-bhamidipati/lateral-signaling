@@ -213,25 +213,26 @@ delay_names = ["tau"]
 delays = (0.4,)
 species_names = ["expression"]
 
-lax_data = pd.DataFrame(
-    {
-        "cell": np.array(
-            [
-                "cell_" + str(i).zfill(3)
-                for i in np.tile(axis_cells, t_results.size)
-            ]
-        ),
-        "X_coord": np.tile(np.arange(n_axis_cells), t_results.size),
-        "step": np.repeat(np.arange(t_results.size), n_axis_cells),
-        "time": np.repeat(t_results, n_axis_cells),
-    }
-)
+
+lax_data = {
+    "cell": np.array(
+        [
+            "cell_" + str(i).zfill(3)
+            for i in np.tile(axis_cells, t_results.size)
+        ]
+    ),
+    "X_coord": np.tile(np.arange(n_axis_cells), t_results.size),
+    "step": np.repeat(np.arange(t_results.size), n_axis_cells),
+    "time": np.repeat(t_results, n_axis_cells),
+}
 
 
+run_counter = 0
 for params, result in results_list:
+    
     param_data = lax_data.copy()
-    result = result.reshape(-1, result.shape[-1]).T
-    param_data.update({sp: ex for sp, ex in zip(species_names, result)})
+    result = result.reshape(-1, result.shape[-1])
+    param_data.update({sp: ex for sp, ex in zip(species_names, result.T)})
     
     for p, v in zip(param_names, params):
         param_data[p] = v
@@ -239,16 +240,17 @@ for params, result in results_list:
     for d, v in zip(delay_names, delays):
         param_data[d] = v
     
-    dfs.append(param_data)
+    param_data["run"] = run_counter
+    run_counter += 1
+    
+    dfs.append(pd.DataFrame(param_data))
 
 df = pd.concat(dfs)
-
 
 
 import os
 
 directory = "2020-07-09_2D_delay_data"
-
 if not os.path.exists(directory):
     os.makedirs(directory)
 
