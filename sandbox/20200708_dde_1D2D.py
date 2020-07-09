@@ -11,11 +11,6 @@ import biocircuits
 from math import ceil
 
 
-colors = cc.palette.glasbey_category10
-ceiling = np.vectorize(ceil)
-sample_cycle = lambda cycle, size: [cycle[i] for i in ceiling(np.linspace(0, len(cycle) - 1, size))]
-
-
 def ddeint_2D(
     dde_rhs,
     E0,
