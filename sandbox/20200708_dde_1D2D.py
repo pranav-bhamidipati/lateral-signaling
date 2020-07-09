@@ -194,6 +194,7 @@ def simulate(params):
     return params, results[:, axis_cells, :]
 
 
+from multiprocessing import Pool
 if __name__ == '__main__':
     with Pool(16) as p:
         results_list = list(p.imap_unordered(simulate, param_space[:5]))
