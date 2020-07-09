@@ -9,7 +9,7 @@ import pandas as pd
 import scipy.interpolate as snt
 import biocircuits
 from math import ceil
-
+from lattice_oop import *
 
 def ddeint_2D(
     dde_rhs,
