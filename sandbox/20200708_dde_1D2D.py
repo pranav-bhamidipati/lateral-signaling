@@ -181,7 +181,7 @@ n_axis_cells = axis_cells.size
 
 def simulate(params):
     _, __, results = ddeint_2D(
-        dde_rhs=rhs_tc_delay_cis_leak_2D_nosender,
+        dde_rhs=rhs_tc_delay_cis_leak_2D,
         E0=E0,
         t_out=t_results,
         delays=delays,
