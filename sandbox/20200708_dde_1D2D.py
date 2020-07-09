@@ -252,4 +252,7 @@ directory = "2020-07-09_2D_delay_data"
 if not os.path.exists(directory):
     os.makedirs(directory)
 
-df.to_csv(os.join(directory, "sender_zs_cis_delay_leak.csv"))
+to_path = os.path.join(directory, "sender_zs_cis_delay_leak.csv")
+print(f"Writing to {to_path}")
+
+df.to_csv(to_path)
