@@ -1,15 +1,10 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[4]:
-
-
 import numpy as np
 import pandas as pd
 import scipy.interpolate as snt
 import biocircuits
 from math import ceil
 from lattice_oop import *
+
 
 def ddeint_2D(
     dde_rhs,
@@ -248,16 +243,18 @@ for params, result in results_list:
 df = pd.concat(dfs)
 
 
+
+
 import os
 from datetime import date
 
 directory = str(date.today()) + "_2D_delay_data"
+fname = "sender_zs_cis_delay_leak%.csv"
+print(f"Writing to {directory}/")
+
+
 if not os.path.exists(directory):
     os.makedirs(directory)
-
-fname = "sender_zs_cis_delay_leak%.csv"
-
-print(f"Writing to {directory}/")
 
 n_chunks = 3
 chunksize = ceil(df.index.size / n_chunks)
