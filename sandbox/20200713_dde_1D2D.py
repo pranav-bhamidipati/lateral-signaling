@@ -251,7 +251,7 @@ df = pd.concat(dfs)
 import os
 from datetime import date
 
-directory = date.today() + "_2D_delay_data"
+directory = str(date.today()) + "_2D_delay_data"
 if not os.path.exists(directory):
     os.makedirs(directory)
 
