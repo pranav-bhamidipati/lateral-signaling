@@ -255,7 +255,12 @@ directory = str(date.today()) + "_2D_delay_data"
 if not os.path.exists(directory):
     os.makedirs(directory)
 
-to_path = os.path.join(directory, "sender_zs_cis_delay_leak.csv")
-print(f"Writing to {to_path}")
+fname = "sender_zs_cis_delay_leak%.csv"
 
-df.to_csv(to_path)
+print(f"Writing to {directory}/")
+
+n_chunks = 3
+chunksize = ceil(df.index.size / n_chunks)
+for chunk in range(n_chunks):
+    to_path = os.path.join(directory, fname.replace("%", str(chunk)))
+    df.iloc[chunksize * chunk : chunksize * (chunk + 1), :].to_csv(to_path)
