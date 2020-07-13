@@ -463,7 +463,7 @@ def ci_sim2(
 
 ###### Make a time-lapse of single-gene ("signal") expression on a lattice
 
-def lattice_vid_mp4(
+def Regular2DLattice_vid_mp4(
     df,
     R,
     dt,
@@ -479,7 +479,7 @@ def lattice_vid_mp4(
     """Returns an mp4 video of gene expression of cells on a regular lattice."""
 
     if levels is None:
-        levels = [x for x in np.linspace(0, df[val].max(), 51)]
+        levels = [x for x in np.linspace(df[val].min(), df[val].max(), len(colors) + 1)]
     
     if points_opts is None:
         padding = 1/(2*R)

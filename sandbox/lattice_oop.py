@@ -275,7 +275,10 @@ class Regular2DLattice(Lattice):
         self.r = r
         self.X = hex_grid_circle(radius=self.R, r=self.r)
         self.dist = sp.distance.squareform(sp.distance.pdist(self.X))
-        self.adj = np.array(self.dist <= self.r, dtype=int)
+        
+        self.tol = 1e-6
+        self.adj = np.array((self.dist <= self.r + self.tol) & (self.dist > 0), dtype=int)
+        
         self.n_adj = n_adj
         
         uIDs_ls = [init_uIDs(self.X.shape[0], IDsep=IDsep, IDfill=IDfill)] * 2
