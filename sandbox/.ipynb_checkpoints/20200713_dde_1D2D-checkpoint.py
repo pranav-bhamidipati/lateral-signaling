@@ -199,7 +199,7 @@ def simulate(params):
 from multiprocessing import Pool
 if __name__ == '__main__':
     with Pool(16) as p:
-        results_list = list(p.imap_unordered(simulate, param_space))
+        results_list = list(p.imap_unordered(simulate, param_space[:5]))
 
 
 n_samples = len(results_list)
@@ -249,8 +249,9 @@ df = pd.concat(dfs)
 
 
 import os
+from datetime import date
 
-directory = "2020-07-09_2D_delay_data"
+directory = date.today() + "_2D_delay_data"
 if not os.path.exists(directory):
     os.makedirs(directory)
 
