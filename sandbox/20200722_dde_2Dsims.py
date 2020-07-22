@@ -192,7 +192,7 @@ def simulate(params):
 from multiprocessing import Pool
 if __name__ == '__main__':
     with Pool(16) as p:
-        results_list = list(p.imap_unordered(simulate, param_space[:5]))
+        results_list = list(p.imap_unordered(simulate, param_space))
 
 
 n_samples = len(results_list)
