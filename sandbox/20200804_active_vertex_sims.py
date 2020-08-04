@@ -2,7 +2,7 @@
 # coding: utf-8
 
 import sys
-sys.path.append('~\\git\\active_vertex')\
+sys.path.append('/home/ubuntu/git/active_voronoi')
 # sys.path.append('C:\\Users\\Pranav\\git\\active_vertex')
 
 from voronoi_model.voronoi_model_periodic import *
