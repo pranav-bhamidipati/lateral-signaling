@@ -778,6 +778,9 @@ class ActiveVoronoi:
         
         l_series.to_csv(fname, index=index, **csv_kwargs)
     
-    def all_to_csv(self, prefix):
-        self.coords_to_csv(prefix + "_cell_coords.csv")
-        self.l_to_csv(prefix + "_l_sparse.csv")
+    def all_to_csv(self, prefix, to_dir="", ):
+        if not os.path.exists(to_dir):
+            os.mkdir(to_dir)
+
+        self.coords_to_csv(os.path.join(to_dir, prefix + "_cell_coords.csv"))
+        self.l_to_csv(os.path.join(to_dir, prefix + "_l_sparse.csv"))
