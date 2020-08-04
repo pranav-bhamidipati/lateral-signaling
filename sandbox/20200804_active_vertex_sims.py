@@ -2,8 +2,11 @@
 # coding: utf-8
 
 import sys
-sys.path.append('/home/ubuntu/git/active_voronoi')
-# sys.path.append('C:\\Users\\Pranav\\git\\active_vertex')
+import os
+vor_path = '/home/ubuntu/git/active_voronoi'
+# vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
+print("Does path to active_voronoi exist?", os.path.exists(vor_path))
+sys.path.append(vor_path)
 
 from voronoi_model.voronoi_model_periodic import *
 from lattice_oop import *
