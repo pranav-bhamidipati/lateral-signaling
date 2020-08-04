@@ -4,6 +4,7 @@ import scipy.spatial as sp
 import scipy.interpolate as snt
 import biocircuits
 import tqdm
+import datetime
 from math import ceil
 
 import colorcet as cc
@@ -56,7 +57,7 @@ def cell_ancestor(cell_ID, ID_list, IDsep=":", IDfill="-"):
     
 ########################
     
-class Lattice:
+class CircularLattice:
     
     def __init__(self, t_points, uIDs_ls, lattice_type, init_state = "blank", IDsep=":", IDfill="-"):
         self.t_points = np.array(t_points).flatten()
@@ -69,8 +70,8 @@ class Lattice:
     def uIDs(self, t, *args, **kwargs):
         """
         Returns an array of unique IDs of each cell at the given time-point t. 
-        Order is preserved between unique IDs, self.coordinates(t), and the Voronoi 
-        object returned by self.voronoi(t).
+        Order is preserved between unique IDs, cell coordinates, and other time-varying 
+        objects such as the Voronoi object returned by VoronoiLattice.voronoi(t).
         """
         assert (t <= self.t_points[-1]), f"time out of range: lattice not defined at time {t}"
         if "blank".startswith(self.init_state):
@@ -78,7 +79,7 @@ class Lattice:
         elif "static".startswith(self.init_state):
             t = np.maximum(t, 0)
         else: 
-            assert False, "invalid initial state for VoronoiLattice object"
+            assert False, "invalid initial state for Lattice object"
         
         idx = np.searchsorted(self.t_points, t, side="right") - 1
         return self.uIDs_ls[int(idx)]
@@ -94,8 +95,8 @@ class Lattice:
         Returns an array of cell IDs at the time-point t_future, replacing each cell ID 
         with the ID of its ancestor at time t_past.
         
-        Order is preserved between unique IDs, self.coordinates(t), and the Voronoi 
-        object returned by self.voronoi(t).
+        Order is preserved between unique IDs, cell coordinates, and other time-varying 
+        objects such as the Voronoi object returned by VoronoiLattice.voronoi(t).
         """
         past_IDs = self.uIDs(t_past)
         return np.array(
@@ -245,14 +246,12 @@ class Lattice:
             type_arr[np.isin(lineages_t, lins).nonzero()[0]] = typ
         return type_arr
         
-class Regular1DLattice(Lattice):
+class Regular1DLattice(CircularLattice):
     
     def __init__(self, t_points, n_cells, n_adj, init_state = "static", IDsep=":", IDfill="-"):
         
         self.n_adj = n_adj
         uIDs_ls = [init_uIDs(n_cells, IDsep=IDsep, IDfill=IDfill)]
-        
-        t_points, uIDs_ls, lattice_type, 
         
         super().__init__(t_points, uIDs_ls, lattice_type="static", init_state=init_state, IDsep=IDsep, IDfill=IDfill)
         
@@ -267,7 +266,7 @@ class Regular1DLattice(Lattice):
         return A / self.n_adj
     
     
-class Regular2DLattice(Lattice):
+class Regular2DLattice(CircularLattice):
     
     def __init__(self, R, r=1, n_adj=6, lattice_type="static", init_state="static", IDsep=":", IDfill="-"):
         
@@ -298,7 +297,7 @@ class Regular2DLattice(Lattice):
         return  self.adj / self.n_adj
 
 
-class VoronoiLattice(Lattice):
+class VoronoiLattice(CircularLattice):
     
     def __init__(self, t_points, R, sigma, uIDs_ls, voronoi_ls, lattice_type="growing", IDsep=":", IDfill="-", init_state = "static"):
         
@@ -325,7 +324,7 @@ class VoronoiLattice(Lattice):
         elif "static".startswith(self.init_state):
             t = np.maximum(t, 0)
         else: 
-            assert False, "invalid initial state for VoronoiLattice object"
+            assert False, "invalid initial state for Lattice object"
         
         idx = np.searchsorted(self.t_points, t, side="right") - 1
         return self.voronoi_ls[int(idx)]
@@ -346,7 +345,7 @@ class VoronoiLattice(Lattice):
         elif "static".startswith(self.init_state):
             t = np.maximum(t, 0)
         else: 
-            assert False, "invalid initial state for VoronoiLattice object"
+            assert False, "invalid initial state for Lattice object"
         
         idx = np.searchsorted(self.t_points, t, side="right") - 1
         return self.coordinates_ls[int(idx)]
@@ -369,7 +368,7 @@ class VoronoiLattice(Lattice):
         elif "static".startswith(self.init_state):
             t = np.maximum(t, 0)
         else: 
-            assert False, "invalid initial state for VoronoiLattice object"
+            assert False, "invalid initial state for Lattice object"
 
         # If no future time supplied, return the transition matrix
         if t_future is None:
@@ -442,122 +441,343 @@ def csv_to_VoronoiLattice(path, R, sigma, csv_kwargs=dict(), lattice_kwargs=dict
 
 ###################
 
+# class Reaction:
+
+#     def __init__(
+#         self, 
+#         t_course, 
+#         rhs_dict, 
+#         E0_dict, 
+#         lattice, 
+#         cell_type_count=None, 
+#         method="random", 
+#         center_type=None, 
+#         cell_type_kwargs=dict(), 
+#         **kwargs
+#     ):
+        
+#         assert (set(rhs_dict.keys()) == lattice.types), (
+#             "Must supply rhs func for all cell types in Lattice.types"
+#         )
+#         assert (set(E0_dict.keys()) == lattice.types), (
+#             "Must supply initial value for all cell types in Lattice.types"
+#         )
+
+#         if (cell_type_count is not None):
+#             lattice.assign_types(cell_type_count, **cell_type_kwargs)
+
+#         self.lattice = lattice
+#         self.E0 = E0_dict
+#         self.t_course = t_course
+#         self.rhs_dict = rhs_dict
+#         self.n_species = self.E0[tuple(self.E0.keys())[0]].size
+
+#     def set_params(self, params_dict):
+#         """
+#         self.params_dict is a dictionary of tuples. For each cell type (key),
+#         it stores the parameters for the system of ODEs in a tuple (paired value).
+#         """
+#         self.params_dict = params_dict
+
+#     def set_inducer(self, func_t, args=(), kwargs=dict()):
+#         self.inducer = lambda t: func_t(t, *args, **kwargs)
+
+#     def results_to_df(
+#         self, 
+#         results=None,
+#         time_col="time",
+#         species_cols=["expression"],
+#         uID_col="unique ID",
+#         coord_cols=["X_coord", "Y_coord"],
+#     ):
+#         """Converts output of Reaction.simulate() to DataFrame."""
+        
+#         if results is None:
+#             results = self.results
+#         dfs = []
+        
+#         for step, time in enumerate(self.t_course):
+#             df_dict = {
+#                 "step": step,
+#                 time_col: time,
+#                 uID_col: self.lattice.uIDs(time),
+#             }
+
+#             step_data = results[step, self.lattice.map_array_r(time, self.t_course[-1]), :]
+            
+#             df_dict.update({"type": self.lattice.type_array(time)})
+#             df_dict.update({k:v for k, v in zip(coord_cols, self.lattice.points(time).T)})
+#             df_dict.update({k:v for k, v in zip(species_cols, step_data.T)})
+#             dfs.append(pd.DataFrame(df_dict))
+
+#         return pd.concat(dfs)
+
+#     def integrate_step(self, E, step, end_time, *args, **kwargs):
+#         t = self.t_course[step]
+#         type_idx_dict = self.lattice.type_indices(t)
+#         dE_dt = np.empty_like(E)
+
+#         for typ, rhs in self.rhs_dict.items():
+#             dE_dt[type_idx_dict[typ], :] = rhs(
+#                 E, 
+#                 lattice=self.lattice, 
+#                 t=t, 
+#                 end_time=end_time, 
+#                 params=self.params_dict[typ]
+#             )[type_idx_dict[typ], :]
+
+#         return dE_dt
+
+#     def simulate(self, min_val=0, df_kwargs=dict(), progress_bar=False):
+
+#         start = self.t_course[0]
+#         end = self.t_course[-1]
+            
+#         # Get initial expression
+#         E = np.empty(
+#             (
+#                 self.lattice.n_cells(start), 
+#                 self.n_species
+#             )
+#         )
+
+#         for typ, indices in self.lattice.type_indices(start).items():
+#             E[indices, :] = self.E0[typ]
+
+#         # Reshape if lattice is growing
+#         if "growing".startswith(self.lattice.lattice_type):
+#             E = E[self.lattice.map_array(start, end), :]
+#         elif "static".startswith(self.lattice.lattice_type):
+#             pass
+#         else:
+#             assert False, f"{type(self.lattice)} object has invalid value for attribute lattice_type."
+
+#         # Perform integration
+#         iterator = enumerate(self.t_course[:-1])
+#         if progress_bar:
+#             iterator = tqdm.tqdm(iterator)
+            
+#         E_dense = [E]
+#         for step, t in iterator:
+#             dt = self.t_course[step + 1] - 1
+#             dE_dt = self.integrate_step(E, step, end)
+#             E = np.maximum(E + dE_dt * dt, min_val)
+#             E_dense.append(E)
+
+#         # Output results
+#         self.results = np.array(E_dense)
+#         self.results_df = self.results_to_df(**df_kwargs)
+
+
+
 class Reaction:
+    """Signaling reaction on a lattice of cells."""
 
-    def __init__(self, t_course, rhs_dict, E0_dict, lattice, cell_type_count=None, method="random", center_type=None, cell_type_kwargs=dict(), **kwargs):
-        
-        assert (set(rhs_dict.keys()) == lattice.types), (
-            "Must supply rhs func for all cell types in Lattice.types"
-        )
-        assert (set(E0_dict.keys()) == lattice.types), (
-            "Must supply initial value for all cell types in Lattice.types"
-        )
+    def __init__(self):
+        pass
 
-        if (cell_type_count is not None):
-            lattice.assign_types(cell_type_count, **cell_type_kwargs)
 
-        self.lattice = lattice
-        self.E0 = E0_dict
-        self.t_course = t_course
-        self.rhs_dict = rhs_dict
-        self.n_species = self.E0[tuple(self.E0.keys())[0]].size
-
-    def set_params(self, params_dict):
-        """
-        self.params_dict is a dictionary of tuples. For each cell type (key),
-        it stores the parameters for the system of ODEs in a tuple (paired value).
-        """
-        self.params_dict = params_dict
-
-    def set_inducer(self, func_t, args=(), kwargs=dict()):
-        self.inducer = lambda t: func_t(t, *args, **kwargs)
-
-    def results_to_df(
-        self, 
-        results=None,
-        time_col="time",
-        species_cols=["expression"],
-        uID_col="unique ID",
-        coord_cols=["X_coord", "Y_coord"],
+class DelayReaction(Reaction):
+    """Delay differential equation on a lattice."""
+    
+    def __init__(
+        self,
+        lattice,
+        dde_rhs = None,
+        E0 = None,
+        delays = (),
+        I_t = None,
+        args = (),
     ):
-        """Converts output of Reaction.simulate() to DataFrame."""
+        self.lattice = lattice
+        self.rhs = dde_rhs
+        self.initial = E0
+        self.args = args
+        self.delays = delays
+        self.inducer = I_t
         
-        if results is None:
-            results = self.results
-        dfs = []
-        
-        for step, time in enumerate(self.t_course):
-            df_dict = {
-                "step": step,
-                time_col: time,
-                uID_col: self.lattice.uIDs(time),
-            }
+        super().__init__()
+    
+    def set_lattice(self, lattice):
+        self.lattice = lattice
+    
+    def set_rhs(self, rhs):
+        self.rhs = rhs
+    
+    def set_initial_conditions(self, init_func):
+        self.initial = init_func
+    
+    def set_args(self, args):
+        self.args = args
+    
+    def set_delays(self, delays):
+        self.delays = delays
+    
+    def set_inducer(self, ind_func):
+        self.inducer = ind_func
+    
+    def simulate(
+        self,
+        t_out,
+        n_time_points_per_step=20,
+        progress_bar=False,
+    ):
+        """Solve a delay differential equation on a growing lattice of cells."""
 
-            step_data = results[step, self.lattice.map_array_r(time, self.t_course[-1]), :]
-            
-            df_dict.update({"type": self.lattice.type_array(time)})
-            df_dict.update({k:v for k, v in zip(coord_cols, self.lattice.points(time).T)})
-            df_dict.update({k:v for k, v in zip(species_cols, step_data.T)})
-            dfs.append(pd.DataFrame(df_dict))
+        assert all([delay > 0 for delay in self.delays]), "Non-positive delays are not permitted."
 
-        return pd.concat(dfs)
+        t0 = t_out[0]
+        t_last = t_out[-1]
 
-    def integrate_step(self, E, step, end_time, *args, **kwargs):
-        t = self.t_course[step]
-        type_idx_dict = self.lattice.type_indices(t)
-        dE_dt = np.empty_like(E)
+        # Extract shortest and longest non-zero delay parameters
+        min_tau = min(self.delays)
 
-        for typ, rhs in self.rhs_dict.items():
-            dE_dt[type_idx_dict[typ], :] = rhs(
-                E, 
-                lattice=self.lattice, 
-                t=t, 
-                end_time=end_time, 
-                params=self.params_dict[typ]
-            )[type_idx_dict[typ], :]
+        # Get graph transition matrix 
+        A = self.lattice.transition_mtx()
 
-        return dE_dt
-
-    def simulate(self, min_val=0, df_kwargs=dict(), progress_bar=False):
-
-        start = self.t_course[0]
-        end = self.t_course[-1]
-            
-        # Get initial expression
-        E = np.empty(
-            (
-                self.lattice.n_cells(start), 
-                self.n_species
+        # Make a shorthand for RHS function
+        def rhs(E, t, E_past):
+            return self.rhs(
+                E,
+                t,
+                E_past,
+                I_t=self.inducer,
+                A=A,
+                delays=self.delays,
+                params=self.args,
             )
-        )
 
-        for typ, indices in self.lattice.type_indices(start).items():
-            E[indices, :] = self.E0[typ]
+        # Define a piecewise function to fetch past values of E
+        time_bins = [t0]
+        E_past_funcs = [lambda t, *args: self.initial(t, I_t=self.inducer, n_cells=self.lattice.n_cells())]
 
-        # Reshape if lattice is growing
-        if "growing".startswith(self.lattice.lattice_type):
-            E = E[self.lattice.map_array(start, end), :]
-        elif "static".startswith(self.lattice.lattice_type):
-            pass
-        else:
-            assert False, f"{type(self.lattice)} object has invalid value for attribute lattice_type."
+        def E_past(t):
+            """Define past expression as a piecewise function."""
+            bin_idx = next((i for i, t_bin in enumerate(time_bins) if t < t_bin))
+            return E_past_funcs[bin_idx](t)
 
-        # Perform integration
-        iterator = enumerate(self.t_course[:-1])
+        # Initialize expression.
+        E = self.initial(t0, I_t=self.inducer, n_cells=self.lattice.n_cells())
+
+        t_dense = []
+        E_dense = []
+
+        # Integrate in steps of size min_tau. Stops before the last step.
+        t_step = np.linspace(t0, t0 + min_tau, n_time_points_per_step + 1)
+        n_steps = ceil((t_out[-1] - t0) / min_tau)
+
+        iterator = range(n_steps)
         if progress_bar:
             iterator = tqdm.tqdm(iterator)
-            
-        E_dense = [E]
-        for step, t in iterator:
-            dt = self.t_course[step + 1] - 1
-            dE_dt = self.integrate_step(E, step, end)
-            E = np.maximum(E + dE_dt * dt, min_val)
-            E_dense.append(E)
 
-        # Output results
-        self.results = np.array(E_dense)
-        self.results_df = self.results_to_df(**df_kwargs)
+        for j in iterator:
 
-# class DelayReaction(Lattice):
-#     pass
+            # Start the next step
+            E_step = [E]
+
+            # Perform integration
+            for i, t in enumerate(t_step[:-1]):
+                dE_dt = rhs(E, t, E_past)
+                dt = t_step[i + 1] - t
+                E = np.maximum(E + dE_dt * dt, 0)
+                E_step.append(E)
+
+            t_dense = t_dense + list(t_step[:-1])
+            E_dense = E_dense + E_step[:-1]
+
+            # Make B-spline
+            E_step = np.array(E_step)
+            tck = [
+                [snt.splrep(t_step, E_step[:, cell, i]) for i in range(E.shape[1])]
+                for cell in range(self.lattice.n_cells())
+            ]
+
+            # Append spline interpolation to piecewise function
+            time_bins.append(t_step[-1])
+            interp = lambda t, k=j + 1: np.array(
+                [
+                    [np.maximum(snt.splev(t, tck[cell][i]), 0) for i in range(E.shape[1])]
+                    for cell in range(self.lattice.n_cells())
+                ]
+            )
+            E_past_funcs.append(interp)
+
+            # Get time-points for next step
+            t_step += min_tau
+
+            # Make the last step end at t_last
+            if t_step[-1] > t_last:
+                t_step = np.concatenate((t_step[t_step < t_last], (t_last,),))
+
+        # Add data for last time-point
+        t_dense = t_dense + [t_last]
+        E_dense = E_dense + [E]
+
+        # Interpolate solution and return
+        t_dense = np.array(t_dense)
+        E_dense = np.array(E_dense)
+
+        E_out = np.empty((len(t_out), *E.shape))
+        for cell in range(E.shape[0]):
+            for i in range(E.shape[1]):
+                tck = snt.splrep(t_dense, E_dense[:, cell, i])
+                E_out[:, cell, i] = np.maximum(snt.splev(t_out, tck), 0)
+
+        self.results = E_out
+        
+        
+class ActiveVoronoi:
     
+    def __init__(self, active_vor, IDsep=":", IDfill="-"):
+        
+        assert active_vor.t_span.size == active_vor.x_save.shape[0], (
+            """Number of time points must match shape of active_vor.x_save"""
+        )
+        
+        self.t_points = active_vor.t_span
+        self.n_t = active_vor.t_span.size
+        self.t0 = active_vor.t_span[0]
+        self.X_arr = active_vor.x_save
+        self.n_c = active_vor.x_save.shape[1]
+        self.ndim = active_vor.x_save.shape[2]
+        self.l_arr = active_vor.l_save
+        self.IDsep = IDsep
+        self.IDfill = IDfill
+        self.uIDs = init_uIDs(active_vor.n_c, IDsep=IDsep, IDfill=IDfill)
+
+    def transition_mtx(self, t):
+        idx = np.searchsorted(self.t_points, t, side="right") - 1
+        return self.l_arr[idx] / np.sum(self.l_arr[idx], axis=1)[:, np.newaxis]
+    
+    def X(self, t):
+        idx = np.searchsorted(self.t_points, t, side="right") - 1
+        return self.X_arr[idx]
+    
+    def coords_to_csv(self, fname, index=False, df_kwargs=dict(), csv_kwargs=dict()):
+        # Store coordinate data in dict
+        data = dict(
+            step      = np.repeat(self.n_t, self.n_c),
+            time      = np.repeat(self.t_points, self.n_c),
+            unique_ID = np.tile(self.uIDs, self.n_t),
+        )
+
+        coords = ('X_coord', 'Y_coord', 'Z_coord')
+        for i in range(self.ndim):
+            data[coords[i]] = self.X_arr[:, :, i].flatten()
+        
+        pd.DataFrame(data, **df_kwargs).to_csv(fname, index=index, **csv_kwargs)
+        
+    def l_to_csv(self, fname, index=True, series_kwargs=dict(), csv_kwargs=dict()):
+        """Save a sparse, long version of self.l__arr in a MultiIndexed Series"""
+        midx = pd.MultiIndex.from_arrays(np.array(self.l_arr.nonzero()))
+        l_series = pd.Series(
+            arr[arr.nonzero()], 
+            index=midx,
+            **series_kwargs,
+        )
+        
+        l_series.to_csv(fname, index=index, **csv_kwargs)
+    
+    def all_to_csv(self, prefix):
+        self.coords_to_csv(prefix + "_cell_coords.csv")
+        self.l_to_csv(prefix + "_l_sparse.csv")
