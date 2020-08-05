@@ -6,8 +6,7 @@ import os
 
 vor_path = "/home/ubuntu/git/active_vertex"
 # vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
-print("Does path to active_voronoi exist?", os.path.exists(vor_path))
-*sys.path.append(vor_path)
+sys.path.append(vor_path)
 
 from voronoi_model.voronoi_model_periodic import *
 from lattice_oop import *
@@ -30,7 +29,7 @@ if progress_bar:
 for rep, v in iterator:
     vor = Tissue()
     vor.generate_cells(600)
-    vor.make_init(20)
+    vor.make_init(5)
     vor.set_interaction(W=0.08 * np.array([[0, 1], [1, 0]]), pE=0)
 
     # vor.P0 = 3.00
@@ -45,7 +44,7 @@ for rep, v in iterator:
     vor.a = 0.3
     vor.k = 2
 
-    vor.set_t_span(0.02, 50)
+    vor.set_t_span(0.02, 20)
 
     vor.simulate(print_updates=print_updates)
 
