@@ -4,7 +4,7 @@
 import sys
 import os
 
-vor_path = "/home/ubuntu/git/active_voronoi"
+vor_path = "/home/ubuntu/git/active_vertex"
 # vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
 print("Does path to active_voronoi exist?", os.path.exists(vor_path))
 *sys.path.append(vor_path)
@@ -49,7 +49,6 @@ for rep, v in iterator:
 
     vor.simulate(print_updates=print_updates)
 
-    vor = ActiveVoronoi(vor)
     vor.save_all(
         f"{datetime.date.today()}_active_vor_lattice_sims", f"vel{v:.2e}_{rep}"
     )

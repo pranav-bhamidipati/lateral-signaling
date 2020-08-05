@@ -49,7 +49,6 @@ for rep, v in iterator:
 
     vor.simulate(print_updates=print_updates)
 
-    vor = ActiveVoronoi(vor)
     vor.save_all(
         f"{datetime.date.today()}_active_vor_lattice_sims", f"vel{v:.2e}_{rep}"
     )

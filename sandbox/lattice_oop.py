@@ -3,11 +3,12 @@ import pandas as pd
 import scipy.spatial as sp
 import scipy.interpolate as snt
 import biocircuits
+from math import ceil
 
 import os
+import glob
 import tqdm
 import datetime
-from math import ceil
 
 import colorcet as cc
 colors = cc.palette.glasbey_category10
@@ -730,11 +731,12 @@ class DelayReaction(Reaction):
         
 class ActiveVoronoi:
     
-    def __init__(self, active_vor, IDsep=":", IDfill="-"):
+    def __init__(self, from_dir, IDsep=":", IDfill="-"):
         
-        assert active_vor.t_span.size == active_vor.x_save.shape[0], (
-            """Number of time points must match shape of active_vor.x_save"""
-        )
+        f_csv = glob.glob(os.path.join(from_dir, "*.csv"))[0]
+        f_npz = glob.glob(os.path.join(from_dir, "*.npz"))[0]
+        
+        self.coord_df = pd.read_csv("")
         
         self.t_points = active_vor.t_span
         self.n_t = active_vor.t_span.size
@@ -742,20 +744,21 @@ class ActiveVoronoi:
         self.X_arr = active_vor.x_save
         self.n_c = active_vor.x_save.shape[1]
         self.ndim = active_vor.x_save.shape[2]
-        self.l_int = active_vor.l_save #interface length
+        self.l_mtx = active_vor.l_save #interface length
         self.IDsep = IDsep
         self.IDfill = IDfill
         self.uIDs = init_uIDs(active_vor.n_c, IDsep=IDsep, IDfill=IDfill)
 
     def transition_mtx(self, t):
         idx = np.searchsorted(self.t_points, t, side="right") - 1
-        return self.l_arr[idx] / np.sum(self.l_arr[idx], axis=1)[:, np.newaxis]
+        mtx = self.l_arr[str(idx)]
+        return np.multiply(mtx, 1/np.sum(mtx, axis=1)[:, np.newaxis])
     
     def X(self, t):
         idx = np.searchsorted(self.t_points, t, side="right") - 1
         return self.X_arr[idx]
     
-    def save_coords(self, fname, index=False, df_kwargs=dict(), csv_kwargs=dict()):
+    def save_cells(self, fname, index=False, df_kwargs=dict(), csv_kwargs=dict()):
         # Store coordinate data in dict
         data = dict(
             step      = np.repeat(np.arange(self.n_t), self.n_c),
@@ -769,29 +772,26 @@ class ActiveVoronoi:
         
         pd.DataFrame(data, **df_kwargs).to_csv(fname, index=index, **csv_kwargs)
         
-    def save_l_int(self, fname, index=True, series_kwargs=dict(), csv_kwargs=dict()):
-        """Save a sparse, long version of self.l__arr in a MultiIndexed Series"""
-        midx = pd.MultiIndex.from_arrays(np.array(self.l_arr.nonzero()))
-        l_series = pd.Series(
-            arr[arr.nonzero()], 
-            index=midx,
-            **series_kwargs,
-        )
-        
-        l_series.to_csv(fname, index=index, **csv_kwargs)
-    
-    def save_l_int2(self, to_dir):
+    def save_l_mtx(self, fname):
         """
-        Save l_int (pairwise length of interfaces) to file to_dir.npz.
+        Save l_mtx (pairwise length of interfaces) to zipped file fname.npz
         """
-        if not os.path.exists(to_dir):
-            os.mkdir(to_dir)
-
-        np.savez(to_dir, **{str(step): csr for step, csr in zip(range(self.n_t), self.l_int)})
+        np.savez(fname, **{str(step): csr for step, csr in zip(range(self.n_t), self.l_mtx)})
     
     def save_all(self, to_dir, prefix):
         if not os.path.exists(to_dir):
             os.mkdir(to_dir)
 
         self.save_coords(os.path.join(to_dir, prefix + "_cell_coords.csv"))
-        self.save_l_int2(os.path.join(to_dir, prefix + "_l_sparse"))
+        self.save_l_mtx(os.path.join(to_dir, prefix + "_l_mtx.npz"))
+        
+        
+
+        
+#     def __init__(self, from_dir, IDsep=":", IDfill="-"):
+        
+#         f_csv = glob.glob(os.path.join(from_dir, "*.csv"))[0]
+#         f_npz = glob.glob(os.path.join(from_dir, "*.npz"))[0]
+        
+#         self.coord_df = pd.read_csv("")
+        
