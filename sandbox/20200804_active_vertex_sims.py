@@ -16,8 +16,8 @@ import datetime
 
 ########################
 
-v_vals = np.logspace(-2, 0, 9)
-n_replicates = 3
+v_vals = np.logspace(-2, 0, 11)
+n_replicates = 5
 progress_bar = True
 print_updates = False
 
