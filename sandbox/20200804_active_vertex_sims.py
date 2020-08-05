@@ -3,15 +3,15 @@
 
 import sys
 import os
-vor_path = '/home/ubuntu/git/active_voronoi'
+
+vor_path = "/home/ubuntu/git/active_voronoi"
 # vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
 print("Does path to active_voronoi exist?", os.path.exists(vor_path))
-sys.path.append(vor_path)
+*sys.path.append(vor_path)
 
 from voronoi_model.voronoi_model_periodic import *
 from lattice_oop import *
 import numpy as np
-import matplotlib.pyplot as plt
 import tqdm
 import datetime
 
@@ -20,7 +20,7 @@ import datetime
 v_vals = np.logspace(-2, 0, 9)
 n_replicates = 3
 progress_bar = True
-
+print_updates = False
 
 iterator = [(rep, v) for rep in range(n_replicates) for v in v_vals][:1]
 
@@ -47,12 +47,9 @@ for rep, v in iterator:
 
     vor.set_t_span(0.02, 50)
 
-    vor.simulate()
-    
+    vor.simulate(print_updates=print_updates)
+
     vor = ActiveVoronoi(vor)
-    vor.all_to_csv(prefix=f"v{v:.2e}_rep{rep}", to_dir=f"{datetime.today()}_active_vor_lattices", )
-
-
-
-
-
+    vor.save_all(
+        f"{datetime.date.today()}_active_vor_lattice_sims", f"vel{v:.2e}_{rep}"
+    )

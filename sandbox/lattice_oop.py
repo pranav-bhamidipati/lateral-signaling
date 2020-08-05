@@ -3,6 +3,8 @@ import pandas as pd
 import scipy.spatial as sp
 import scipy.interpolate as snt
 import biocircuits
+
+import os
 import tqdm
 import datetime
 from math import ceil
@@ -740,7 +742,7 @@ class ActiveVoronoi:
         self.X_arr = active_vor.x_save
         self.n_c = active_vor.x_save.shape[1]
         self.ndim = active_vor.x_save.shape[2]
-        self.l_arr = active_vor.l_save
+        self.l_int = active_vor.l_save #interface length
         self.IDsep = IDsep
         self.IDfill = IDfill
         self.uIDs = init_uIDs(active_vor.n_c, IDsep=IDsep, IDfill=IDfill)
@@ -753,10 +755,10 @@ class ActiveVoronoi:
         idx = np.searchsorted(self.t_points, t, side="right") - 1
         return self.X_arr[idx]
     
-    def coords_to_csv(self, fname, index=False, df_kwargs=dict(), csv_kwargs=dict()):
+    def save_coords(self, fname, index=False, df_kwargs=dict(), csv_kwargs=dict()):
         # Store coordinate data in dict
         data = dict(
-            step      = np.repeat(self.n_t, self.n_c),
+            step      = np.repeat(np.arange(self.n_t), self.n_c),
             time      = np.repeat(self.t_points, self.n_c),
             unique_ID = np.tile(self.uIDs, self.n_t),
         )
@@ -767,7 +769,7 @@ class ActiveVoronoi:
         
         pd.DataFrame(data, **df_kwargs).to_csv(fname, index=index, **csv_kwargs)
         
-    def l_to_csv(self, fname, index=True, series_kwargs=dict(), csv_kwargs=dict()):
+    def save_l_int(self, fname, index=True, series_kwargs=dict(), csv_kwargs=dict()):
         """Save a sparse, long version of self.l__arr in a MultiIndexed Series"""
         midx = pd.MultiIndex.from_arrays(np.array(self.l_arr.nonzero()))
         l_series = pd.Series(
@@ -778,9 +780,18 @@ class ActiveVoronoi:
         
         l_series.to_csv(fname, index=index, **csv_kwargs)
     
-    def all_to_csv(self, prefix, to_dir="", ):
+    def save_l_int2(self, to_dir):
+        """
+        Save l_int (pairwise length of interfaces) to file to_dir.npz.
+        """
         if not os.path.exists(to_dir):
             os.mkdir(to_dir)
 
-        self.coords_to_csv(os.path.join(to_dir, prefix + "_cell_coords.csv"))
-        self.l_to_csv(os.path.join(to_dir, prefix + "_l_sparse.csv"))
+        np.savez(to_dir, **{str(step): csr for step, csr in zip(range(self.n_t), self.l_int)})
+    
+    def save_all(self, to_dir, prefix):
+        if not os.path.exists(to_dir):
+            os.mkdir(to_dir)
+
+        self.save_coords(os.path.join(to_dir, prefix + "_cell_coords.csv"))
+        self.save_l_int2(os.path.join(to_dir, prefix + "_l_sparse"))
