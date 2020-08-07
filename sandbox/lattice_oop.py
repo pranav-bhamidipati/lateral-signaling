@@ -587,153 +587,153 @@ class Reaction:
         pass
 
 
-class DelayReaction(Reaction):
-    """Delay differential equation on a lattice."""
+# class DelayReaction(Reaction):
+#     """Delay differential equation on a lattice."""
     
-    def __init__(
-        self,
-        lattice,
-        dde_rhs = None,
-        E0 = None,
-        delays = (),
-        I_t = None,
-        args = (),
-    ):
-        self.lattice = lattice
-        self.rhs = dde_rhs
-        self.initial = E0
-        self.args = args
-        self.delays = delays
-        self.inducer = I_t
+#     def __init__(
+#         self,
+#         lattice,
+#         dde_rhs = None,
+#         E0 = None,
+#         delays = (),
+#         I_t = None,
+#         args = (),
+#     ):
+#         self.lattice = lattice
+#         self.rhs = dde_rhs
+#         self.initial = E0
+#         self.args = args
+#         self.delays = delays
+#         self.inducer = I_t
         
-        super().__init__()
+#         super().__init__()
     
-    def set_lattice(self, lattice):
-        self.lattice = lattice
+#     def set_lattice(self, lattice):
+#         self.lattice = lattice
     
-    def set_rhs(self, rhs):
-        self.rhs = rhs
+#     def set_rhs(self, rhs):
+#         self.rhs = rhs
     
-    def set_initial_conditions(self, init_func):
-        self.initial = init_func
+#     def set_initial_conditions(self, init_func):
+#         self.initial = init_func
     
-    def set_args(self, args):
-        self.args = args
+#     def set_args(self, args):
+#         self.args = args
     
-    def set_delays(self, delays):
-        self.delays = delays
+#     def set_delays(self, delays):
+#         self.delays = delays
     
-    def set_inducer(self, ind_func):
-        self.inducer = ind_func
+#     def set_inducer(self, ind_func):
+#         self.inducer = ind_func
     
-    def simulate(
-        self,
-        t_out,
-        n_time_points_per_step=20,
-        progress_bar=False,
-    ):
-        """Solve a delay differential equation on a growing lattice of cells."""
+#     def simulate(
+#         self,
+#         t_out,
+#         n_time_points_per_step=20,
+#         progress_bar=False,
+#     ):
+#         """Solve a delay differential equation on a growing lattice of cells."""
 
-        assert all([delay > 0 for delay in self.delays]), "Non-positive delays are not permitted."
+#         assert all([delay > 0 for delay in self.delays]), "Non-positive delays are not permitted."
 
-        t0 = t_out[0]
-        t_last = t_out[-1]
+#         t0 = t_out[0]
+#         t_last = t_out[-1]
 
-        # Extract shortest and longest non-zero delay parameters
-        min_tau = min(self.delays)
+#         # Extract shortest and longest non-zero delay parameters
+#         min_tau = min(self.delays)
 
-        # Get graph transition matrix 
-        A = self.lattice.transition_mtx(t0)
+#         # Get graph transition matrix 
+#         A = self.lattice.transition_mtx(t0)
 
-        # Make a shorthand for RHS function
-        def rhs(E, t, E_past):
-            return self.rhs(
-                E,
-                t,
-                E_past,
-                I_t=self.inducer,
-                A=A,
-                delays=self.delays,
-                params=self.args,
-            )
+#         # Make a shorthand for RHS function
+#         def rhs(E, t, E_past):
+#             return self.rhs(
+#                 E,
+#                 t,
+#                 E_past,
+#                 I_t=self.inducer,
+#                 A=A,
+#                 delays=self.delays,
+#                 params=self.args,
+#             )
 
-        # Define a piecewise function to fetch past values of E
-        time_bins = [t0]
-        E_past_funcs = [lambda t, *args: self.initial(t, I_t=self.inducer, n_cells=self.lattice.n_cells())]
+#         # Define a piecewise function to fetch past values of E
+#         time_bins = [t0]
+#         E_past_funcs = [lambda t, *args: self.initial(t, I_t=self.inducer, n_cells=self.lattice.n_cells())]
 
-        def E_past(t):
-            """Define past expression as a piecewise function."""
-            bin_idx = next((i for i, t_bin in enumerate(time_bins) if t < t_bin))
-            return E_past_funcs[bin_idx](t)
+#         def E_past(t):
+#             """Define past expression as a piecewise function."""
+#             bin_idx = next((i for i, t_bin in enumerate(time_bins) if t < t_bin))
+#             return E_past_funcs[bin_idx](t)
 
-        # Initialize expression.
-        E = self.initial(t0, I_t=self.inducer, n_cells=self.lattice.n_cells())
+#         # Initialize expression.
+#         E = self.initial(t0, I_t=self.inducer, n_cells=self.lattice.n_cells())
 
-        t_dense = []
-        E_dense = []
+#         t_dense = []
+#         E_dense = []
 
-        # Integrate in steps of size min_tau. Stops before the last step.
-        t_step = np.linspace(t0, t0 + min_tau, n_time_points_per_step + 1)
-        n_steps = ceil((t_out[-1] - t0) / min_tau)
+#         # Integrate in steps of size min_tau. Stops before the last step.
+#         t_step = np.linspace(t0, t0 + min_tau, n_time_points_per_step + 1)
+#         n_steps = ceil((t_out[-1] - t0) / min_tau)
 
-        iterator = range(n_steps)
-        if progress_bar:
-            iterator = tqdm.tqdm(iterator)
+#         iterator = range(n_steps)
+#         if progress_bar:
+#             iterator = tqdm.tqdm(iterator)
 
-        for j in iterator:
+#         for j in iterator:
 
-            # Start the next step
-            E_step = [E]
+#             # Start the next step
+#             E_step = [E]
 
-            # Perform integration
-            for i, t in enumerate(t_step[:-1]):
-                dE_dt = rhs(E, t, E_past)
-                dt = t_step[i + 1] - t
-                E = np.maximum(E + dE_dt * dt, 0)
-                E_step.append(E)
+#             # Perform integration
+#             for i, t in enumerate(t_step[:-1]):
+#                 dE_dt = rhs(E, t, E_past)
+#                 dt = t_step[i + 1] - t
+#                 E = np.maximum(E + dE_dt * dt, 0)
+#                 E_step.append(E)
 
-            t_dense = t_dense + list(t_step[:-1])
-            E_dense = E_dense + E_step[:-1]
+#             t_dense = t_dense + list(t_step[:-1])
+#             E_dense = E_dense + E_step[:-1]
 
-            # Make B-spline
-            E_step = np.array(E_step)
-            tck = [
-                [snt.splrep(t_step, E_step[:, cell, i]) for i in range(E.shape[1])]
-                for cell in range(self.lattice.n_cells())
-            ]
+#             # Make B-spline
+#             E_step = np.array(E_step)
+#             tck = [
+#                 [snt.splrep(t_step, E_step[:, cell, i]) for i in range(E.shape[1])]
+#                 for cell in range(self.lattice.n_cells())
+#             ]
 
-            # Append spline interpolation to piecewise function
-            time_bins.append(t_step[-1])
-            interp = lambda t, k=j + 1: np.array(
-                [
-                    [np.maximum(snt.splev(t, tck[cell][i]), 0) for i in range(E.shape[1])]
-                    for cell in range(self.lattice.n_cells())
-                ]
-            )
-            E_past_funcs.append(interp)
+#             # Append spline interpolation to piecewise function
+#             time_bins.append(t_step[-1])
+#             interp = lambda t, k=j + 1: np.array(
+#                 [
+#                     [np.maximum(snt.splev(t, tck[cell][i]), 0) for i in range(E.shape[1])]
+#                     for cell in range(self.lattice.n_cells())
+#                 ]
+#             )
+#             E_past_funcs.append(interp)
 
-            # Get time-points for next step
-            t_step += min_tau
+#             # Get time-points for next step
+#             t_step += min_tau
 
-            # Make the last step end at t_last
-            if t_step[-1] > t_last:
-                t_step = np.concatenate((t_step[t_step < t_last], (t_last,),))
+#             # Make the last step end at t_last
+#             if t_step[-1] > t_last:
+#                 t_step = np.concatenate((t_step[t_step < t_last], (t_last,),))
 
-        # Add data for last time-point
-        t_dense = t_dense + [t_last]
-        E_dense = E_dense + [E]
+#         # Add data for last time-point
+#         t_dense = t_dense + [t_last]
+#         E_dense = E_dense + [E]
 
-        # Interpolate solution and return
-        t_dense = np.array(t_dense)
-        E_dense = np.array(E_dense)
+#         # Interpolate solution and return
+#         t_dense = np.array(t_dense)
+#         E_dense = np.array(E_dense)
 
-        E_out = np.empty((len(t_out), *E.shape))
-        for cell in range(E.shape[0]):
-            for i in range(E.shape[1]):
-                tck = snt.splrep(t_dense, E_dense[:, cell, i])
-                E_out[:, cell, i] = np.maximum(snt.splev(t_out, tck), 0)
+#         E_out = np.empty((len(t_out), *E.shape))
+#         for cell in range(E.shape[0]):
+#             for i in range(E.shape[1]):
+#                 tck = snt.splrep(t_dense, E_dense[:, cell, i])
+#                 E_out[:, cell, i] = np.maximum(snt.splev(t_out, tck), 0)
 
-        self.results = E_out
+#         self.results = E_out
         
         
 class ActiveVoronoi:
@@ -783,6 +783,22 @@ class ActiveVoronoi:
         idx = np.searchsorted(self.t_points, t, side="right") - 1
         return self.X_arr[idx]
     
+    
+    def rescale_time(self, t_min, t_max, factor):
+        """
+        Re-scales the time-points in the mechanical (lattice) simulation so
+        that 1 time-unit corresponds to the growth time of the cell line.
+        In other words, ln(2) time-units will be equivalent to the doubling time.
+        
+        factor   : float or int 
+            The scaling factor. 
+        """
+        
+        self.t0 = t_min
+        self.t_points = np.linspace(t_min * factor, t_max * factor, self.n_t)
+        self.dt = self.t_points[1] - self.t_points[0]
+        
+        
     def assign_types(self, types, type_n_c, method="center", center_type=None, **kwargs):
 
         X0 = self.X(self.t0)
@@ -880,6 +896,7 @@ class DelayReaction(Reaction):
         
         super().__init__()
     
+    
     def simulate(self, progress_bar = False):
         
         max_delay = self.delay
@@ -907,7 +924,7 @@ class DelayReaction(Reaction):
             
             dE_dt[self.sender_idx] = 0
             
-            E = np.maximum(0, E + dE_dt * self.dt * self.time_ratio)
+            E = np.maximum(0, E + dE_dt * self.dt)
             
             self.E_save[step] = E
 
@@ -1029,7 +1046,7 @@ class DelayReaction(Reaction):
         ax.add_collection(p)
         
 
-    def animate(self, n_frames=100, file_name=None, dir_name="plots"):
+    def animate(self, n_frames=100, file_name=None, dir_name="plots", cmap = "CET_L8"):
         """
         Animate the simulation, saving to an mp4 file.
 
@@ -1044,7 +1061,9 @@ class DelayReaction(Reaction):
         dir_name: str
             Directory name to save the plot.
 
-
+        cmap : str
+            Name of colormap to use from the colorcet module
+        
         """
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
@@ -1057,8 +1076,8 @@ class DelayReaction(Reaction):
 
         def anim(i):
             ax1.cla()
-            cmap = plt.cm.plasma(self.normalize(E_sample[i],E_min,E_max))
-            self.plot_vor_colored(self.lattice.X_arr[skip * i], ax1, cmap)
+            colors = cc.cm[cmap](self.normalize(E_sample[i],E_min,E_max))
+            self.plot_vor_colored(self.lattice.X_arr[skip * i], ax1, colors)
             ax1.set(aspect=1, xlim=(0, self.L), ylim=(0, self.L))
 
         Writer = animation.writers['ffmpeg']
@@ -1069,6 +1088,6 @@ class DelayReaction(Reaction):
         an.save("%s/%s.mp4" % (dir_name, file_name), writer=writer, dpi=264)
     
     
-    def normalize(self,x,xmin,xmax):
-        return (x-xmin)/(xmax-xmin)
+    def normalize(self,x, xmin, xmax):
+        return (x - xmin)/(xmax - xmin)
 
