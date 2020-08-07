@@ -9,9 +9,16 @@ import os
 import glob
 import tqdm
 import datetime
+import time
 
 import colorcet as cc
 colors = cc.palette.glasbey_category10
+import matplotlib.pyplot as plt
+from scipy.spatial import Voronoi, voronoi_plot_2d
+from matplotlib import animation
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
+from matplotlib import cm
 
 from lattice_signaling import *
 
@@ -636,7 +643,7 @@ class DelayReaction(Reaction):
         min_tau = min(self.delays)
 
         # Get graph transition matrix 
-        A = self.lattice.transition_mtx()
+        A = self.lattice.transition_mtx(t0)
 
         # Make a shorthand for RHS function
         def rhs(E, t, E_past):
@@ -730,68 +737,338 @@ class DelayReaction(Reaction):
         
         
 class ActiveVoronoi:
-    
-    def __init__(self, from_dir, IDsep=":", IDfill="-"):
+
+    def __init__(self, from_dir, prefix, coord_names = np.array(["X_coord", "Y_coord", "Z_coord"]), IDsep=":", IDfill="-"):
         
-        f_csv = glob.glob(os.path.join(from_dir, "*.csv"))[0]
-        f_npz = glob.glob(os.path.join(from_dir, "*.npz"))[0]
+        self.dir = from_dir
+        self.prefix = prefix
         
-        self.coord_df = pd.read_csv("")
+        f_npy = glob.glob(os.path.join(from_dir, prefix + "*.npy"))[0]
+        f_npz = glob.glob(os.path.join(from_dir, prefix + "*.npz"))[0]
         
-        self.t_points = active_vor.t_span
-        self.n_t = active_vor.t_span.size
-        self.t0 = active_vor.t_span[0]
-        self.X_arr = active_vor.x_save
-        self.n_c = active_vor.x_save.shape[1]
-        self.ndim = active_vor.x_save.shape[2]
-        self.l_mtx = active_vor.l_save #interface length
+        self.X_arr = np.load(f_npy)
+#         self.X_df = pd.read_csv(f_csv)
+        
+#         self.t_points = np.unique(self.X_df.time.values)
+#         self.t0 = self.t_points[0]
+        self.n_t = self.X_arr.shape[0]
+#         self.dt = self.t_points[1] - self.t_points[0]
+        
+        self.n_c = self.X_arr.shape[1]
+        
+#         self.coord_cols = coord_names[np.isin(coord_names, self.X_df.columns)]
+#         self.X_arr = self.X_df.loc[:, ["step", *self.coord_cols]].to_numpy()
+#         self.X_arr = self.X_arr[np.argsort(self.X_arr[:, 0].flatten())][:, 1:].reshape(self.n_t, self.n_c, self.coord_cols.size)
+        
+        self.L = ceil(np.max(self.X_arr))
+        
         self.IDsep = IDsep
         self.IDfill = IDfill
-        self.uIDs = init_uIDs(active_vor.n_c, IDsep=IDsep, IDfill=IDfill)
-
+#         self.uIDs = self.X_df.loc[self.X_df["step"] == 0, "unique_ID"].values
+        
+        self.types = []
+        self.type_n_c = []
+        self.type_idx = []
+        self.type_lineages = []
+        
+        with np.load(f_npz, allow_pickle=True) as npz:
+            self.l_mtx_list = [npz[str(i)].flat[0] for i in range(self.n_t)]
+    
     def transition_mtx(self, t):
         idx = np.searchsorted(self.t_points, t, side="right") - 1
-        mtx = self.l_arr[str(idx)]
-        return np.multiply(mtx, 1/np.sum(mtx, axis=1)[:, np.newaxis])
+        mtx = self.l_mtx_list[idx]
+        return mtx.multiply(1/np.sum(mtx, axis=1))
     
     def X(self, t):
         idx = np.searchsorted(self.t_points, t, side="right") - 1
         return self.X_arr[idx]
     
-    def save_cells(self, fname, index=False, df_kwargs=dict(), csv_kwargs=dict()):
-        # Store coordinate data in dict
-        data = dict(
-            step      = np.repeat(np.arange(self.n_t), self.n_c),
-            time      = np.repeat(self.t_points, self.n_c),
-            unique_ID = np.tile(self.uIDs, self.n_t),
-        )
+    def assign_types(self, types, type_n_c, method="center", center_type=None, **kwargs):
 
-        coords = ('X_coord', 'Y_coord', 'Z_coord')
-        for i in range(self.ndim):
-            data[coords[i]] = self.X_arr[:, :, i].flatten()
-        
-        pd.DataFrame(data, **df_kwargs).to_csv(fname, index=index, **csv_kwargs)
-        
-    def save_l_mtx(self, fname):
-        """
-        Save l_mtx (pairwise length of interfaces) to zipped file fname.npz
-        """
-        np.savez(fname, **{str(step): csr for step, csr in zip(range(self.n_t), self.l_mtx)})
+        X0 = self.X(self.t0)
+        assignments = [None] * len(types)
+
+        if sum(type_n_c) < self.n_c:
+            assert (
+                sum([x == -1 for x in type_n_c]) == 1
+            ), "Number of cells in type_n_c does not match the initial number of cells."
+
+            for k, _ in enumerate(types):
+                if type_n_c[k] == -1:
+                    type_n_c[k] = self.n_c - sum(type_n_c) - 1
+
+        elif sum(ct_count.values()) == n_points:
+            assert all(
+                [val >= 0 for val in ct_count.values()]
+            ), "Number of cells in type_n_c does not match the initial number of cells."
+
+        else:
+            assert (
+                False
+            ), "Number of cells in type_n_c does not match the initial number of cells."
+
+        if "center".startswith(method):
+
+            assert (center_type is not None), """Missing required argument center_type."""
+            
+            if isinstance(center_type, str): 
+                center_type = next((i for i, k in enumerate(types) if k == center_type))
+            
+            ci = get_center_cells(X0 - np.mean(X0, axis=0), n_center=type_n_c[center_type])
+            
+            idx = np.arange(self.n_c)
+            idx = np.delete(idx, ci)
+            np.random.shuffle(idx)
+            
+            tnc = np.array(type_n_c)
+            tnc[center_type] = 0
+            
+            assignments = np.split(idx, np.cumsum(tnc))[:-1]
+            assignments[center_type] = ci
+            
+        elif "random".startswith(method):
+            
+            idx = np.arange(self.n_c)
+            np.random.shuffle(idx)
+            
+            tnc = np.array(type_n_c)
+            
+            assignments = np.split(idx, np.cumsum(tnc))[:-1]
+
+        self.types = np.array(types)
+        self.type_n_c = np.array(type_n_c)
+        self.type_idx = assignments
+#         self.type_lineages = [self.uIDs[i] for i in self.type_idx]
+
+
+class DelayReaction(Reaction):
+    """Delay differential equation on a lattice."""
     
-    def save_all(self, to_dir, prefix):
-        if not os.path.exists(to_dir):
-            os.mkdir(to_dir)
+    def __init__(
+        self,
+        lattice,
+        dde_rhs = None,
+        initial = None,
+        dde_args = (),
+        delay = None,
+        inducer = None,
+    ):
+        self.lattice = lattice
+        self.rhs     = dde_rhs
+        self.initial = initial
+        self.args    = dde_args
+        self.delay  = delay
+        self.inducer = inducer
+        
+        self.t_points = lattice.t_points
+        self.t0 = lattice.t0
+        self.n_t = lattice.n_t
+        self.dt = lattice.dt
+        
+        self.n_c = lattice.n_c
+        self.L = lattice.L
+        
+        self.types = lattice.types
+        self.type_idx = lattice.type_idx
+        self.type_n_c = lattice.type_n_c
+        self.type_lineages = lattice.type_lineages
+        
+        self.sender_idx = next((self.type_idx[i] for i, k in enumerate(self.types) if k == "sender"))[0]
+        self.Sender = np.zeros(self.n_c)
+        self.sender_val = 1
+        self.Sender[self.sender_idx] = self.sender_val
+        
+        super().__init__()
+    
+    def simulate(self, progress_bar = False):
+        
+        max_delay = self.delay
+        step_delay = int(max_delay / self.dt)
+        
+        self.E_save = np.empty((self.n_t, self.n_c))
+        E = np.ones(self.n_c) * self.initial
+        E[self.sender_idx] = self.sender_val
+        
+        self.E_save[0] = E
+        
+        iterator = np.arange(1, self.n_t)
+        if progress_bar:
+            iterator = tqdm.tqdm(iterator)
+        
+        for step in iterator:
+            
+            past_step = int(np.maximum(0, step - step_delay))
+            
+            dE_dt = self.rhs(
+                E, 
+                self.E_save[past_step], 
+                self.lattice.transition_mtx(self.t_points[past_step]), self.args
+            )
+            
+            dE_dt[self.sender_idx] = 0
+            
+            E = np.maximum(0, E + dE_dt * self.dt * self.time_ratio)
+            
+            self.E_save[step] = E
 
-        self.save_coords(os.path.join(to_dir, prefix + "_cell_coords.csv"))
-        self.save_l_mtx(os.path.join(to_dir, prefix + "_l_mtx.npz"))
-        
+
+    def voronoi_finite_polygons_2d(self, vor, radius=None):
+        """
+        Reconstruct infinite voronoi regions in a 2D diagram to finite
+        regions.
+
+        Parameters
+        ----------
+        vor : Voronoi
+            Input diagram
+        radius : float, optional
+            Distance to 'points at infinity'.
+
+        Returns
+        -------
+        regions : list of tuples
+            Indices of vertices in each revised Voronoi regions.
+        vertices : list of tuples
+            Coordinates for revised Voronoi vertices. Same as coordinates
+            of input vertices, with 'points at infinity' appended to the
+            end.
+
+        """
+
+        if vor.points.shape[1] != 2:
+            raise ValueError("Requires 2D input")
+
+        new_regions = []
+        new_vertices = vor.vertices.tolist()
+
+        center = vor.points.mean(axis=0)
+        if radius is None:
+            radius = vor.points.ptp().max()
+
+        # Construct a map containing all ridges for a given point
+        all_ridges = {}
+        for (p1, p2), (v1, v2) in zip(vor.ridge_points, vor.ridge_vertices):
+            all_ridges.setdefault(p1, []).append((p2, v1, v2))
+            all_ridges.setdefault(p2, []).append((p1, v1, v2))
+
+        # Reconstruct infinite regions
+        for p1, region in enumerate(vor.point_region):
+            vertices = vor.regions[region]
+
+            if all(v >= 0 for v in vertices):
+                # finite region
+                new_regions.append(vertices)
+                continue
+
+            # reconstruct a non-finite region
+            ridges = all_ridges[p1]
+            new_region = [v for v in vertices if v >= 0]
+
+            for p2, v1, v2 in ridges:
+                if v2 < 0:
+                    v1, v2 = v2, v1
+                if v1 >= 0:
+                    # finite ridge: already in the region
+                    continue
+
+                # Compute the missing endpoint of an infinite ridge
+
+                t = vor.points[p2] - vor.points[p1]  # tangent
+                t /= np.linalg.norm(t)
+                n = np.array([-t[1], t[0]])  # normal
+
+                midpoint = vor.points[[p1, p2]].mean(axis=0)
+                direction = np.sign(np.dot(midpoint - center, n)) * n
+                far_point = vor.vertices[v2] + direction * radius
+
+                new_region.append(len(new_vertices))
+                new_vertices.append(far_point.tolist())
+
+            # sort region counterclockwise
+            vs = np.asarray([new_vertices[v] for v in new_region])
+            c = vs.mean(axis=0)
+            angles = np.arctan2(vs[:, 1] - c[1], vs[:, 0] - c[0])
+            new_region = np.array(new_region)[np.argsort(angles)]
+
+            # finish
+            new_regions.append(new_region.tolist())
+
+        return new_regions, np.asarray(new_vertices)
+
+            
+    def plot_vor_colored(self,x,ax,cmap):
+        """
+        Plot the Voronoi.
+
+        Takes in a set of cell locs (x), tiles these 9-fold, plots the full voronoi, then crops to the field-of-view
+
+        :param x: Cell locations (nc x 2)
+        :param ax: matplotlib axis
+        """
+
+        L = self.L
+        grid_x, grid_y = np.mgrid[-1:2, -1:2]
+        grid_x[0, 0], grid_x[1, 1] = grid_x[1, 1], grid_x[0, 0]
+        grid_y[0, 0], grid_y[1, 1] = grid_y[1, 1], grid_y[0, 0]
+        y = np.vstack([x + np.array([i * L, j * L]) for i, j in np.array([grid_x.ravel(), grid_y.ravel()]).T])
+
+        cmap_print = np.tile(cmap.T,9).T
+        bleed = 0.1
+        cmap_print = cmap_print[(y<L*(1+bleed)).all(axis=1)+(y>-L*bleed).all(axis=1)]
+        y = y[(y<L*(1+bleed)).all(axis=1)+(y>-L*bleed).all(axis=1)]
+        regions, vertices = self.voronoi_finite_polygons_2d(sp.Voronoi(y))
+
+
+        ax.set(aspect=1,xlim=(0,self.L),ylim=(0,self.L))
+
+        patches = []
+        for i, region in enumerate(regions):
+            patches.append(Polygon(vertices[region], True,facecolor=cmap_print[i],edgecolor="white",alpha=0.5))
+
+        p = PatchCollection(patches, match_original=True)
+        ax.add_collection(p)
         
 
-        
-#     def __init__(self, from_dir, IDsep=":", IDfill="-"):
-        
-#         f_csv = glob.glob(os.path.join(from_dir, "*.csv"))[0]
-#         f_npz = glob.glob(os.path.join(from_dir, "*.npz"))[0]
-        
-#         self.coord_df = pd.read_csv("")
-        
+    def animate(self, n_frames=100, file_name=None, dir_name="plots"):
+        """
+        Animate the simulation, saving to an mp4 file.
+
+        Parameters
+        ----------
+        n_frames : int
+            Number of frames to animate. Spaced evenly throughout **x_save**
+
+        file_name : str
+            Name of the file. If **None** given, generates file-name based on the time of simulation
+
+        dir_name: str
+            Directory name to save the plot.
+
+
+        """
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
+        fig = plt.figure()
+        ax1 = fig.add_subplot(1, 1, 1)
+
+        skip = int((self.lattice.X_arr.shape[0]) / n_frames)
+        E_sample = self.E_save[::skip, :]
+        E_min, E_max = E_sample.min(), E_sample.max()
+
+        def anim(i):
+            ax1.cla()
+            cmap = plt.cm.plasma(self.normalize(E_sample[i],E_min,E_max))
+            self.plot_vor_colored(self.lattice.X_arr[skip * i], ax1, cmap)
+            ax1.set(aspect=1, xlim=(0, self.L), ylim=(0, self.L))
+
+        Writer = animation.writers['ffmpeg']
+        writer = Writer(fps=15, bitrate=1800)
+        if file_name is None:
+            file_name = "animation_%d" % time.time()
+        an = animation.FuncAnimation(fig, anim, frames=n_frames, interval=200)
+        an.save("%s/%s.mp4" % (dir_name, file_name), writer=writer, dpi=264)
+    
+    
+    def normalize(self,x,xmin,xmax):
+        return (x-xmin)/(xmax-xmin)
+

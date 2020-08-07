@@ -8,6 +8,7 @@ import biocircuits
 import holoviews as hv
 import colorcet as cc
 
+import numba
 import tqdm
 
 hv.extension('matplotlib')
@@ -597,6 +598,7 @@ def Voronoi_hmap_nr(
 
 ###### Cell division functions
 
+@numba.njit
 def shoelace_area(points):
     """Returns the area enclosed by a convex polygon. Uses the shoelace method to 
     calculate area given an ordered Numpy array of 2D Cartesian coordinates.
@@ -691,13 +693,13 @@ def n_largest_cells(vor, R, n=2):
     # Return indices of largest cells
     return np.argsort(-areas)[:n].astype(np.int32)
 
-
+@numba.njit
 def angle(v1, v2):
     """Calculates angle from point p1 to p2 in radians"""
     dx, dy = (v2 - v1).T
     return np.arctan2(dy, dx)
 
-
+@numba.njit
 def where_bounds(target, arr):
     """Returns (lower_bound, upper_bound) such that lower_bound is the index of the 
     greatest element of arr less than target and upper_bound is the index of the 
@@ -716,7 +718,7 @@ def where_bounds(target, arr):
     
     return lower_bound, upper_bound
 
-
+@numba.njit
 def lines_intersect(xy1, xy2, xy3, xy4):
     """Get the point of intersection between two lines, one passing 
     through xy1 and xy2 and the other passing through xy3 and xy4.
@@ -1432,7 +1434,3 @@ def update_S_nr_thresh_dens_nodil(S, A, dt, I, senders, params, X, crit_dist, *a
 
 
 
-
-###### Confirm
-
-print('All lattice_signaling.py functions imported.')
