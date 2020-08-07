@@ -21,7 +21,7 @@ n_replicates = 5
 progress_bar = True
 print_updates = False
 
-iterator = [(rep, v) for rep in range(n_replicates) for v in v_vals][:1]
+iterator = [(rep, v) for rep in range(n_replicates) for v in v_vals]
 
 if progress_bar:
     iterator = tqdm.tqdm(iterator)
@@ -29,7 +29,7 @@ if progress_bar:
 for rep, v in iterator:
     vor = Tissue()
     vor.generate_cells(600)
-    vor.make_init(10)
+    vor.make_init(20)
     vor.set_interaction(W=0.08 * np.array([[0, 1], [1, 0]]), pE=0)
 
     # vor.P0 = 3.00
@@ -44,7 +44,7 @@ for rep, v in iterator:
     vor.a = 0.3
     vor.k = 2
 
-    vor.set_t_span(0.02, 20)
+    vor.set_t_span(0.02, 50)
 
     vor.simulate(print_updates=print_updates)
 
