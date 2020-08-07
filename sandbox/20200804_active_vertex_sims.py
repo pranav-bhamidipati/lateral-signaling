@@ -16,24 +16,28 @@ import datetime
 
 ########################
 
-v_vals = np.logspace(-2, 0, 11)
-n_replicates = 5
 progress_bar = True
 print_updates = False
 
-iterator = [(rep, v) for rep in range(n_replicates) for v in v_vals]
+# v_vals = np.logspace(-2, 0, 11)
+# n_replicates = 5
+
+v_vals = np.array([0.1])
+n_replicates = 1
+p_vals = np.linspace(3, 5, 11)
+
+iterator = [(p, v, rep) for rep in range(n_replicates) for v in v_vals for p in p_vals]
 
 if progress_bar:
     iterator = tqdm.tqdm(iterator)
 
-for rep, v in iterator:
+for p, v, rep in iterator:
     vor = Tissue()
     vor.generate_cells(600)
     vor.make_init(20)
     vor.set_interaction(W=0.08 * np.array([[0, 1], [1, 0]]), pE=0)
 
-    # vor.P0 = 3.00
-    p0 = 3.80  # 3.81
+    p0 = p  # 3.80
     vor.A0 = 0.86
     vor.P0 = p0 * np.sqrt(vor.A0)
 
@@ -49,5 +53,5 @@ for rep, v in iterator:
     vor.simulate(print_updates=print_updates)
 
     vor.save_all(
-        f"{datetime.date.today()}_active_vor_lattice_sims", f"vel{v:.2e}_{rep}"
+        f"{datetime.date.today()}_active_vor_lattice_sims", f"per{p:.2f}_vel{v:.2e}_{rep}"
     )
