@@ -746,6 +746,9 @@ class ActiveVoronoi:
         f_npy = glob.glob(os.path.join(from_dir, prefix + "*.npy"))[0]
         f_npz = glob.glob(os.path.join(from_dir, prefix + "*.npz"))[0]
         
+        assert len(f_npy) == 0, "prefix matches more than one .npy file in from_dir"
+        assert len(f_npz) == 0, "prefix matches more than one .npz file in from_dir"
+        
         self.X_arr = np.load(f_npy)
 #         self.X_df = pd.read_csv(f_csv)
         
@@ -784,19 +787,23 @@ class ActiveVoronoi:
         return self.X_arr[idx]
     
     
-    def rescale_time(self, t_min, t_max, factor):
-        """
-        Re-scales the time-points in the mechanical (lattice) simulation so
-        that 1 time-unit corresponds to the growth time of the cell line.
-        In other words, ln(2) time-units will be equivalent to the doubling time.
+    def set_t_points(self, *args):
+        self.t_points = np.linspace(*args)
+    
+    
+#     def rescale_time(self, t_min, t_max, factor):
+#         """
+#         Re-scales the time-points in the mechanical (lattice) simulation so
+#         that 1 time-unit corresponds to the growth time of the cell line.
+#         In other words, ln(2) time-units will be equivalent to the doubling time.
         
-        factor   : float or int 
-            The scaling factor. 
-        """
+#         factor   : float or int 
+#             The scaling factor. 
+#         """
         
-        self.t0 = t_min
-        self.t_points = np.linspace(t_min * factor, t_max * factor, self.n_t)
-        self.dt = self.t_points[1] - self.t_points[0]
+#         self.t0 = t_min
+#         self.t_points = np.linspace(t_min * factor, t_max * factor, self.n_t)
+#         self.dt = self.t_points[1] - self.t_points[0]
         
         
     def assign_types(self, types, type_n_c, method="center", center_type=None, **kwargs):
@@ -1067,6 +1074,9 @@ class DelayReaction(Reaction):
         """
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
+            
+        print(f"Saving to {dir_name}")
+            
         fig = plt.figure()
         ax1 = fig.add_subplot(1, 1, 1)
 
