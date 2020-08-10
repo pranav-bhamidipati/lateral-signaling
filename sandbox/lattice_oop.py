@@ -1067,6 +1067,9 @@ class DelayReaction(Reaction):
         """
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
+            
+        print(f"Saving to {dir_name}")
+            
         fig = plt.figure()
         ax1 = fig.add_subplot(1, 1, 1)
 
@@ -1079,6 +1082,7 @@ class DelayReaction(Reaction):
             colors = cc.cm[cmap](self.normalize(E_sample[i],E_min,E_max))
             self.plot_vor_colored(self.lattice.X_arr[skip * i], ax1, colors)
             ax1.set(aspect=1, xlim=(0, self.L), ylim=(0, self.L))
+            ax1.set_title(f"time = {self.lattice.t_points[skip * i]}")
 
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=15, bitrate=1800)
