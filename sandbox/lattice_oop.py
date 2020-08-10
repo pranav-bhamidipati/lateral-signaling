@@ -743,11 +743,13 @@ class ActiveVoronoi:
         self.dir = from_dir
         self.prefix = prefix
         
-        f_npy = glob.glob(os.path.join(from_dir, prefix + "*.npy"))[0]
-        f_npz = glob.glob(os.path.join(from_dir, prefix + "*.npz"))[0]
+        f_npy = glob.glob(os.path.join(from_dir, "*" + prefix + "*.npy"))
+        assert len(f_npy) == 1, "prefix matches more than one .npy file in from_dir"
         
-        assert len(f_npy) == 0, "prefix matches more than one .npy file in from_dir"
-        assert len(f_npz) == 0, "prefix matches more than one .npz file in from_dir"
+        f_npz = glob.glob(os.path.join(from_dir, "*" + prefix + "*.npz"))
+        assert len(f_npz) == 1, "prefix matches more than one .npz file in from_dir"
+        
+        f_npy, f_npz = f_npy[0], f_npz[0]
         
         self.X_arr = np.load(f_npy)
 #         self.X_df = pd.read_csv(f_csv)
@@ -789,7 +791,8 @@ class ActiveVoronoi:
     
     def set_t_points(self, *args):
         self.t_points = np.linspace(*args)
-    
+        self.t0, self.tmax = self.t_points[0], self.t_points[-1]
+        self.dt = self.t_points[1] - self.t_points[0]
     
 #     def rescale_time(self, t_min, t_max, factor):
 #         """
