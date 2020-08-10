@@ -1056,7 +1056,7 @@ class DelayReaction(Reaction):
         ax.add_collection(p)
         
 
-    def animate(self, n_frames=100, file_name=None, dir_name="plots", cmap = "CET_L8"):
+    def animate(self, n_frames=100, file_name=None, dir_name="plots", cmap = "CET_L8", fps=15):
         """
         Animate the simulation, saving to an mp4 file.
 
@@ -1092,14 +1092,14 @@ class DelayReaction(Reaction):
             colors = cc.cm[cmap](self.normalize(E_sample[i],E_min,E_max))
             self.plot_vor_colored(self.lattice.X_arr[skip * i], ax1, colors)
             ax1.set(aspect=1, xlim=(0, self.L), ylim=(0, self.L))
-            ax1.set_title(f"time = {self.lattice.t_points[skip * i]}")
+            ax1.set_title(f"time = {self.lattice.t_points[skip * i]:.3f}")
 
         Writer = animation.writers['ffmpeg']
-        writer = Writer(fps=15, bitrate=1800)
+        writer = Writer(fps=fps, bitrate=1800)
         if file_name is None:
             file_name = "animation_%d" % time.time()
-        an = animation.FuncAnimation(fig, anim, frames=n_frames, interval=200)
-        an.save("%s/%s.mp4" % (dir_name, file_name), writer=writer, dpi=264)
+        an = animation.FuncAnimation(fig, anim, frames=n_frames)
+        an.save("%s/%s.mp4" % (dir_name, file_name), writer=writer, dpi=264, fps=fps)
     
     
     def normalize(self,x, xmin, xmax):
