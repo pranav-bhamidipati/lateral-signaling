@@ -48,7 +48,7 @@ for p, v, rep in iterator:
     vor.a = 0.3
     vor.k = 2
 
-    vor.set_t_span(0.02, 50)
+    vor.set_t_span(0, 50, 2501, scale_factor)
 
     vor.simulate(print_updates=print_updates)
 
