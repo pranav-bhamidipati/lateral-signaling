@@ -744,10 +744,10 @@ class ActiveVoronoi:
         self.prefix = prefix
         
         f_npy = glob.glob(os.path.join(from_dir, "*" + prefix + "*.npy"))
-        assert len(f_npy) == 1, "prefix matches more than one .npy file in from_dir"
+        assert len(f_npy) == 1, "prefix must match one .npy file in from_dir"
         
         f_npz = glob.glob(os.path.join(from_dir, "*" + prefix + "*.npz"))
-        assert len(f_npz) == 1, "prefix matches more than one .npz file in from_dir"
+        assert len(f_npz) == 1, "prefix must match one .npz file in from_dir"
         
         f_npy, f_npz = f_npy[0], f_npz[0]
         
@@ -1099,7 +1099,7 @@ class DelayReaction(Reaction):
         if file_name is None:
             file_name = "animation_%d" % time.time()
         an = animation.FuncAnimation(fig, anim, frames=n_frames)
-        an.save("%s/%s.mp4" % (dir_name, file_name), writer=writer, dpi=264, fps=fps)
+        an.save("%s/%s.mp4" % (dir_name, file_name), writer=writer, dpi=264)
     
     
     def normalize(self,x, xmin, xmax):
