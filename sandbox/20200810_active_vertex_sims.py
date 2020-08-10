@@ -22,7 +22,7 @@ print_updates = False
 
 # p_vals = np.linspace(3, 5, 11)
 
-p = np.array([3.80, 3.81, 3.82])
+p_vals = np.array([3.80, 3.81, 3.82])
 v_vals = np.logspace(-2, 0, 11)
 f = 50
 n_rep = 1
