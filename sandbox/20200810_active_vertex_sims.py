@@ -59,5 +59,5 @@ for f in iterator:
     vor.simulate(print_updates=print_updates)
 
     vor.save_all(
-        f"{datetime.date.today()}_active_vor_lattice_test", f"per{p:.2f}_vel{v:.2e}_{rep}"
+            f"{datetime.date.today()}_active_vor_lattice_test", f"per{p:.2f}_vel{v:.2e}_tf{f:.2e}_{rep}"
     )
