@@ -3,8 +3,8 @@ data/
 stan_output/
 
 sandbox/__pycache__/
-
 sandbox/plots/
+sandbox/.ipynb_checkpoints/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
