@@ -1100,6 +1100,7 @@ class DelayReaction(Reaction):
             file_name = "animation_%d" % time.time()
         an = animation.FuncAnimation(fig, anim, frames=n_frames)
         an.save("%s/%s.mp4" % (dir_name, file_name), writer=writer, dpi=264)
+        plt.close()
     
     
     def normalize(self,x, xmin, xmax):
