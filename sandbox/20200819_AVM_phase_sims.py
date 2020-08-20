@@ -44,6 +44,8 @@ n_t = int((tmax - t0) * f / dt) + 1  # calculates the n_t to get the desired dt
 a = 0.4
 k = 2
 
+to_dir = "2020-08-19_avm_phase_sims/"
+
 def simulate(params):
     p, J, v = params
     prefix = f"p0{p:.2f}_J{J:.2f}_v0{v:.2e}"
@@ -69,12 +71,25 @@ def simulate(params):
     
     vor2.simulate2(progress_bar=False, print_updates=False);
     
-    fname = f"2020-08-19_avm_phase_sims/{prefix}"
-    vor2.save_cells(fname=fname)
-
+    fname = to_dir + prefix
+    
     print(f"{count()*100:.2f}% complete")
+
+    return fname, vor2.x_save
+
+
 
 from multiprocessing import Pool
 if __name__ == '__main__':
     with Pool(8) as p:
-        p.imap_unordered(simulate, param_space)
+        results = list(p.imap_unordered(simulate, param_space))
+
+
+if not os.path.exists(to_dir):
+    os.mkdir(to_dir)
+
+
+print("Saving to", to_dir)
+
+for fname, arr in results:
+    np.save(fname, arr, allow_pickle=False)
