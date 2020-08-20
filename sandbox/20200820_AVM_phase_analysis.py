@@ -1,12 +1,5 @@
 import sys
 import os
-
-vor_path = "/home/ubuntu/git/active_vertex"
-# vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
-sys.path.append(vor_path)
-
-import voronoi_model.voronoi_model_periodic as avm
-from lattice_oop import *
 import numpy as np
 import tqdm
 import datetime
@@ -14,6 +7,8 @@ import numba
 from glob import glob
 
 ########################
+
+os.chdir("..")
 
 @numba.njit
 def get_D_eff(X0, Xmax, L, tmax, v0, Dr, n=19):
@@ -51,8 +46,12 @@ metadata = pd.read_csv("trial_metadata.csv", index_col=0)
 files = list(metadata["filename"])
 # files = [os.path.abspath(file) for file in files]
 
-npy_to_D_eff(fname, metadata)
+iterator = enumerate(files)
+iterator = tqdm.tqdm(iterator)
 
+D_eff = np.array(metadata.shape[0])
+for i, file in iterator:
+    D_eff[i] = npy_to_D_eff(file, metadata)
 
-for fname, arr in results:
-    np.save(fname, arr, allow_pickle=False)
+metadata["D_eff"] = D_eff
+metadata.to_csv("trial_metadata_Deff.csv", index="filename")
