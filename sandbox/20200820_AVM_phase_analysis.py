@@ -32,14 +32,15 @@ def npy_to_D_eff(fname, metadata, n=19):
     X0, Xmax = X[0], X[-1]
     n_t = X.shape[0]
     kwargs = metadata.loc[metadata["filename"] == fname, :].to_dict()
-    
+    kwargs = {k: tuple(v.values())[0] for k, v in kwargs.items()}
+
     return get_D_eff(
         X0,
         Xmax,
-        kwargs["L"][0],
-        n_t * kwargs["dt"][0],
-        kwargs["v0"][0] * kwargs["f"][0],
-        kwargs["Dr"][0],
+        kwargs["L"],
+        n_t * kwargs["dt"],
+        kwargs["v0"] * kwargs["f"],
+        kwargs["Dr"],
         n=n
     )
 
