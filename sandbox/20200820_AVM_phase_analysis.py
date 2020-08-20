@@ -1,6 +1,7 @@
 import sys
 import os
 import numpy as np
+import pandas as pd
 import tqdm
 import datetime
 import numba
@@ -8,7 +9,7 @@ from glob import glob
 
 ########################
 
-os.chdir("..")
+os.chdir("/home/ubuntu/git/evomorph/")
 
 @numba.njit
 def get_D_eff(X0, Xmax, L, tmax, v0, Dr, n=19):
@@ -49,7 +50,7 @@ files = list(metadata["filename"])
 iterator = enumerate(files)
 iterator = tqdm.tqdm(iterator)
 
-D_eff = np.array(metadata.shape[0])
+D_eff = np.empty(metadata.shape[0])
 for i, file in iterator:
     D_eff[i] = npy_to_D_eff(file, metadata)
 
