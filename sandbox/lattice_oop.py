@@ -2,8 +2,10 @@ import numpy as np
 import pandas as pd
 import scipy.spatial as sp
 import scipy.interpolate as snt
+import scipy.optimize as opt
 import biocircuits
 from math import ceil
+import numba
 
 import os
 import glob
@@ -789,9 +791,9 @@ class ActiveVoronoi:
         return self.X_arr[idx]
     
     
-    def set_t_points(self, *args):
-        self.t_points = np.linspace(*args)
-        self.t0, self.tmax = self.t_points[0], self.t_points[-1]
+    def set_t_points(self, t0, tmax):
+        self.t_points = np.linspace(t0, tmax, self.n_t)
+        self.t0, self.tmax = t0, tmax
         self.dt = self.t_points[1] - self.t_points[0]
     
 #     def rescale_time(self, t_min, t_max, factor):
@@ -1056,6 +1058,10 @@ class DelayReaction(Reaction):
         ax.add_collection(p)
         
 
+    def normalize(self, x, xmin, xmax):
+        return (x - xmin)/(xmax - xmin)
+    
+    
     def animate(self, n_frames=100, file_name=None, dir_name="plots", cmap = "CET_L8", fps=15):
         """
         Animate the simulation, saving to an mp4 file.
@@ -1086,7 +1092,7 @@ class DelayReaction(Reaction):
         skip = int((self.lattice.X_arr.shape[0]) / n_frames)
         E_sample = self.E_save[::skip, :]
         E_min, E_max = E_sample.min(), E_sample.max()
-
+        
         def anim(i):
             ax1.cla()
             colors = cc.cm[cmap](self.normalize(E_sample[i],E_min,E_max))
@@ -1103,6 +1109,96 @@ class DelayReaction(Reaction):
         plt.close()
     
     
-    def normalize(self,x, xmin, xmax):
-        return (x - xmin)/(xmax - xmin)
+    def save_GRN(self, fname, allow_pickle=False):
+        """
+        Save GRN expression information to binary Numpy format (fname.npy)
+        """
+        np.save(fname, self.E_save, allow_pickle=allow_pickle)
+    
+    
+    def get_E_prop_thresh(self, thresh):
+        """Get the proportion of cells above threshold `thresh` at each time-point."""
+        self.E_thresh = self.E_save > thresh
+        self.E_prop_thresh = np.sum(self.E_thresh, axis=1) / self.n_c
+    
+    
+    def get_rms(self, thresh):
+        """
+        Get the root-mean-squared deviation of activated cells from the center of the 
+        lattice at each time-point. Activated cells are all cells above the threshold `thresh`.
+        """
+        if not hasattr(self, 'E_thresh'):
+            self.E_thresh = self.E_save > thresh
+        
+        self.rms = np.empty(self.n_t)
+        for i, X in enumerate(self.lattice.X_arr):
+            self.rms[i] = rms(
+                np.linalg.norm(
+                    X[self.E_thresh[i].nonzero()] - self.L/2, 
+                    axis=1
+                )
+            )
+        
+        
+    def get_chull_vol(self, thresh):
+        """
+        Get the volume of the convex hull of activated cells in the lattice at each 
+        time-point. Activated cells are all cells above the threshold `thresh`.
+        """
+        if not hasattr(self, 'E_thresh'):
+            self.E_thresh = self.E_save > thresh
+        
+        self.chull_vol = np.empty(self.n_t)
+        for i, X in enumerate(self.lattice.X_arr):
+            if sum(E_thresh[i]) < 3:
+                self.chull_vol[i] = 0
+            else:
+                self.chull_vol[i] = sp.ConvexHull(X[E_thresh[i].nonzero()]).volume
+    
+    
+    def get_activated_areas(self, thresh):
+        self.get_E_prop_thresh(thresh)
+        self.get_rms(thresh)
+        self.get_chull_vol(thresh)
+    
+    
+    def get_prop_growth(self):
+        self.prop_growth = opt.curve_fit(logistic_norm, self.t_points, self.E_prop_thresh)[0][1]
+    
+    
+    def get_rms_growth(self):
+        self.rms_growth = opt.curve_fit(logistic, self.t_points, self.rms)[0][1]
+    
+    
+    def get_chull_growth(self):
+        self.chull_growth = opt.curve_fit(logistic, self.t_points, self.chull_vol)[0][1]
+    
+    
+    def get_growth_metrics(self, thresh=None):
+        
+        if not hasattr(self, "E_prop_thresh"):
+            self.get_E_prop_thresh(thresh)
+        if not hasattr(self, "rms"):
+            self.get_rms(thresh)
+        if not hasattr(self, "chull_vol"):
+            self.get_chull_vol(thresh)
+    
+        self.get_prop_growth()
+        self.get_rms_growth()
+        self.get_chull_growth()
+    
+    
+@numba.njit
+def rms(y):
+    return np.sqrt(np.mean(y**2))
+
+
+@numba.njit
+def logistic(x, a, b, N):
+    return N/(1 + a * np.exp(-b * x))
+
+
+@numba.njit
+def logistic_norm(x, a, b):
+    return 1/(1 + a * np.exp(-b * x))
 
