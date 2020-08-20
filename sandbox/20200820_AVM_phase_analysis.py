@@ -9,7 +9,7 @@ from glob import glob
 
 ########################
 
-os.chdir("/home/ubuntu/git/evomorph/")
+os.chdir("/home/ubuntu/git/evomorph/data/2020-08-19_avm_phase_sims/")
 
 @numba.njit
 def get_D_eff(X0, Xmax, L, tmax, v0, Dr, n=19):
@@ -43,7 +43,7 @@ def npy_to_D_eff(fname, metadata, n=19):
         n=n
     )
 
-metadata = pd.read_csv("trial_metadata.csv", index_col=0)
+metadata = pd.read_csv("metadata.csv", index_col=0)
 files = list(metadata["filename"])
 # files = [os.path.abspath(file) for file in files]
 
@@ -55,4 +55,4 @@ for i, file in iterator:
     D_eff[i] = npy_to_D_eff(file, metadata)
 
 metadata["D_eff"] = D_eff
-metadata.to_csv("trial_metadata_Deff.csv", index="filename")
+metadata.to_csv("../../sandbox/2020-08-19_avm_phase_sims_metadata.csv", index="filename")
