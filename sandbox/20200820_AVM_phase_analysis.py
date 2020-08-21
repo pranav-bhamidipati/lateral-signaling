@@ -26,11 +26,12 @@ def get_D_eff(X0, Xmax, L, tmax, v0, Dr, n=19):
     D0 = v0**2/(2*Dr)
     return Ds / D0
 
-def npy_to_D_eff(fname, metadata, n=19):
+def npy_to_D_eff(fname, metadata, n=7):
     
     X = np.load(fname)
-    X0, Xmax = X[0], X[-1]
+    X = X[:X.shape[0]//2]
     n_t = X.shape[0]
+    X0, Xmax = X[0], X[-1]
     kwargs = metadata.loc[metadata["filename"] == fname, :].to_dict()
     kwargs = {k: tuple(v.values())[0] for k, v in kwargs.items()}
 
@@ -56,4 +57,4 @@ for i, file in iterator:
     D_eff[i] = npy_to_D_eff(file, metadata)
 
 metadata["D_eff"] = D_eff
-metadata.to_csv("metadata_Deff.csv", index="filename")
+metadata.to_csv("metadata_Deff2.csv", index="filename")
