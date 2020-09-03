@@ -6,7 +6,7 @@ vor_path = "/home/ubuntu/git/active_vertex"
 sys.path.append(vor_path)
 
 import voronoi_model.voronoi_model_periodic as avm
-from lattice_oop import *
+# from lattice_oop import *
 import numpy as np
 import tqdm
 import datetime
