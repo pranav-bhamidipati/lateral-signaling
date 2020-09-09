@@ -58,7 +58,7 @@ param_space = np.array(param_space).T.reshape(-1, 3)
 f = 200
 t0 = 0
 tmax = 4
-dt = 0.05
+dt = 0.025
 n_t = int((tmax - t0) * f / dt) + 1  # calculates the n_t to get the desired dt
 
 a = 0.4
