@@ -1,2 +1,2 @@
 # evomorph
-Computational Design of Self-Organizing Tissues
+Computational Design of Self-Organizing Tissues Using SynNotch
