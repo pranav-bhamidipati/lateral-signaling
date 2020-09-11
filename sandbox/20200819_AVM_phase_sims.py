@@ -78,7 +78,6 @@ def simulate(params):
     return fname, vor2.x_save
 
 
-
 from multiprocessing import Pool
 if __name__ == '__main__':
     with Pool(8) as p:
