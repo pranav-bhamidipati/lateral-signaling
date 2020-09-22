@@ -13,55 +13,28 @@ import os
 import numpy as np
 import pandas as pd
 
-from tqdm import tqdm
-import numba
-import datetime
+# from tqdm import tqdm
+# import numba
+# import datetime
 
-vor_path = "/home/ubuntu/git/active_vertex"
+# vor_path = "/home/ubuntu/git/active_vertex"
 # vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
+vor_path = "/home/pbhamidi/git/active_vertex"
+
 sys.path.append(vor_path)
 
 import voronoi_model.voronoi_model_periodic as avm
 
 ########################
 
-@numba.njit
-def get_D_eff(X0, Xmax, L, tmax, v0, Dr, n=19):
-    
-    X0_norm = X0 - L/2
-    center_cells = np.argsort(np.sqrt(X0_norm[:, 0]**2 + X0_norm[:, 1]**2))[:n]
-    
-    dX = np.fmod(Xmax[center_cells] - X0[center_cells], L/2)
-    dr2 = np.zeros(n, dtype=np.float32)
-    for i in range(n):
-        dr2[i] = dX[i, 0] ** 2 + dX[i, 1] ** 2
-    
-    Ds = dr2.mean() / (4*tmax)
-    D0 = v0**2/(2*Dr)
-    return Ds / D0
-
-def vor_to_D_eff(vor, n=7):
-    return get_D_eff(
-        vor.x_save[0],
-        vor.x_save[-1],
-        vor.L,
-        vor.tfin,
-        vor.v0,
-        vor.Dr,
-        n=n,
-    )
-
-
-def pcounter(n):
-    i = 1
-    while True:
-        yield i/n
-        i += 1
+# Inputs
+to_dir = "/home/pbhamidi/data/2020-09-17_avm_phase_sims_dense/"
+# to_dir = "C:\\Users\\Pranav\\git\\evomorph\\scratch"
 
 ########################
 
-p_space = np.linspace(3.5, 4.0, 11)
-v_space = np.linspace(2e-3, 3e-2, 15)
+p_space = np.linspace(3.2, 4.0, 17)
+v_space = np.array([5e-4, 1e-3, *np.linspace(2e-3, 3e-2, 15)])
 replicates = np.arange(5, dtype=int)
 
 param_space = np.meshgrid(
@@ -70,6 +43,8 @@ param_space = np.meshgrid(
     replicates
 )
 param_space = np.array(param_space).T.reshape(-1, 3)
+
+param_space = param_space[::1000]
 
 ########################
 
@@ -85,25 +60,23 @@ J = 0.
 
 common_metadata = dict(f=f, t0=t0, tmax=tmax, dt=dt, n_t=n_t, k=k, J=J)
 
-to_dir = "2020-09-17_avm_phase_sims/"
-
 if not os.path.exists(to_dir):
     os.mkdir(to_dir)
 
-cores = 8
-gen = pcounter((param_space.shape[0] // cores) + 1)
+cores = 2
+# gen = pcounter((param_space.shape[0] // cores) + 1)
 
-def count():
-    return next(gen)
+# def count():
+#     return next(gen)
 
 def simulate(params, progress_bar=False, print_updates=False):
     p, v, rep = params
     rep = int(rep)
     prefix = f"p0{p:.2f}_v0{v:.2e}_rep{rep}"
-    
+
     vor2 = avm.Tissue()
     vor2.make_init2(L=10, n_c=400)
-    
+
     vor2.set_GRN_t_span(t0, tmax, n_t, scaling_factor=f);
     vor2.v0 = v
     vor2.n_warmup_steps = int(150 / dt)
@@ -121,25 +94,37 @@ def simulate(params, progress_bar=False, print_updates=False):
     
     vor2.simulate(progress_bar=progress_bar, print_updates=print_updates);
     
-    fname = to_dir + prefix + ".npy"
+    fname = os.path.abspath(os.path.join(to_dir, prefix))
     np.save(fname, vor2.x_save, allow_pickle=False)
     
-    print(f"Thread {count()*100:.2f}% complete")
+#     print(f"Thread {count()*100:.2f}% complete")
+    return prefix
+#     return prefix, [vor_to_D_eff(vor2, n) for n in (7, 19, 37)]
 
-    return prefix, [vor_to_D_eff(vor2, n) for n in (7, 19, 37)]
+from multiprocessing import Pool
+if __name__ == '__main__':
+    with Pool(cores) as p:
+        results = list(p.imap_unordered(simulate, param_space))
 
-# from multiprocessing import Pool
-# if __name__ == '__main__':
-#     with Pool(cores) as p:
-#         results = list(p.imap_unordered(simulate, param_space[60:68]))
+# results = []
+# for params in param_space:
+#     results.append(simulate(params))
 
-results = simulate(param_space[68], True, True)
+metadata = pd.DataFrame(dict(
+    p0=param_space[:, 0], 
+    v0 = param_space[:, 1], 
+    rep = param_space[:, 2]
+))
+for k, v in common_metadata.items():
+    metadata[k] = v
 
-df = pd.DataFrame(
-    {pfx: D_effs for pfx, D_effs in results} 
-)
-df.to_csv(os.path.join(to_dir, "metadata.csv"))
+coords_fname = []
+for _, row in enumerate(metadata[["p0", "v0", "rep"]].values):
+    p, v, rep = row
+    coords_fname.append(f"p0{p:.2f}_v0{v:.2e}_rep{rep}.npy")
+metadata["coords_fname"] = coords_fname
 
+metadata.to_csv(os.path.join(to_dir, "metadata.csv"))
 
-print("COMPLETE!")
+# print("COMPLETE!")
 
