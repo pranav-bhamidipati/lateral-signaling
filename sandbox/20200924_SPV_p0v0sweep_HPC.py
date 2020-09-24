@@ -9,8 +9,8 @@ import time
 # import datetime
 
 # vor_path = "/home/ubuntu/git/active_vertex"
-vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
-# vor_path = "/home/pbhamidi/git/active_vertex"
+# vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
+vor_path = "/home/pbhamidi/git/active_vertex"
 
 sys.path.append(vor_path)
 
@@ -19,8 +19,8 @@ import voronoi_model.voronoi_model_periodic as avm
 ########################
 
 # Inputs
-# to_dir = "/home/pbhamidi/data/2020-09-24_SPV_p0v0_dense/"
-to_dir = "C:\\Users\\Pranav\\git\\evomorph\\scratch"
+to_dir = "/home/pbhamidi/data/2020-09-24_SPV_p0v0_dense/"
+# to_dir = "C:\\Users\\Pranav\\git\\evomorph\\scratch"
 
 ########################
 
@@ -35,7 +35,7 @@ param_space = np.meshgrid(
 )
 param_space = np.array(param_space).T.reshape(-1, 3)
 
-param_space = param_space[:20]
+param_space = param_space[:2]
 
 ########################
 
@@ -105,13 +105,14 @@ def simulate(params, progress_bar=False, print_updates=False):
 
 import dask
 from dask.distributed import Client, progress
-client = Client(threads_per_worker=1, n_workers=cores)
 if __name__ == '__main__':
-    futures = []
-    for params in param_space:
-        future = client.submit(simulate, params)
-        futures.append(future)
-    results = client.gather(futures)
+#     client = Client(threads_per_worker=1, n_workers=cores)
+#     futures = client.map(simulate, params)
+    delayed_sim = dask.delayed(simulate)
+    results = []
+    for params in param_space: 
+        results.append(delayed_sim(params))
+    results = dask.compute(results)
 
 #     lazy_result = []
 #     n_slurm_tasks = int(os.environ['SLURM_NTASKS'])
@@ -144,13 +145,13 @@ for _, row in enumerate(metadata[["p0", "v0", "rep"]].values):
     coords_fname.append(f"p0{p:.2f}_v0{v:.2e}_rep{int(rep)}")
 metadata["coords_fname"] = coords_fname
 
+metadata.to_csv(os.path.join(to_dir, "metadata.csv"))
+
 time_df = pd.DataFrame(dict(
     coords_fname=[res[0] for res in results],
     mins_elapsed=[res[1] for res in results],
     it_per_sec=[res[2] for res in results],
 ))
-
-metadata.to_csv(os.path.join(to_dir, "metadata.csv"))
 
 metadata = metadata.merge(time_df)
 metadata.to_csv(os.path.join(to_dir, "metadata_time.csv"))
