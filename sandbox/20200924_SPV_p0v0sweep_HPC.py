@@ -1,13 +1,3 @@
-# ORIGINALLY:
-# Get the p0 as a function of density!!!
-# 
-# Set velocity to zero (Does this break it?)
-# 
-# NOW:
-# Density is a separate parameter. So I'm just going to slice the 
-# v0 vs p0 parameter space thinner and run more replicates
-
-
 import sys
 import os
 import numpy as np
@@ -19,8 +9,8 @@ import time
 # import datetime
 
 # vor_path = "/home/ubuntu/git/active_vertex"
-# vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
-vor_path = "/home/pbhamidi/git/active_vertex"
+vor_path = 'C:\\Users\\Pranav\\git\\active_vertex'
+# vor_path = "/home/pbhamidi/git/active_vertex"
 
 sys.path.append(vor_path)
 
@@ -29,8 +19,8 @@ import voronoi_model.voronoi_model_periodic as avm
 ########################
 
 # Inputs
-to_dir = "/home/pbhamidi/data/2020-09-23_avm_phase_sims_dense/"
-# to_dir = "C:\\Users\\Pranav\\git\\evomorph\\scratch"
+# to_dir = "/home/pbhamidi/data/2020-09-24_SPV_p0v0_dense/"
+to_dir = "C:\\Users\\Pranav\\git\\evomorph\\scratch"
 
 ########################
 
@@ -51,7 +41,7 @@ param_space = param_space[:20]
 
 f = 200
 t0 = 0
-tmax = 2
+tmax = 0.1
 
 dt = 0.025
 n_t = int((tmax - t0) * f / dt) + 1  # calculates the n_t to get the desired dt
@@ -65,7 +55,7 @@ common_metadata = dict(f=f, t0=t0, tmax=tmax, dt=dt, n_t=n_t, k=k, J=J)
 if not os.path.exists(to_dir):
     os.mkdir(to_dir)
 
-cores = 10
+cores = 2
 # gen = pcounter((param_space.shape[0] // cores) + 1)
 
 # def count():
@@ -112,10 +102,29 @@ def simulate(params, progress_bar=False, print_updates=False):
     return prefix, mins_elapsed, it_per_sec
 #     return prefix, [vor_to_D_eff(vor2, n) for n in (7, 19, 37)]
 
-from multiprocessing import Pool
+
+import dask
+from dask.distributed import Client, progress
+client = Client(threads_per_worker=1, n_workers=cores)
 if __name__ == '__main__':
-    with Pool(cores) as p:
-        results = list(p.imap_unordered(simulate, param_space))
+    futures = []
+    for params in param_space:
+        future = client.submit(simulate, params)
+        futures.append(future)
+    results = client.gather(futures)
+
+#     lazy_result = []
+#     n_slurm_tasks = int(os.environ['SLURM_NTASKS'])
+# #     n_slurm_tasks =2 
+#     client = Client(threads_per_worker=1, n_workers=n_slurm_tasks)
+#     for params in param_space:
+#         lazy_result.append(dask.delayed(simulate)(params))
+#     dask.compute(*lazy_result)
+
+# from multiprocessing import Pool
+# if __name__ == '__main__':
+#     with Pool(cores) as p:
+#         results = list(p.imap_unordered(simulate, param_space))
 
 # results = []
 # for params in param_space:

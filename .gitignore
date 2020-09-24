@@ -7,6 +7,10 @@ sandbox/__pycache__/
 sandbox/plots/
 sandbox/.ipynb_checkpoints/
 
+# Dask (parallelization)
+dask-worker-space/
+sandbox/dask-worker-space/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
