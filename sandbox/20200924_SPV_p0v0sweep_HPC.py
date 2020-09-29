@@ -19,7 +19,7 @@ import voronoi_model.voronoi_model_periodic as avm
 ########################
 
 # Inputs
-to_dir = "/home/pbhamidi/data/2020-09-24_SPV_p0v0_dense/"
+to_dir = "/home/pbhamidi/data/2020-09-24_SPV_p0v0_dense4/"
 # to_dir = "C:\\Users\\Pranav\\git\\evomorph\\scratch"
 
 ########################
@@ -35,13 +35,13 @@ param_space = np.meshgrid(
 )
 param_space = np.array(param_space).T.reshape(-1, 3)
 
-param_space = param_space[:2]
+param_space = param_space[:50]
 
 ########################
 
 f = 200
 t0 = 0
-tmax = 0.1
+tmax = 2
 
 dt = 0.025
 n_t = int((tmax - t0) * f / dt) + 1  # calculates the n_t to get the desired dt
@@ -55,7 +55,8 @@ common_metadata = dict(f=f, t0=t0, tmax=tmax, dt=dt, n_t=n_t, k=k, J=J)
 if not os.path.exists(to_dir):
     os.mkdir(to_dir)
 
-cores = 2
+# cores = 8
+
 # gen = pcounter((param_space.shape[0] // cores) + 1)
 
 # def count():
@@ -72,7 +73,7 @@ def simulate(params, progress_bar=False, print_updates=False):
 
     vor2.set_GRN_t_span(t0, tmax, n_t, scaling_factor=f);
     vor2.v0 = v
-#    vor2.n_warmup_steps = int(150 / dt)
+#     vor2.n_warmup_steps = int(150 / dt)
     vor2.n_warmup_steps = 1
 
     W = J * np.array([[1, 0], [0, 1]])
@@ -113,6 +114,7 @@ if __name__ == '__main__':
     for params in param_space: 
         results.append(delayed_sim(params))
     results = dask.compute(results)
+    results = [x for elem in results for x in elem]
 
 #     lazy_result = []
 #     n_slurm_tasks = int(os.environ['SLURM_NTASKS'])
@@ -156,6 +158,6 @@ time_df = pd.DataFrame(dict(
 metadata = metadata.merge(time_df)
 metadata.to_csv(os.path.join(to_dir, "metadata_time.csv"))
 
-# print("COMPLETE!")
+print("COMPLETE!")
 
 
