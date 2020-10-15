@@ -242,6 +242,7 @@ import datetime
 import os
 import sys
 
+# Make data directory if needed
 to_dir = "/home/ubuntu/git/evomorph/data/" + str(datetime.date.today()) + "_hexGRN_sweep"
 if not os.path.exists(to_dir):
     os.mkdir(to_dir)
@@ -258,7 +259,9 @@ metadata = pd.DataFrame(dict(
 
 # Save expression data and parameter space in compressed format (.npz)
 E_path = os.path.join(to_dir, "Esave_paramspace.npz")
-np.savez_compressed(E_path, {"E_save_arr": E_save_arr, "param_space": param_space})
+np.savez_compressed(
+    E_path, {"E_save_arr": E_save_arr, "param_space": param_space}
+)
 
 # Save velocity data to file
 v_path = os.path.join(to_dir, "mean_wave_velocity.csv")
