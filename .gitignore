@@ -3,9 +3,9 @@ plots/
 
 stan_output/
 
-sandbox/__pycache__/
-sandbox/plots/
-sandbox/.ipynb_checkpoints/
+# sandbox/__pycache__/
+# sandbox/plots/
+# sandbox/.ipynb_checkpoints/
 
 # Dask (parallelization)
 dask-worker-space/

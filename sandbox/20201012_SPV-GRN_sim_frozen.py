@@ -523,7 +523,7 @@ def tc_rhs(E, E_past, E_bar, alpha, k, p, delta, lambda_):
     return dE_dt
 
 # Set directories to save DDE sims
-GRN_dir = os.path.join(data_dir, "Esave")
+GRN_dir = os.path.join(data_dir, "20201013_Esave")
 if not os.path.exists(GRN_dir):
     os.mkdir(GRN_dir)
 
@@ -539,7 +539,7 @@ x_saves_frozen = [np.load(x)["arr_0"][-1] for x in x_files]
 
 # Set parameter space
 alpha_space = np.linspace(1, 3, 3)
-k_space = np.array([1e-2, 5e-2, 25e-2])
+k_space = np.linspace(5e-2, 3e-1, 6)
 p_space = [2]
 delta_space = np.linspace(0, 3, 3)
 lambda_space = [1e-5]

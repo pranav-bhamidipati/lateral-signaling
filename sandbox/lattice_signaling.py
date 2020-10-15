@@ -139,7 +139,7 @@ def hex_grid_square(n, r=1, sigma=0.0):
     length r, passed through a Gaussian filter with std. dev. = sigma * r."""
     
     # Get side length for square grid
-    num_rows = int(np.ceil(np.sqrt(n_cells)))
+    num_rows = int(np.ceil(np.sqrt(n)))
     
     # Populate grid with n points
     X = []
