@@ -104,6 +104,7 @@ def integrate_DDE(
     delay,
     progress_bar=False,
     min_delay=5,
+    dtype=np.float32,
 ):
     # Get # time-points, dt, and # cells
     n_t = t_span.size
@@ -118,7 +119,7 @@ def integrate_DDE(
     step_delay = ceil(step_delay)
     
     # Initialize expression vector
-    E_save = np.empty((n_t, n_c), dtype=np.float32)
+    E_save = np.empty((n_t, n_c), dtype=dtype)
     E_save[0] = E = E0
     
     # Construct time iterator
@@ -201,9 +202,8 @@ n_runs = param_space.shape[0]
 iterator = range(n_runs)
 iterator = tqdm.tqdm(iterator)
 
-# Simulate each parameter set
 print(f"Simulating {n_runs} parameter sets.")
-E_save_arr = np.empty((n_runs, t.size, n))
+vmeans = np.empty((n_runs), dtype=np.float32)
 for i in iterator:
 
     # Unpack parameters
@@ -211,24 +211,17 @@ for i in iterator:
     args = (alpha, k_s, p_s, delta, lambda_, eps, sender_idx)
     
     # Simulate
-    E_save = integrate_DDE(
+    E = integrate_DDE(
         t_span=t,
         rhs=hex_tc_rhs,
         dde_args=args,
         E0=E0,
         delay=tau,
         progress_bar=False,
+        dtype=np.float32,
     )
-    E_save_arr[i] = E_save
 
-# Re-make iterator
-iterator = range(n_runs)
-iterator = tqdm.tqdm(iterator)
-
-# Calculate mean wavefront velocity 
-vmeans = np.empty(n_runs, dtype=np.float32)
-for i in iterator:
-    E = E_save_arr[i]
+    # Calculate mean wavefront velocity
     tr, r = act_radius_hex(t, X, E, 0.1, L)
     vmean = (r[-1] - r[0]) / (tr[-1] - t[0])
     vmeans[i] = vmean
@@ -255,13 +248,13 @@ metadata = pd.DataFrame(dict(
     sender_idx = sender_idx,
     E0_tc = 0,
     E0_sender = 1,
-)).to_csv(mdata_path)
+), index=[0]).to_csv(mdata_path)
 
 # Save expression data and parameter space in compressed format (.npz)
-E_path = os.path.join(to_dir, "Esave_paramspace.npz")
-np.savez_compressed(
-    E_path, {"E_save_arr": E_save_arr, "param_space": param_space}
-)
+# E_path = os.path.join(to_dir, "Esave_paramspace.npz")
+# np.savez_compressed(
+#     E_path, {"E_save_arr": E_save_arr, "param_space": param_space}
+# )
 
 # Save velocity data to file
 v_path = os.path.join(to_dir, "mean_wave_velocity.csv")
@@ -270,6 +263,6 @@ vmean_data = pd.DataFrame({
     "signaling threshold": param_space[:, 1], 
     "feedback strength": param_space[:, 2],
     "% shared interface": param_space[:, 3] * 100, 
-    "delay time": tau
+    "delay time": param_space[:, 4],
     "Mean wavefront speed": vmeans,
 }).to_csv(v_path)
