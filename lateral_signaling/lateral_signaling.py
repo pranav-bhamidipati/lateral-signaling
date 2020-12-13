@@ -324,16 +324,58 @@ def make_Adj(rows, cols=0, dtype=np.float32, **kwargs):
     
     return Adj
 
-def hex_Adj(rows, cols=0, dtype=np.float32, **kwargs):
+def hex_Adj(rows, cols=0, dtype=np.float32, sparse=False, **kwargs):
     """
     """
     # Make hexagonal grid
     X = hex_grid(rows, cols, **kwargs)
     
     # Construct adjacency matrix
-    Adj = make_Adj(rows, cols, dtype=dtype, **kwargs)
+    if sparse:
+        Adj = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
+    else:
+        Adj = make_Adj(rows, cols, dtype=dtype, **kwargs)
     
     return X, Adj
+
+def make_Adj_sparse(rows, cols=0, dtype=np.float32, **kwargs):
+    """Construct adjacency matrix for a periodic hexagonal 
+    lattice of dimensions rows x cols.
+
+    Returns a `scipy.sparse.csr_matrix` object."""
+
+    # Check if square
+    if cols == 0:
+        cols = rows
+
+    # Initialize neighbor indices
+    n = rows * cols
+    nb_j = np.zeros(6 * n, dtype=int)
+    for i in range(cols):
+        for j in range(rows):
+
+            # Get neighbors of cell at location i, j
+            nb_col, nb_row = np.array(
+                [
+                    (i    , j + 1),
+                    (i    , j - 1),
+                    (i - 1, j    ),
+                    (i + 1, j    ),
+                    (i - 1 + 2*(j%2), j - 1),
+                    (i - 1 + 2*(j%2), j + 1),
+                ]
+            ).T
+
+            nb_col = nb_col % cols
+            nb_row = nb_row % rows
+
+            nb = nb_col * rows + nb_row
+            nb_j[6*(i * rows + j) : 6*(i * rows + j + 1)] = nb
+
+    nb_i = np.repeat(np.arange(n).astype(int), 6)
+    Adj_vals = np.ones(6 * n, dtype=np.float32)
+
+    return csr_matrix((Adj_vals, (nb_i, nb_j)), shape=(n, n))
 
 
 def voronoi_finite_polygons_2d(vor, radius=None):
