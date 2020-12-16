@@ -82,9 +82,9 @@ def integrate_DDE_varargs(
     dde_args,
     E0,
     delay,
+    where_vars,
     progress_bar=False,
     min_delay=5,
-    where_vars=np.array([5]),
 ):
     # Get # time-points, dt, and # cells
     n_t = t_span.size
@@ -102,6 +102,12 @@ def integrate_DDE_varargs(
     E_save = np.empty((n_t, n_c), dtype=np.float32)
     E_save[0] = E = E0
     
+    # Make variable args a 2D array of appropriate shape
+    vvals = np.atleast_2d(var_vals).T
+    
+    # Make variable indices iterable
+    vidx = np.atleast_1d(where_vars)
+    
     # Make dde_args mutable
     dde_args = list(dde_args)
     
@@ -116,8 +122,9 @@ def integrate_DDE_varargs(
         E_delay = E_save[past_step]
         
         # Get past variable value(s)
-        v = var_vals[past_step]
-        dde_args[where_vars] = v
+        v = vvals[past_step]
+        for i, vi in enumerate(vidx):
+            dde_args[vi] = v[i]
         
         # Integrate
         dE_dt = rhs(E, E_delay, *dde_args)
