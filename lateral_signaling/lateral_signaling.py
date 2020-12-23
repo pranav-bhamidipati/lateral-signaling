@@ -600,6 +600,7 @@ def inspect_out(
     X,
     cell_radii,
     var,
+    ax1=None,
     idx=-1,
     vmin=None,
     vmax=None,
@@ -610,8 +611,9 @@ def inspect_out(
     lcoll_kwargs=dict(),
     **kwargs
 ):
-    fig = plt.figure()
-    ax1 = fig.add_subplot(1, 1, 1)
+    if ax1 is None:
+        fig = plt.figure()
+        ax1 = fig.add_subplot(1, 1, 1)
     
     if idx == -1:
         k = var.shape[0] - 1
@@ -637,7 +639,7 @@ def inspect_out(
         ax1,
         k,
         Xk,
-        cell_radii[k],
+        crk,
         var,
         vmin=vmin,
         vmax=vmax,
@@ -743,7 +745,7 @@ def plot_colormesh(
     
     xx = X[:, 0].reshape(cols,rows)
     yy = X[:, 1].reshape(cols,rows)
-    cols, rows = xx.shape
+#     cols, rows = xx.shape
     
     xi, yi = np.meshgrid(np.arange(cols), np.arange(rows), indexing="ij")
     zz = var[rows*xi + yi]
