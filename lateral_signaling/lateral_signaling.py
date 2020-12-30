@@ -697,6 +697,8 @@ def animate_var_lattice(
             X[skip * i],
             cell_radii[skip * i],
             var,
+            xlim=xlim,
+            ylim=ylim,
             vmin=vmin,
             vmax=vmax,
             cmap=cmap,
@@ -1271,3 +1273,8 @@ def voronoi_areas(vor):
     
     return areas
 
+###### Additional utilities
+@numba.njit
+def logistic(t, g, rho_0, rho_max):
+    """Return logistic equation evaluated at time `t`."""
+    return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
