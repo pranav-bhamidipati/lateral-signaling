@@ -153,6 +153,7 @@ def get_L_vals(xs, vs, vertices):
         Voronoi tesselation in 2D Cartesian coordinates.
     """
     
+    # Count number of non-infinite Voronoi ridges
     n_l = 0
     for v1, v2 in vs:
         if (v1 >= 0) & (v2 >= 0):
@@ -180,7 +181,7 @@ def get_L_vals(xs, vs, vertices):
 
 
 @numba.njit
-def get_L_vals_gaps(xs, vs, pts, vertices, cr=1/np.sqrt(3)):
+def get_L_vals_gaps(xs, vs, pts, vertices, cr):
     """
     Returns the cell-cell indices and the lengths of cell-cell 
     contacts given information about the Voronoi tesselation and
@@ -251,6 +252,62 @@ def make_L(vor):
     L = csr_matrix((L_vals, (*Lij.T,)), shape=(n, n))
     
     return L + L.T
+
+
+
+@numba.njit
+def get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr):
+    """
+    Returns the cell-cell indices and the phenomenological beta-function 
+    values given information about the Voronoi tesselation and
+    a uniform cell radius `cr`.
+    """
+    
+    # Make matrix cell-cell contact lengths
+    n_b = 0
+    for v1, v2 in vs:
+        if (v1 >= 0) & (v2 >= 0):
+            n_b += 1
+    
+    Bij = np.zeros((n_b, 2), dtype=np.int_)
+    B_vals = np.zeros(n_b, dtype=np.float32)
+    
+    k = 0
+    for i, x_pair in enumerate(xs):
+        
+        # Infinite Voronoi edges have zero length
+        v1, v2 = vs[i]
+        if (v1 < 0) | (v2 < 0):
+            continue
+        
+        # Check if cell-cell distance is too large to interact
+        x1, x2 = x_pair
+        bij_bool = np.linalg.norm(pts[x1] - pts[x2]) < (cr * 2)
+        
+        if bij_bool:
+            # Get average beta(rho) and store 
+            val = (betarho_func(rhos[x1]) + betarho_func(rhos[x2])) / 2
+            B_vals[k] = val
+        
+        # Store indices
+        Bij[k] = x_pair
+        k += 1
+        
+    return Bij, B_vals
+
+
+def make_B_gaps(vor, cr, betarho_func, rhos):
+    """
+    """
+    n = vor.npoints
+    xs = vor.ridge_points
+    vs = np.array(vor.ridge_vertices)
+    pts = vor.points
+    
+    Bij, B_vals = get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr)
+    B = csr_matrix((B_vals, (*Bij.T,)), shape=(n, n))
+
+    return B + B.T
 
 
 ####### Functions for calculating cell-cell contacts 
