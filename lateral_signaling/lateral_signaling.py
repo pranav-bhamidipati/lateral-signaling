@@ -6,6 +6,10 @@ import pandas as pd
 from math import ceil
 from scipy.spatial import Voronoi, voronoi_plot_2d, ConvexHull
 from scipy.sparse import csr_matrix
+from scipy.spatial.distance import pdist, squareform
+from scipy.interpolate import Rbf
+import scipy.stats
+
 
 import numba
 import tqdm
@@ -31,6 +35,31 @@ def sample_cycle(cycle, size):
     )
 
 ####### Delay diff eq integration
+
+def get_DDE_rhs(func, *func_args):
+    """
+    Returns a function `rhs` with call signature 
+    
+      rhs(S, S_delay, *dde_args) 
+      
+    that can be passed to `lsig.integrate_DDE` and 
+    `lsig.integrate_DDE_varargs`. This is equivalent 
+    to calling
+    
+      func(S, S_delay, *func_args, *dde_args)
+    
+    Examples of args in `func_args` include:
+    
+    Adj         :  Adjacency matrix encoding cell neighbors
+    sender_idx  :  Index (indices) of sender cells, which
+                     undergo different signaling 
+    
+    """
+
+    def rhs(S, S_delay, *dde_args):
+        return func(S, S_delay, *func_args, *dde_args)
+
+    return rhs
 
 def integrate_DDE(
     t_span,
@@ -339,11 +368,16 @@ def circle_intersect_length2(c1, c2, r1, r2):
     return 2 * r1 * np.sqrt(1 - ((r1**2 + d**2 - r2**2) / (2 * r1 * d))**2)
 
 
-####### Plot/animate expression and cell-cell contacts on a hexagonal grid
-
 @numba.njit
-def normalize(x, xmin, xmax):
-    return (x - xmin) / (xmax - xmin)
+def A_cells_um(nc, rho, A_c_rho1=800):
+    """
+    Returns the area of `nc` cells at density `rho` in 
+    micrometers^2.
+    `A_c_rho1` is the area of each cell at `rho=1` in
+    micrometers^2.
+    """
+    return nc * A_c_rho1 / rho
+
 
 @numba.njit
 def beta_to_rad(beta, dist=1):
@@ -352,6 +386,70 @@ def beta_to_rad(beta, dist=1):
 @numba.njit
 def rad_to_beta(rad, dist=1):
     return np.sqrt(4 - (dist**2 / rad**2))
+
+
+####### General utilities
+
+@numba.njit
+def normalize(x, xmin, xmax):
+    return (x - xmin) / (xmax - xmin)
+
+@numba.njit
+def logistic(t, g, rho_0, rho_max):
+    """Return logistic equation evaluated at time `t`."""
+    return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
+
+####### Cell Adjacency
+
+def gaussian_irad_Adj(
+    X, irad, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
+):
+    """
+    Construct adjacency matrix for a non-periodic set of 
+    points (cells). Adjacency is determined by calculating pairwise 
+    distance and applying a threshold `irad` (interaction radius)
+    """
+    
+    n = X.shape[0]
+    d = pdist(X)
+    a = scipy.stats.norm.pdf(d, loc=0, scale=irad/2).astype(dtype)
+    a[d >= irad] = 0
+    A = squareform(a)
+    
+    if row_stoch:
+        rowsum = np.sum(A, axis=1)[:, np.newaxis]
+        A = np.divide(A, rowsum)
+    else:
+        A = A > 0
+        
+    if sparse:
+        A = csr_matrix(A)
+    
+    return A
+
+
+def irad_Adj(
+    X, irad, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
+):
+    """
+    Construct adjacency matrix for a non-periodic set of 
+    points (cells). Adjacency is determined by calculating pairwise 
+    distance and applying a threshold `irad` (interaction radius)
+    """
+    
+    n = X.shape[0]
+    A = squareform(pdist(X)) <= irad
+    A = A - np.eye(n)
+    
+    if row_stoch:
+        rowsum = np.sum(A, axis=1)[:, np.newaxis]
+        A = np.divide(A, rowsum)
+
+    if sparse:
+        A = csr_matrix(A)
+    
+    return A
+
 
 def make_Adj(rows, cols=0, dtype=np.float32, **kwargs):
     """Construct adjacency matrix for a periodic hexagonal 
@@ -440,6 +538,9 @@ def make_Adj_sparse(rows, cols=0, dtype=np.float32, **kwargs):
     Adj_vals = np.ones(6 * n, dtype=np.float32)
 
     return csr_matrix((Adj_vals, (nb_i, nb_j)), shape=(n, n))
+
+
+####### Plot/animate 
 
 
 def voronoi_finite_polygons_2d(vor, radius=None):
@@ -891,7 +992,7 @@ def animate_colormesh(
             ylim=ylim,
             aspect=aspect,
             pcolormesh_kwargs=pcolormesh_kwargs,
-            title=title_fun(skip * i),
+            title=tf(skip * i),
             **kwargs
         )
 
@@ -963,10 +1064,751 @@ def inspect_colormesh(
         pcolormesh_kwargs=pcolormesh_kwargs,
         **kwargs
     )
+
+####### Scipy-interpolated heatmap plotting
+
+def plot_interp_mesh(
+    ax,
+    X,
+    var,
+    n_interp=120,
+    vmin=None,
+    vmax=None,
+    cmap="CET_L8",
+    title=None,
+    axis_off=True,
+    xlim=(),
+    ylim=(),
+    aspect=None,
+    pcolormesh_kwargs=dict(),
+    **kwargs
+):
+    ax.clear()
+    if axis_off:
+        ax.axis("off")
+    
+    if not xlim:
+        xlim=[X[:, 0].min(), X[:, 0].max()]
+    if not ylim:
+        ylim=[X[:, 1].min(), X[:, 1].max()]
+    
+    if aspect is None:
+        aspect=1
+    
+    if type(n_interp) is not tuple:
+        n_interp_y = n_interp_x = n_interp
+    else:
+        n_interp_y, n_interp_x = n_interp
+    
+    rbfi = Rbf(X[:, 0], X[:, 1], var)  # radial basis function interpolator
+    xi = np.linspace(*xlim, n_interp_x)
+    yi = np.linspace(*ylim, n_interp_y)
+    xxi, yyi = np.meshgrid(xi, yi)
+    zzi = rbfi(xxi, yyi)               # interpolated values
+    
+    ax.pcolormesh(
+        xxi, 
+        yyi, 
+        zzi, 
+        shading="auto", 
+        cmap=cc.cm[cmap],
+        vmin=vmin,
+        vmax=vmax,
+        **pcolormesh_kwargs
+    )
+
+#     ax.imshow(
+#         zzi, 
+#         cmap=cc.cm[cmap], 
+#         interpolation='nearest',
+#         vmin=vmin,
+#         vmax=vmax,
+#         **imshow_kwargs
+#     )
+
+    ax.set(
+        xlim=xlim,
+        ylim=ylim,
+        aspect=aspect,
+        **kwargs
+    )
+
+    if title is not None:
+        ax.set_title(title)
+
+
+def animate_interp_mesh(
+    X_arr,
+    var_t,
+    n_interp=120,
+    vmin=None,
+    vmax=None,
+    n_frames=100,
+    file_name=None,
+    dir_name="plots",
+    fps=20,
+    cmap="CET_L8",
+    title_fun=None,
+    axis_off=False,
+    aspect=None,
+    xlim=(),
+    ylim=(),
+    pcolormesh_kwargs=dict(),
+    **kwargs
+):
+    n_t = var_t.shape[0]
+    
+    if X_arr.ndim == 2:
+        X_t = np.repeat(X_arr[np.newaxis, :], n_t, axis=0)
+    else:
+        X_t = X_arr.copy()
+    
+    if vmin is None:
+        vmin = var_t.min()
+    if vmax is None:
+        vmax = var_t.max()
+        
+    if title_fun is not None:
+        tf=title_fun
+    else:
+        tf=lambda x: None
+    
+    fig, ax = plt.subplots()
+    skip = int(n_t / n_frames)
+    def anim(i):
+        plot_interp_mesh(
+            ax,
+            X_t[skip * i],
+            var_t[skip * i],
+            n_interp=n_interp,
+            vmin=vmin,
+            vmax=vmax,
+            cmap=cmap,
+            axis_off=axis_off,
+            xlim=xlim,
+            ylim=ylim,
+            aspect=aspect,
+            pcolormesh_kwargs=pcolormesh_kwargs,
+            title=tf(skip * i),
+            **kwargs
+        )
+
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+    if file_name is None:
+        file_name = "animation_%d" % time.time()
+    print("Writing to:", os.path.join(dir_name, file_name))
+
+    Writer = animation.writers["ffmpeg"]
+    writer = Writer(fps=fps, bitrate=1800)
+
+    an = animation.FuncAnimation(fig, anim, frames=n_frames, interval=200)
+    an.save("%s.mp4" % os.path.join(dir_name, file_name), writer=writer, dpi=264)
+
+
+def inspect_interp_mesh(
+    X,
+    var,
+    n_interp=120,
+    idx=-1,
+    ax=None,
+    vmin=None,
+    vmax=None,
+    cmap="CET_L8",
+    title=None,
+    axis_off=False,
+    xlim=(),
+    ylim=(),
+    aspect=None,
+    pcolormesh_kwargs=dict(),
+    **kwargs
+):
+    """
+    """
+    
+    if X.ndim == 2:
+        X_ = X.copy()
+    else:
+        X_ = X[idx]
+    
+    if var.ndim == 1:
+        var_ = var.copy()
+    else:
+        var_ = var[idx]
+    
+    if vmin is None:
+        vmin = var_.min()
+    if vmax is None:
+        vmax = var_.max()
+    
+    if ax is None:
+        _, ax = plt.subplots()
+    
+    plot_interp_mesh(
+        ax,
+        X_,
+        var_,
+        n_interp=n_interp,
+        vmin=vmin,
+        vmax=vmax,
+        cmap=cmap,
+        axis_off=axis_off,
+        xlim=xlim,
+        ylim=ylim,
+        aspect=aspect,
+        title=title,
+        pcolormesh_kwargs=pcolormesh_kwargs,
+        **kwargs
+    )
+
+def inspect_grid_interp_mesh(
+    t,
+    X_arr,
+    var_t,
+    nrows,
+    ncols,
+    vmin,
+    vmax,
+    n_interp=120,
+    xlim=None,
+    ylim=None,
+    title_fun=None,
+    cmap="kgy",
+    axis_off=True,
+    figsize=(10,6),
+    **kwargs
+):
+    nt = t.size
+    nplot = nrows * ncols
+    
+    if title_fun is None:
+        title_fun = lambda i: f"Time = {t[i]:.2f}"
+    
+    if X_arr.ndim == 2:
+        X_t = np.repeat(X_arr[np.newaxis, :], nt, axis=0)
+    else:
+        X_t = X_arr.copy()
+    
+    # Render frames
+    idx = [int(i) for i in np.linspace(0, nt-1, nplot)]
+    fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
+    for ax, i in zip(axs.flat, idx):
+        
+        title = title_fun(i)
+        
+        inspect_interp_mesh(
+            ax=ax,
+            X=X_t[i],
+            var=var_t[i], 
+            n_interp=n_interp,
+            idx=i,
+            vmin=vmin, 
+            vmax=vmax,
+            cmap=cmap,
+            xlim=xlim,
+            ylim=ylim,
+            title=title,
+            axis_off=axis_off,
+            **kwargs
+        )
+
+####### Signaling code
+
+@numba.njit
+def beta_rho_isqrt(rho, *args):
+    return 1/np.sqrt(np.maximum(rho, 1))
+
+@numba.njit
+def beta_rho_exp(rho, m, *args):
+    return np.exp(-m * np.maximum(rho - 1, 0))
+
+@numba.njit
+def beta_rho_lin(rho, m, *args):
+    return m - m * np.maximum(rho, 1) + 1
+
+def tc_rhs_beta_normA(S, S_delay, Adj, sender_idx, beta_func, func_args, alpha, k, p, delta, lambda_, rho):
+    """
+    Right-hand side of the transciever circuit delay 
+    differential equation. Uses a matrix of cell-cell contact 
+    lengths `L`.
+    """
+
+    # Get signaling as a function of density
+    beta = beta_func(rho, *func_args)
+    
+    # Get input signal across each interface
+    S_bar = beta * (Adj @ S_delay)
+
+    # Calculate dE/dt
+    dS_dt = (
+        alpha
+        * (S_bar ** p)
+        / (k ** p + (delta * S_delay) ** p + S_bar ** p)
+        - S
+    )
+
+    # Set sender cell to zero
+    dS_dt[sender_idx] = 0
+
+    return dS_dt    
+    
+####################################################
+#######              Figures                 #######
+####################################################
+
+####### Maximum propagation area vs. density 
+
+def max_prop_area_vs_density(
+    t,
+    X,
+    sender_idx,
+    rho_min,
+    rho_max,
+    n_rho,
+    g,
+    rhs,
+    dde_args,
+    delay,
+    thresh,
+    where_vars,
+    min_delay=5,
+    progress_bar=False,
+):
+
+    # Get # cells and # time-points
+    n = X.shape[0]
+    nt = t.size
+
+    # Sample starting densities
+    rho_0_space = np.linspace(rho_min, rho_max, n_rho)
+    
+    # Set initial fluorescence
+    S0 = np.zeros(n, dtype=np.float32)
+    S0[sender_idx] = 1
+
+    # Initialize results vector
+    X_rho0_t = np.empty((n_rho, nt, n, 2), dtype=np.float32)
+    S_rho0_t = np.empty((n_rho, nt, n), dtype=np.float32)
+    A_rho0_t = np.empty((n_rho, nt), dtype=np.float32)
+    rho_rho0_t = np.empty((n_rho, nt), dtype=np.float32)
+
+    iterator = range(n_rho)
+    if progress_bar:
+        iterator = tqdm.tqdm(iterator)
+    for i in iterator:
+
+        # Get parameters
+        rho_0 = rho_0_space[i]
+        rho_t = logistic(t, g, rho_0=rho_0, rho_max=rho_max)
+    #     r_t = 1/np.sqrt(rho_t_)
+    #     ell_t = r_t / np.sqrt(3)
+
+        # Simulate
+        S_t = integrate_DDE_varargs(
+            t,
+            rhs,
+            var_vals=rho_t,
+            dde_args=dde_args,
+            E0=S0,
+            delay=delay,
+            where_vars=where_vars,
+            min_delay=min_delay,
+        )
+        
+        rho_rho0_t[i] = rho_t
+
+        r_t = 1/np.sqrt(rho_t)
+        X_t = np.array([X] * nt) * r_t[:, np.newaxis, np.newaxis]
+        X_rho0_t[i] = X_t
+        
+        S_rho0_t[i] = S_t
+        
+        n_act = (S_t > thresh).sum(axis=1)
+        A_rho0_t[i] = A_cells_um(n_act, rho_t)
+    
+    results = dict(
+        t=t, 
+        dde_args=dde_args,
+        rho_0_space=rho_0_space,
+        rho_rho0_t=rho_rho0_t,
+        X_rho0_t=X_rho0_t, 
+        S_rho0_t=S_rho0_t,
+        A_rho0_t=A_rho0_t,
+    )
+    
+    return results
+
+def inspect_max_prop_results(
+    results,
+    run,
+    rows,
+    cols,
+    nrows=2,
+    ncols=4,
+    cmap="kgy",
+    set_xylim="final",
+    xlim=(),
+    ylim=(),
+    vmax=None,
+    sender_idx=np.nan,
+    vmax_mult_k=1,
+    which_k=1,
+):
+
+    t, X_t, S_t, rho_t = (
+        results["t"],
+        results["X_rho0_t"][run],
+        results["S_rho0_t"][run],
+        results["rho_rho0_t"][run],
+    )
+
+    if set_xylim == "final":
+        X_fin = X_t[-1]
+        xlim_ = X_fin[:, 0].min() * 0.95, X_fin[:, 0].max() * 0.95
+        ylim_ = X_fin[:, 1].min() * 0.95, X_fin[:, 1].max() * 0.95
+    elif set_xylim == "fixed":
+        xlim_, ylim_ = xlim, ylim
+    else:
+        xlim_ = ylim_ = None
+
+    if vmax is None:
+        vmax = S_t.max()
+    elif vmax == "tc_only":
+        S_t_tc = S_t.copy()
+        S_t_tc[:, sender_idx] = 0
+        vmax = S_t_tc.max()
+    elif vmax == "mult_k":
+        vmax = results["dde_args"][which_k] * vmax_mult_k
+    
+    # Render frames
+    nplot = nrows * ncols
+    idx = [int(i) for i in np.linspace(0, t.size - 1, nplot)]
+    fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 6))
+    for ax, i in zip(axs.flat, idx):
+        title = f"Time = {t[i]:.2f}, " + r"$\rho$" + f" = {rho_t[i]:.2f}"
+        inspect_colormesh(
+            ax=ax,
+            X=X_t[i],
+            rows=rows,
+            cols=cols,
+            var=S_t,
+            idx=i,
+            vmin=0,
+            vmax=vmax,
+            cmap=cmap,
+            xlim=xlim_,
+            ylim=ylim_,
+            title=title,
+        )
+
+
+def plot_max_prop_results(results):
+
+    rho_0_space, A_rho0_t = (
+        results["rho_0_space"],
+        results["A_rho0_t"],
+    )
+    
+    # Get max activated area for each condition
+    max_area = A_rho0_t.max(axis=1)
+    
+    # Make data
+    data = {
+        "max_area": max_area,
+        "rho_0": rho_0_space * 1250,
+    }
+    
+    plot = hv.Scatter(
+        data=data,
+        kdims=["rho_0"], 
+        vdims=["max_area"],
+    ).opts(
+        color=cc.glasbey_category10[2],
+        xlabel=r"plating density ($mm^2$)",
+        xlim=(1000, 5250),
+        xticks=[1250, 2500, 3750, 5000],
+        ylabel=r"max. activated area ($\mu m^2$)",
+    #     ylim=(   0, 200000),
+        ylim=(0,None),
+#         title="Inverse sqrt, delta = 0"
+    )
+    
+    return plot
+
+
+def run_max_prop_area(*args, **kwargs):
+    
+    results = max_prop_area_vs_density(*args, **kwargs)
+    plot = plot_max_prop_results(results)
+    
+    return results, plot
+
+def save_max_prop_video(
+    results,
+    run,
+    rows,
+    cols,
+    file_name,
+    dir_name="plots",
+    cmap="kgy",
+    set_xylim="final",
+    n_interp=100,
+    n_frames=100,
+    fps=15, 
+    xlim=(),
+    ylim=(),
+    vmax=None,
+    sender_idx=np.nan,
+    vmax_mult_k=1,
+    which_k=1,
+    anim_kwargs=dict(),
+    **kwargs
+):
+
+    t, X_t, S_t, rho_t = (
+        results["t"],
+        results["X_rho0_t"][run],
+        results["S_rho0_t"][run],
+        results["rho_rho0_t"][run],
+    )
+
+    if set_xylim == "final":
+        X_fin = X_t[-1]
+        xlim_ = X_fin[:, 0].min() * 0.95, X_fin[:, 0].max() * 0.95
+        ylim_ = X_fin[:, 1].min() * 0.95, X_fin[:, 1].max() * 0.95
+    elif set_xylim == "fixed":
+        xlim_, ylim_ = xlim, ylim
+    elif set_xylim == "fit":
+        X_t = X_t[0]
+        xlim_ = X_t[:, 0].min() * 0.95, X_t[:, 0].max() * 0.95
+        ylim_ = X_t[:, 1].min() * 0.95, X_t[:, 1].max() * 0.95
+    else:
+        xlim_ = ylim_ = None
+
+    if vmax is None:
+        vmax = S_t.max()
+    elif vmax == "tc_only":
+        S_t_tc = S_t.copy()
+        S_t_tc[:, sender_idx] = 0
+        vmax = S_t_tc.max()
+    elif vmax == "mult_k":
+        vmax = results["dde_args"][which_k] * vmax_mult_k
+    
+    # Function for plot title
+    title_fun = lambda i: f"Time = {t[i]:.2f}, " + r"$\rho$" + f" = {rho_t[i]:.2f}"
+
+    # Make video
+    animate_interp_mesh(
+        X_arr=X_t,
+        var_t=S_t,
+        n_interp=n_interp,
+        n_frames=n_frames,
+        file_name=file_name,
+        dir_name=dir_name,
+        fps=fps, 
+        vmin=0, 
+        vmax=vmax, 
+        cmap="kgy",
+        title_fun=title_fun,
+        xlim=xlim_,
+        ylim=ylim_,
+        **anim_kwargs,
+    )
+
+####### Biphasic propagation
+
+
+
+
+####### Drug effects
+
+
+
+
+####### Basal promoter activity
+
+
+def basal_activity_phase(
+    t,
+    n,
+    log_lambda_minmax,
+    log_alpha_minmax,
+    n_lambda,
+    n_alpha,
+    n_reps,
+    rhs,
+    dde_args,
+    delay,
+    thresh,
+    where_lambda=4,
+    where_alpha=0,
+    min_delay=5,
+    seed=2021,
+    progress_bar=True,
+):
+    
+    # Sample free parameters
+    lambda_space = np.logspace(*log_lambda_minmax, n_lambda)
+    alpha_space  = np.logspace(*log_alpha_minmax, n_alpha)
+    rep_space    = np.arange(n_reps)
+    free_params  = (rep_space, lambda_space, alpha_space)
+
+    # Get all pairwise combinations of free parameters
+    param_space = np.meshgrid(*free_params)
+    param_space = np.array(param_space, dtype=np.float32).T.reshape(-1, len(free_params))
+
+    # Get indices for pairwise combinations
+    param_idx = np.meshgrid(*[np.arange(p.size) for p in free_params])
+    param_idx = np.array(param_idx, dtype=int).T.reshape(-1, len(free_params))
+
+    # Set seed
+    np.random.seed(seed)
+
+    # Minimally perturb initial fluorescence
+    rv_shape = n_lambda, n_reps, n
+    rv_mean  = np.sqrt(np.pi/2) * lambda_space[:, np.newaxis, np.newaxis]
+    init_arr = scipy.stats.halfnorm.rvs(0, rv_mean, rv_shape)
+    init_arr = np.transpose(init_arr, (1, 0, 2))
+
+    # Get parameters
+    args = list(dde_args)
+    
+    # Initialize results vector
+    S_fin = np.empty((n_reps, n_lambda, n_alpha, n), dtype=np.float32)
+
+    iterator = range(param_space.shape[0])
+    if progress_bar:
+        iterator = tqdm.tqdm(iterator)
+    
+    for i in iterator:
+
+        # Get parameters
+        rep, li, ai = param_idx[i]
+        lambda__, alpha_ = lambda_space[li], alpha_space[ai]
+
+        # Package parameters
+        args[where_lambda] = lambda__
+        args[where_alpha]  = alpha_
+
+        # Get initial conditions
+        S0 = init_arr[rep, li]
+
+        # Simulate
+        S_t = integrate_DDE(
+            t,
+            rhs,
+            dde_args=args,
+            E0=S0,
+            delay=delay,
+            min_delay=min_delay,
+        )
+
+        # Store endpoint of simulation
+        S_fin[rep, li, ai] = S_t[-1]
+
+    # Calculate % of cells activated at final time-point
+    S_activated = S_fin > thresh
+    S_act_prop = S_activated.mean(axis=(0, 3))
+
+    # Calculate % of cells activated at final time-point
+    S_mean = S_fin.mean(axis=(0, 3))
+
+    results = dict(
+        t=t, 
+        n=n,
+        S_fin=S_fin,
+        S_activated=S_activated,
+        S_act_prop=S_act_prop,
+        S_mean=S_mean,
+        dde_args=dde_args,
+        lambda_space=lambda_space,
+        alpha_space=alpha_space,
+        param_space=param_space,
+        init_arr=init_arr,
+    )
+    
+    return results
+
+
+def basal_activity_plots(results):
+    
+    # Retrieve relevant results
+    lambda_space, alpha_space, S_act_prop, S_mean = (
+        results["lambda_space"],
+        results["alpha_space"],
+        results["S_act_prop"],
+        results["S_mean"],
+    )
+    
+    # Construct and return plots
+    data = {
+        "lambda": lambda_space, 
+        "alpha": alpha_space, 
+        "% cells activated": S_act_prop.T * 100,
+        "mean_fluorescence": S_mean.T,
+    }
+
+    p1 = hv.QuadMesh(
+        data=data,
+        kdims=["lambda", "alpha"],
+        vdims=["% cells activated"]
+    ).opts(
+        logx=True, 
+        logy=True,
+    #     color = "% activation", 
+        cmap="kb",
+    #     aspect=2.2,
+        xlabel="λ",
+        ylabel="α",
+    #     title="Genome insertion site can influence \nself-activation of transceiver clones",
+        colorbar=True,
+    )
+
+    p2 = hv.QuadMesh(
+        data=data,
+        kdims=["lambda", "alpha"],
+        vdims=["mean_fluorescence"]
+    ).opts(
+        logx=True, 
+        logy=True,
+    #     color = "% activation", 
+        cmap="viridis",
+    #     aspect=2.2,
+        xlabel="λ",
+        ylabel="α",
+        clabel="mean fluorescence",
+    #     title="Genome insertion site can influence \nself-activation of transceiver clones",
+        colorbar=True,
+    ).redim.range(mean_fluorescence=(0, 1))
+    
+    t1 = hv.Text(2e-5, 6e-1, 'Inducible', fontsize=14).opts(color="white")
+    t2 = hv.Text(5e-3, 5e0, 'Self-\nactivating', fontsize=14).opts(color="white")
+    t3 = hv.Text(5e-3, 5e0, 'Self-\nactivating', fontsize=14).opts(color="black")
+    
+    return p1, p1 * t1 * t2, p2, p2 * t1 * t3
+
+
+def run_basal_activity(
+    *args,
+    **kwargs,
+):
+    results = basal_activity_phase(*args, **kwargs)
+    plots   = basal_activity_plots(results)
+    
+    return results, plots
+
+####### Inhibitor gradient
+
+
+
+####### Density vs. inhibitor effect
+
+
+
+####### 
+
     
 ####### Hexagonal lattice
-
-
 
 def act_vmean(t, X, E_save, thresh, chull=False):
     """
@@ -1330,8 +2172,3 @@ def voronoi_areas(vor):
     
     return areas
 
-###### Additional utilities
-@numba.njit
-def logistic(t, g, rho_0, rho_max):
-    """Return logistic equation evaluated at time `t`."""
-    return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
