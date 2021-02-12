@@ -1,9 +1,0 @@
-trial_name,parameter,value
-lowcis_expbeta,alpha,3.0
-lowcis_expbeta,k,0.03
-lowcis_expbeta,p,2.0
-lowcis_expbeta,delta,1.0
-lowcis_expbeta,lambda_,0.001
-lowcis_expbeta,g,1.0
-lowcis_expbeta,beta_param_0,1.0
-lowcis_expbeta,delay,0.3

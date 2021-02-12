@@ -1,9 +1,0 @@
-trial_name,parameter,value
-highcis_expbeta,alpha,3.0
-highcis_expbeta,k,0.02
-highcis_expbeta,p,2.0
-highcis_expbeta,delta,3.0
-highcis_expbeta,lambda_,0.001
-highcis_expbeta,g,1.0
-highcis_expbeta,beta_param_0,1.0
-highcis_expbeta,delay,0.3
