@@ -98,6 +98,9 @@ def k_step_Adj(k, rows, cols=0, dtype=np.float32, row_stoch=False, **kwargs):
 # In[27]:
 
 
+# Print directory
+print("Current directory: " + os.getcwd())
+
 # Unique name of current run
 run_name = "test_run"
 
