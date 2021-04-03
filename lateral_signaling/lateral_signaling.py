@@ -20,15 +20,16 @@ from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection, LineCollection
 from shapely.geometry import Polygon, Point
 from descartes import PolygonPatch
-# import shapely.geometry as geom
 
 import holoviews as hv
 import colorcet as cc
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 hv.extension('matplotlib')
 
 
 ceiling = np.vectorize(ceil)
+
 def sample_cycle(cycle, size): 
     return hv.Cycle(
         [cycle[i] for i in ceiling(np.linspace(0, len(cycle) - 1, size))]
@@ -102,6 +103,55 @@ def integrate_DDE(
         E_save[step] = E
     
     return E_save
+
+
+def integrate_DDE2(
+    t_span,
+    rhs,
+    dde_args,
+    y0_fun,
+    delay,
+    progress_bar=False,
+    min_delay=5,
+):
+    # Get # time-points, dt, and # cells
+    n_t = t_span.size
+    dt = t_span[1] - t_span[0]
+    t0 = t_span[0]
+    n_c = y0_fun(t0).shape[1]
+    
+    # Get delay in steps
+    step_delay = np.atleast_1d(delay) / dt
+    assert (step_delay >= min_delay), (
+        "Delay time is too short. Lower dt or lengthen delay."
+    )
+    assert (step_delay < n_t), ("Time-span must be longer than delay")
+    step_delay = ceil(step_delay)
+    
+    # Initialize output
+    y_save = np.empty((n_t, n_c), dtype=np.float32)
+    y_save[0] = y = y0_fun(t0).flatten()
+    
+    # Temporarily store past values in the output vector
+    past_t = np.arange(-delay, t0, dt)
+    y_save[-step_delay:] = y0_fun(past_t)
+    
+    # Construct time iterator
+    iterator = np.arange(1, n_t)
+    if progress_bar:
+        iterator = tqdm.tqdm(iterator)
+
+    for step in iterator:
+        # Get past E
+        past_step = step - step_delay
+        y_delay = y_save[past_step]
+        
+        # Integrate
+        dy_dt = rhs(y, y_delay, *dde_args)
+        y = np.maximum(0, y + dy_dt * dt) 
+        y_save[step] = y
+    
+    return y_save
 
 
 def integrate_DDE_varargs(
@@ -645,6 +695,8 @@ def plot_var(
     ylim=(),
     aspect=None,
     plot_ifc=True,
+    sender_idx=np.array([], dtype=int),
+    sender_clr=("bmw", 150),
     **kwargs
 ):
     ax1.clear()
@@ -658,12 +710,16 @@ def plot_var(
         vmax = var.max()
 
     cols = cc.cm[cmap](normalize(var[i], vmin, vmax))
+    sender_col = cc.cm[sender_clr[0]](sender_clr[1] / 256)
     for j, region in enumerate(regions):
         poly = Polygon(vertices[region])
         circle = Point(X[j]).buffer(cell_radii[j])
         cell_poly = circle.intersection(poly)
         if cell_poly.area != 0:
-            ax1.add_patch(PolygonPatch(cell_poly, fc=cols[j], **ppatch_kwargs))
+            if j in sender_idx:
+                ax1.add_patch(PolygonPatch(cell_poly, fc=sender_col, **ppatch_kwargs))
+            else:
+                ax1.add_patch(PolygonPatch(cell_poly, fc=cols[j], **ppatch_kwargs))
     
     if plot_ifc:
         pts = [Point(*x).buffer(rad) for x, rad in zip(X, cell_radii)]
@@ -708,6 +764,7 @@ def animate_var(
     ppatch_kwargs=dict(edgecolor="gray"),
     lcoll_kwargs=dict(),
     title_fun=None,
+    plot_ifc=False,
     **kwargs
 ):
     fig = plt.figure()
@@ -719,17 +776,18 @@ def animate_var(
         tf=title_fun
     else:
         tf=lambda x: None
-        
-    cr = cell_radii.copy()
-    if cr.ndim == 1:
-        cr = np.repeat(cr[np.newaxis, :], var.shape[0])
     
     def anim(i):
+        if cell_radii.ndim == 2:
+            cr = cell_radii[skip * i]
+        else:
+            cr = cell_radii.copy()
+
         plot_var(
             ax1,
             skip * i,
             X,
-            cell_radii[skip * i],
+            cr,
             var,
             vmin=vmin,
             vmax=vmax,
@@ -738,6 +796,7 @@ def animate_var(
             ppatch_kwargs=ppatch_kwargs,
             lcoll_kwargs=lcoll_kwargs,
             title=tf(skip * i),
+            plot_ifc=plot_ifc,
             **kwargs,
         )
 
@@ -754,12 +813,17 @@ def animate_var(
     an.save("%s.mp4" % os.path.join(dir_name, file_name), writer=writer, dpi=264)
 
 
-def inspect_out(
+def inspect_out(*args, **kwargs):
+    """Deprecated: Please use inspect_hex()"""
+    return inspect_hex(*args, **kwargs)
+    
+    
+def inspect_hex(
     X,
-    cell_radii,
-    var,
-    ax1=None,
+    var_t,
+    ax=None,
     idx=-1,
+    cell_radii=None,
     vmin=None,
     vmax=None,
     cmap="CET_L8",
@@ -767,48 +831,146 @@ def inspect_out(
     ifcc="red",
     ppatch_kwargs=dict(edgecolor="gray"),
     lcoll_kwargs=dict(),
+    plot_ifc=False,
+    sender_idx=np.array([], dtype=int),
+    sender_clr="#e330ff",
+    colorbar=False,
+    cbar_aspect=20,
     **kwargs
 ):
-    if ax1 is None:
+    if ax is None:
         fig = plt.figure()
-        ax1 = fig.add_subplot(1, 1, 1)
+        ax = fig.add_subplot(1, 1, 1)
     
-    if idx == -1:
-        k = var.shape[0] - 1
-    else:
-        k = idx
-        
-    if len(X.shape) == 2:
+    nt = var_t.shape[0]
+    k = np.arange(nt)[idx]
+    
+    if X.ndim == 2:
         Xk = X.copy()
     else:
         Xk = X[k]
     
-    if len(cell_radii.shape) == 1:
-        crk = cell_radii.copy()
-    else:
+    if cell_radii is None:
+        Xk_centered = Xk - Xk.mean(axis=0)
+        max_rad = np.linalg.norm(Xk_centered, axis=1).max() * 2
+        crk = max_rad * np.ones(Xk.shape[0], dtype=np.float32) 
+        
+    elif cell_radii.ndim == 2:
         crk = cell_radii[k]
-
-#     if len(var.shape) == 1:
-#         vark = var.copy()
-#     else:
-#         vark = var[k]
-
+        
+    else:
+        crk = cell_radii.copy()
+    
     plot_var(
-        ax1,
+        ax,
         k,
         Xk,
         crk,
-        var,
+        var_t,
         vmin=vmin,
         vmax=vmax,
         cmap=cmap,
         ifcc=ifcc,
         ppatch_kwargs=ppatch_kwargs,
         lcoll_kwargs=lcoll_kwargs,
-        **kwargs
+        plot_ifc=plot_ifc,
+        sender_idx=sender_idx,
+        sender_clr=sender_clr,
+       **kwargs
     )
-
     
+    if colorbar:
+        cbar = fig.colorbar(
+            plt.cm.ScalarMappable(
+                norm=mpl.colors.Normalize(vmin, vmax), 
+                cmap=cc.cm[cmap]), 
+            ax=ax,
+            aspect=cbar_aspect,
+        )
+
+
+def inspect_grid_hex(
+    t,
+    X_t,
+    var_t,
+    plt_idx=None,
+    axs=None,
+    nrows=None,
+    ncols=None,
+    cell_radii=None,
+    vmin=None,
+    vmax=None,
+    xlim=None,
+    ylim=None,
+    title_fun=None,
+    cmap="kgy",
+    axis_off=True,
+    figsize=(10,6),
+    sender_idx=np.array([], dtype=int),
+    sender_clr="#e330ff",
+    colorbar=False,
+    cbar_aspect=20,
+    **kwargs
+):
+    nt = t.size
+    
+    if title_fun is None:
+        title_fun = lambda i: f"Time = {t[i]:.2f}"
+    
+    kw = kwargs.copy()
+    if xlim is not None:
+        kw["xlim"] = xlim
+    if ylim is not None:
+        kw["ylim"] = ylim
+    
+    # Render frames
+    if plt_idx is None:
+        nplot = nrows * ncols
+        plt_idx = np.array([int(i) for i in np.linspace(0, nt-1, nplot)])
+    
+    if axs is None:
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
+        
+    for ax, i in zip(axs.flat, plt_idx):
+        
+        title = title_fun(i)
+        
+        inspect_hex(
+            X=X_t,
+            var_t=var_t, 
+            ax=ax,
+            idx=i,
+            cell_radii=cell_radii,
+            vmin=vmin, 
+            vmax=vmax,
+            cmap=cmap,
+            title=title,
+            axis_off=axis_off,
+            sender_idx=sender_idx,
+            sender_clr=sender_clr,
+            **kw
+        )
+    
+    if colorbar:
+        n = var_t.shape[1]
+        ns_mask = ~ np.isin(np.arange(n), sender_idx)
+        is_under_min = var_t[plt_idx].min(initial=0.0, where=ns_mask) < vmin
+        is_over_max  = var_t[plt_idx].max(initial=0.0, where=ns_mask) > vmax
+        extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
+        
+        cbar = fig.colorbar(
+            plt.cm.ScalarMappable(
+                norm=mpl.colors.Normalize(vmin, vmax), 
+                cmap=cc.cm[cmap]), 
+            ax=axs,
+            shrink=1/ncols,
+            aspect=cbar_aspect,
+            extend=extend
+        )
+    
+    return fig, axs
+
+
 def animate_var_lattice(
     X_arr,
     cell_radii,
@@ -827,6 +989,7 @@ def animate_var_lattice(
     ppatch_kwargs=dict(edgecolor="gray"),
     lcoll_kwargs=dict(),
     title_fun=None,
+    plot_ifc=False,
     **kwargs
 ):
     fig = plt.figure()
@@ -839,21 +1002,22 @@ def animate_var_lattice(
     else:
         tf=lambda x: None
         
-    cr = cell_radii.copy()
-    if cr.ndim == 1:
-        cr = np.repeat(cr[np.newaxis, :], var.shape[0], axis=0)
-    
-    if X_arr.ndim == 2:
-        X = np.repeat(X_arr[np.newaxis, :], var.shape[0], axis=0)
-    else:
-        X = X_arr.copy()
-    
     def anim(i):
+        if cell_radii.ndim == 2:
+            cr = cell_radii[skip * i]
+        else:
+            cr = cell_radii.copy()
+
+        if X_arr.ndim == 2:
+            X = X_arr[skip * i]
+        else:
+            X = X_arr.copy()
+    
         plot_var(
             ax1,
             skip * i,
-            X[skip * i],
-            cell_radii[skip * i],
+            X,
+            cr,
             var,
             xlim=xlim,
             ylim=ylim,
@@ -864,6 +1028,7 @@ def animate_var_lattice(
             ppatch_kwargs=ppatch_kwargs,
             lcoll_kwargs=lcoll_kwargs,
             title=tf(skip * i),
+            plot_ifc=plot_ifc,
             **kwargs
         )
 
@@ -1362,9 +1527,8 @@ def max_prop_area_vs_density(
     t,
     X,
     sender_idx,
-    rho_min,
+    rho_0_space,
     rho_max,
-    n_rho,
     g,
     rhs,
     dde_args,
@@ -1378,10 +1542,8 @@ def max_prop_area_vs_density(
     # Get # cells and # time-points
     n = X.shape[0]
     nt = t.size
+    n_rho = rho_0_space.size
 
-    # Sample starting densities
-    rho_0_space = np.linspace(rho_min, rho_max, n_rho)
-    
     # Set initial fluorescence
     S0 = np.zeros(n, dtype=np.float32)
     S0[sender_idx] = 1
@@ -1430,6 +1592,7 @@ def max_prop_area_vs_density(
         t=t, 
         dde_args=dde_args,
         rho_0_space=rho_0_space,
+        rho_max=rho_max,
         rho_rho0_t=rho_rho0_t,
         X_rho0_t=X_rho0_t, 
         S_rho0_t=S_rho0_t,
