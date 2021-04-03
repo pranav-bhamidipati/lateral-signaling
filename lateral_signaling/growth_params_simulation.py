@@ -467,7 +467,7 @@ if not os.path.exists(data_dir):
 data_file = os.path.join(
     res_dir, run_name, run_name + "_results"
 )
-np.savez_compressed(data_file, data_dict)
+np.savez_compressed(data_file, **data_dict)
 
 
 # In[ ]:
