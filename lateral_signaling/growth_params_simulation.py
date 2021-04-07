@@ -98,6 +98,9 @@ def k_step_Adj(k, rows, cols=0, dtype=np.float32, row_stoch=False, **kwargs):
 # In[27]:
 
 
+# Set directory
+os.chdir("/home/pbhamidi/git/evomorph/lateral_signaling/")
+
 # Print directory
 print("Current directory: " + os.getcwd())
 
@@ -286,6 +289,10 @@ n_s = int(n * (pct_s / 100)) + 1
 # Assign senders randomly
 sender_idx = np.random.choice(n, n_s, replace=False)
 
+# Make a mask for transceivers
+tc_mask = np.ones(n, dtype=bool)
+tc_mask[sender_idx] = False
+
 
 # __Get RHS of signaling DDE__
 
@@ -332,11 +339,15 @@ n_runs = param_space.shape[0]
 args = list(dde_args)
 
 # Initialize results vectors
-S_actnum_param_constant = np.empty((n_runs, nt), dtype=np.float32)
-S_mean_param_constant = np.empty((n_runs, nt), dtype=np.float32)
+S_actnum_param_constant = np.empty((n_runs, nt), dtype=int)
+S_tcmean_param_constant = np.empty((n_runs, nt), dtype=np.float32)
 
 # Make iterator
 iterator = range(n_runs)
+
+# # Test iterator
+# iterator = range(24)
+
 if progress_bar:
     iterator = tqdm(iterator)
 
@@ -359,97 +370,103 @@ for i in iterator:
     S_act_t = S_t > thresh
     S_actnum_t = S_act_t.sum(axis=1)
 
-    # Mean fluorescence
-    S_mean_t = S_t.mean(axis=1)
+    # Mean fluorescence of transceivers
+    S_tcmean_t = S_t[:, tc_mask].mean(axis=1)
     
     # Save results
     S_actnum_param_constant[i] = S_actnum_t
-    S_mean_param_constant[i] = S_mean_t
+    S_tcmean_param_constant[i] = S_tcmean_t
 
 
 # <hr>
 
-# ## Logistic growth parameter sweep
+## Logistic growth parameter sweep
 
 # In[23]:
 
 
-# # Define free parameters for parameter scan
-# g_space       = np.logspace(-1, 1, 25)
-# rho_0_space   = np.linspace(0, 8, 25)[1:]
-# rho_max_space = np.linspace(0, 8, 25)[1:]
-# free_params   = (g_space, rho_0_space, rho_max_space)
+# Define free parameters for parameter scan
+g_space       = np.logspace(-1, 1, 25)
+rho_0_space   = np.linspace(0, 8, 25)[1:]
+rho_max_space = np.linspace(0, 8, 25)[1:]
+free_params   = (g_space, rho_0_space, rho_max_space)
 
-# # Make array with all combinations of params
-# param_space = np.meshgrid(*free_params)
-# param_space = np.array(param_space).T.reshape(-1, len(free_params))
+# Make array with all combinations of params
+param_space = np.meshgrid(*free_params)
+param_space = np.array(param_space).T.reshape(-1, len(free_params))
 
-# # Get number of simulations
-# n_runs = param_space.shape[0]
+# Get number of simulations
+n_runs = param_space.shape[0]
 
 
 # In[24]:
 
 
-# # Make mutable copy of dde args
-# args = list(dde_args)
+# Make mutable copy of dde args
+args = list(dde_args)
 
-# # Initialize results vectors
-# S_actnum_param_logistic = np.empty((n_runs, nt), dtype=np.float32)
-# S_mean_param_logistic = np.empty((n_runs, nt), dtype=np.float32)
+# Initialize results vectors
+S_actnum_param_logistic = np.empty((n_runs, nt), dtype=int)
+S_tcmean_param_logistic = np.empty((n_runs, nt), dtype=np.float32)
 
-# # Make iterator
-# iterator = range(n_runs)
-# if progress_bar:
-#     iterator = tqdm(iterator)
+# Make iterator
+iterator = range(n_runs)
 
-# for i in iterator:    
-#     # Get parameters
-#     g_, rho_max_ = param_space[i]
-#     args[where_g] = g_
+# # Test iterator
+# iterator = range(24)
+
+if progress_bar:
+    iterator = tqdm(iterator)
+
+for i in iterator:    
     
-#     # Calculate density
-#     rho_t = lsig.logistic(t, g_, 1., rho_max_)
+    # Get parameters
+    g_, rho_0_, rho_max_ = param_space[i]
+    args[where_g] = g_
+  
+    # Calculate density
+    rho_t = lsig.logistic(t, g_, rho_0_, rho_max_)
 
-#     # Simulate
-#     S_t = lsig.integrate_DDE_varargs(
-#         t,
-#         rhs_1,
-#         var_vals=rho_t,
-#         where_vars=where_rho,
-#         dde_args=args,
-#         E0=S0,
-#         delay=delay
-#     )
+    # Simulate
+    S_t = lsig.integrate_DDE_varargs(
+        t,
+        rhs_1,
+        var_vals=rho_t,
+        where_vars=where_rho,
+        dde_args=args,
+        E0=S0,
+        delay=delay
+    )
     
-#     # Number of activated cells
-#     S_act_t = S_t > thresh
-#     S_actnum_t = S_act_t.sum(axis=1)
+    # Number of activated cells
+    S_act_t = S_t > thresh
+    S_actnum_t = S_act_t.sum(axis=1)
 
-#     # Mean fluorescence
-#     S_mean_t = S_t.mean(axis=1)
+    # Mean fluorescence
+    S_tcmean_t = S_t[:, tc_mask].mean(axis=1)
     
-#     # Save results
-#     S_actnum_param_logistic[i] = S_actnum_t
-#     S_mean_param_logistic[i] = S_mean_t
+    # Save results
+    S_actnum_param_logistic[i] = S_actnum_t
+    S_tcmean_param_logistic[i] = S_tcmean_t
 
 
 # <hr>
 
-# ## Save results
+## Save results
 
 # In[25]:
 
 
 ### Save time-points, sender_idx, param_space, S_actnum_param, and S_mean_param as .npy/.npz
 data_dict = dict(
+    n=n,
     t=t,
     sender_idx=sender_idx,
     param_space=param_space,
     S_actnum_param_constant=S_actnum_param_constant,
-    S_mean_param_constant=S_mean_param_constant,
-#     S_actnum_param_logistic=S_actnum_param_logistic,
-#     S_mean_param_logistic=S_mean_param_logistic,
+    S_tcmean_param_constant=S_tcmean_param_constant,
+    S_actnum_param_logistic=S_actnum_param_logistic,
+    S_tcmean_param_logistic=S_tcmean_param_logistic,
 )
 
 
