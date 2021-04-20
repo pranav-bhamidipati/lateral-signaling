@@ -105,10 +105,10 @@ os.chdir("/home/pbhamidi/git/evomorph/lateral_signaling/")
 print("Current directory: " + os.getcwd())
 
 # Unique name of current run
-run_name = "test_run"
+run_name = "20210415_sweep_TCphase_dense_ling"
 
 # Directory to save results
-res_dir = "data"
+res_dir = "/home/pbhamidi/git/evomorph/lateral_signaling/data"
 
 # Directory of parameter set
 trial_dir = "."
@@ -116,8 +116,9 @@ trial_dir = "."
 # Name of parameter set
 trial_name = "lowcis_expbeta"
 
-# Random seed
+# Set random seed
 seed = 2021
+np.random.seed(seed)
 
 # Whether to display progress
 progress_bar = True
@@ -264,150 +265,42 @@ X = lsig.hex_grid(rows, cols, r=r)
 # Get # cells
 n = X.shape[0]
 
-
-# __Get cell adjacency__
-
-# In[15]:
-
-
 # Calculate cell adjacency
 kAdj_1 = k_step_Adj(1, rows, cols, row_stoch=True)
-# kAdj_3 = k_step_Adj(3, rows, cols, row_stoch=True)
-
-
-# __Set sender cell location__
-
-# In[16]:
-
-
-# Set seed
-np.random.seed(seed)
 
 # Specify percent of population that is sender
 n_s = int(n * (pct_s / 100)) + 1
 
-# Assign senders randomly
-sender_idx = np.random.choice(n, n_s, replace=False)
-
-# Make a mask for transceivers
-tc_mask = np.ones(n, dtype=bool)
-tc_mask[sender_idx] = False
-
-
-# __Get RHS of signaling DDE__
-
-# In[17]:
-
-
-# Get RHS of DDE equation to pass to integrator
-rhs_1 = lsig.get_DDE_rhs(rhs_long, kAdj_1, sender_idx, beta_func, beta_args,)
-# rhs_3 = lsig.get_DDE_rhs(rhs_long, kAdj_3, sender_idx, beta_func, beta_args,)
-
-
-# In[18]:
-
-
-# Get initial conditions
-S0 = np.zeros(n)
-S0[sender_idx] = 1
-
-
-# <hr>
-
-# ## Constant density parameter sweep
-
-# In[20]:
-
-
 # Define free parameters for parameter scan
-g_space     = np.logspace(-1, 1, 25)
-rho_space   = np.linspace(0, 8, 25)[1:]
-free_params = (g_space, rho_space)
-
-# Make array with all combinations of params
-param_space = np.meshgrid(*free_params)
-param_space = np.array(param_space).T.reshape(-1, len(free_params))
-
-# Get number of simulations
-n_runs = param_space.shape[0]
-
-
-# In[22]:
-
-
-# Make mutable copy of dde args
-args = list(dde_args)
-
-# Initialize results vectors
-S_actnum_param_constant = np.empty((n_runs, nt), dtype=int)
-S_tcmean_param_constant = np.empty((n_runs, nt), dtype=np.float32)
-
-# Make iterator
-iterator = range(n_runs)
-
-# # Test iterator
-# iterator = range(24)
-
-if progress_bar:
-    iterator = tqdm(iterator)
-
-for i in iterator:    
-    # Get parameters
-    g_, rho_ = param_space[i]
-    args[where_g] = g_
-    args[where_rho] = rho_
-
-    # Simulate
-    S_t = lsig.integrate_DDE(
-        t,
-        rhs_1,
-        dde_args=args,
-        E0=S0,
-        delay=delay
-    )
-    
-    # Number of activated cells
-    S_act_t = S_t > thresh
-    S_actnum_t = S_act_t.sum(axis=1)
-
-    # Mean fluorescence of transceivers
-    S_tcmean_t = S_t[:, tc_mask].mean(axis=1)
-    
-    # Save results
-    S_actnum_param_constant[i] = S_actnum_t
-    S_tcmean_param_constant[i] = S_tcmean_t
-
-
-# <hr>
-
-## Logistic growth parameter sweep
-
-# In[23]:
-
-
-# Define free parameters for parameter scan
-g_space       = np.logspace(-1, 1, 25)
+rep_space     = np.arange(5)
+g_space       = np.linspace(0.25, 2.25, 25)
 rho_0_space   = np.linspace(0, 8, 25)[1:]
 rho_max_space = np.linspace(0, 8, 25)[1:]
-free_params   = (g_space, rho_0_space, rho_max_space)
+free_params   = (rep_space, g_space, rho_0_space, rho_max_space)
+param_names   = ("rep", "g", "rho_0", "rho_max")
 
 # Make array with all combinations of params
 param_space = np.meshgrid(*free_params)
 param_space = np.array(param_space).T.reshape(-1, len(free_params))
 
+# Get sender indices for each replicate
+sender_idx_rep = np.empty((rep_space.size, n_s), dtype=int)
+for rep in rep_space:    
+    # Set random seed
+    np.random.seed(seed + rep)
+    # Assign senders randomly
+    sender_idx = np.random.choice(n, n_s, replace=False)
+    sender_idx_rep[rep] = sender_idx
+
 # Get number of simulations
 n_runs = param_space.shape[0]
-
-
-# In[24]:
-
 
 # Make mutable copy of dde args
 args = list(dde_args)
 
 # Initialize results vectors
-S_actnum_param_logistic = np.empty((n_runs, nt), dtype=int)
-S_tcmean_param_logistic = np.empty((n_runs, nt), dtype=np.float32)
+S_actnum_param = np.empty((n_runs, nt), dtype=int)
+S_tcmean_param = np.empty((n_runs, nt), dtype=np.float32)
 
 # Make iterator
 iterator = range(n_runs)
@@ -421,9 +314,23 @@ if progress_bar:
 for i in iterator:    
     
     # Get parameters
-    g_, rho_0_, rho_max_ = param_space[i]
+    rep, g_, rho_0_, rho_max_ = param_space[i]
     args[where_g] = g_
   
+    # Get senders
+    sender_idx = sender_idx_rep[int(rep)]
+    
+    # Make a mask for transceivers
+    tc_mask = np.ones(n, dtype=bool)
+    tc_mask[sender_idx] = False
+    
+    # Get RHS of DDE equation to pass to integrator
+    rhs_1 = lsig.get_DDE_rhs(rhs_long, kAdj_1, sender_idx, beta_func, beta_args,)
+    
+    # Get initial conditions
+    S0 = np.zeros(n)
+    S0[sender_idx] = 1
+
     # Calculate density
     rho_t = lsig.logistic(t, g_, rho_0_, rho_max_)
 
@@ -446,44 +353,30 @@ for i in iterator:
     S_tcmean_t = S_t[:, tc_mask].mean(axis=1)
     
     # Save results
-    S_actnum_param_logistic[i] = S_actnum_t
-    S_tcmean_param_logistic[i] = S_tcmean_t
+    S_actnum_param[i] = S_actnum_t
+    S_tcmean_param[i] = S_tcmean_t
 
 
-# <hr>
-
-## Save results
-
-# In[25]:
-
-
-### Save time-points, sender_idx, param_space, S_actnum_param, and S_mean_param as .npy/.npz
+# Store results 
 data_dict = dict(
     n=n,
     t=t,
-    sender_idx=sender_idx,
+    random_seeds=seed+rep_space,
+    sender_idx_rep=sender_idx_rep,
+    param_names=param_names,
     param_space=param_space,
-    S_actnum_param_constant=S_actnum_param_constant,
-    S_tcmean_param_constant=S_tcmean_param_constant,
-    S_actnum_param_logistic=S_actnum_param_logistic,
-    S_tcmean_param_logistic=S_tcmean_param_logistic,
+    S_actnum_param=S_actnum_param,
+    S_tcmean_param=S_tcmean_param,
 )
-
-
-# In[33]:
-
 
 # Make results directory if it doesn't exist
 data_dir = os.path.join(res_dir, run_name)
 if not os.path.exists(data_dir):
     os.mkdir(data_dir)
-    
-
 
 # In[34]:
 
-
-# Save
+# Save data 
 data_file = os.path.join(
     res_dir, run_name, run_name + "_results"
 )
