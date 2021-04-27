@@ -24,6 +24,38 @@ from glob import glob
 # In[2]:
 
 
+def tc_rhs_beta_no_g(S, S_delay, Adj, sender_idx, beta_func, beta_args, alpha, k, p, delta, lambda_, rho):
+    """
+    Right-hand side of the transciever circuit delay 
+    differential equation. Uses a matrix of cell-cell contact 
+    lengths `L`.
+    """
+
+    # Get signaling as a function of density
+    beta = beta_func(rho, *beta_args)
+    
+    # Get input signal across each interface
+    S_bar = beta * (Adj @ S_delay)
+
+    # Calculate dE/dt
+    dS_dt = (
+        lambda_
+        + alpha
+        * (S_bar ** p)
+        / (
+            k ** p 
+            + (delta * S_delay) ** p 
+            + S_bar ** p
+        )
+        - S
+    )
+
+    # Set sender cell to zero
+    dS_dt[sender_idx] = 0
+
+    return dS_dt
+
+
 def tc_rhs_beta_g_normA(S, S_delay, Adj, sender_idx, beta_func, beta_args, alpha, k, p, delta, lambda_, g, rho):
     """
     Right-hand side of the transciever circuit delay 
@@ -105,7 +137,7 @@ os.chdir("/home/pbhamidi/git/evomorph/lateral_signaling/")
 print("Current directory: " + os.getcwd())
 
 # Unique name of current run
-run_name = "20210415_sweep_TCphase_dense_ling"
+run_name = "20210426_sweep_TCphase_dense_ling_nodilution"
 
 # Directory to save results
 res_dir = "/home/pbhamidi/git/evomorph/lateral_signaling/data"
@@ -139,7 +171,7 @@ rho_min, rho_max = 1, 5.63040245
 
 
 # Set the RHS function in long-form
-rhs_long = tc_rhs_beta_g_normA
+rhs_long = tc_rhs_beta_no_g
 
 # Set beta(rho)
 beta_func = lsig.beta_rho_exp
@@ -212,9 +244,14 @@ param_vals  = params_df.value.values[is_param]
 #   initialized with rho_min.
 dde_args = *param_vals, rho_min
 
-
 # In[11]:
 
+# Get `g`
+where_g = next(i for i, pn in enumerate(param_names) if "g" == pn)
+g = param_vals[where_g]
+
+# (Optional) Remove `g` from signaling parameters
+dde_args = [*dde_args[:where_g], *dde_args[(where_g+1):]]
 
 # Get index of `rho` (last argument)
 where_rho = len(dde_args) - 1
@@ -224,25 +261,9 @@ where_k = next(i for i, pn in enumerate(param_names) if "k" == pn)
 k = param_vals[where_k]
 thresh = k
 
-# Get `g`
-where_g = next(i for i, pn in enumerate(param_names) if "g" == pn)
-g = param_vals[where_g]
 
-
-# <hr>
-
-# ## Figure parameters
-
-# In[12]:
-
-
+# Figure parameters
 pct_s = 1
-
-
-# __Set time parameters__
-
-# In[13]:
-
 
 # Set time parameters
 tmax = 5
@@ -254,9 +275,6 @@ t = np.linspace(0, tmax, nt)
 
 
 # __Construct lattice of cells__
-
-# In[14]:
-
 
 # Make lattice
 rows = cols = 100
@@ -305,7 +323,7 @@ S_tcmean_param = np.empty((n_runs, nt), dtype=np.float32)
 # Make iterator
 iterator = range(n_runs)
 
-# # Test iterator
+# # Make test iterator
 # iterator = range(24)
 
 if progress_bar:
@@ -315,8 +333,8 @@ for i in iterator:
     
     # Get parameters
     rep, g_, rho_0_, rho_max_ = param_space[i]
-    args[where_g] = g_
-  
+#     args[where_g] = g_
+    
     # Get senders
     sender_idx = sender_idx_rep[int(rep)]
     
@@ -330,10 +348,10 @@ for i in iterator:
     # Get initial conditions
     S0 = np.zeros(n)
     S0[sender_idx] = 1
-
+    
     # Calculate density
     rho_t = lsig.logistic(t, g_, rho_0_, rho_max_)
-
+    
     # Simulate
     S_t = lsig.integrate_DDE_varargs(
         t,
@@ -348,7 +366,7 @@ for i in iterator:
     # Number of activated cells
     S_act_t = S_t > thresh
     S_actnum_t = S_act_t.sum(axis=1)
-
+    
     # Mean fluorescence
     S_tcmean_t = S_t[:, tc_mask].mean(axis=1)
     
@@ -361,12 +379,12 @@ for i in iterator:
 data_dict = dict(
     n=n,
     t=t,
-    random_seeds=seed+rep_space,
-    sender_idx_rep=sender_idx_rep,
-    param_names=param_names,
-    param_space=param_space,
-    S_actnum_param=S_actnum_param,
-    S_tcmean_param=S_tcmean_param,
+    random_seeds   = seed+rep_space,
+    sender_idx_rep = sender_idx_rep,
+    param_names    = param_names,
+    param_space    = param_space,
+    S_actnum_param = S_actnum_param,
+    S_tcmean_param = S_tcmean_param,
 )
 
 # Make results directory if it doesn't exist
