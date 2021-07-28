@@ -1,9 +1,9 @@
 trial_name,parameter,value
-lowcis_expbeta,alpha,3.0
-lowcis_expbeta,k,0.03
-lowcis_expbeta,p,2.0
-lowcis_expbeta,delta,1.0
-lowcis_expbeta,lambda_,1e-05
-lowcis_expbeta,g,1.0
-lowcis_expbeta,beta_param_0,1.0
+lowcis_expbeta,alpha,3
+lowcis_expbeta,k,0.02
+lowcis_expbeta,p,2
+lowcis_expbeta,delta,1
+lowcis_expbeta,lambda_,1.00E-05
+lowcis_expbeta,g,1
+lowcis_expbeta,beta_param_0,1
 lowcis_expbeta,delay,0.3

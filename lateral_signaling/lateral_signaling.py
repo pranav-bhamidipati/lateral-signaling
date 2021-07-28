@@ -1,11 +1,12 @@
 ####### Load depenendencies
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
 from math import ceil
 from scipy.spatial import Voronoi, voronoi_plot_2d, ConvexHull
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, identity, diags
 from scipy.spatial.distance import pdist, squareform
 from scipy.interpolate import Rbf
 import scipy.stats
@@ -18,6 +19,7 @@ import time
 from matplotlib import animation
 from matplotlib.patches import Circle
 from matplotlib.collections import PatchCollection, LineCollection
+from matplotlib_scalebar.scalebar import ScaleBar
 from shapely.geometry import Polygon, Point
 from descartes import PolygonPatch
 
@@ -25,15 +27,181 @@ import holoviews as hv
 import colorcet as cc
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 hv.extension('matplotlib')
 
 
+####### Plotting utils
+
+# Function for vectorized integer ceiling operations
 ceiling = np.vectorize(ceil)
 
+# Sample a continuous colormap at regular intervals to get a linearly segmented map
 def sample_cycle(cycle, size): 
     return hv.Cycle(
         [cycle[i] for i in ceiling(np.linspace(0, len(cycle) - 1, size))]
     )
+
+# Make a custom version of the "KGY" colormap
+kgy_original = cc.cm["kgy"]
+kgy = ListedColormap(kgy_original(np.linspace(0, 0.92, 256)))
+
+# Color swatches
+cols_blue = [
+    "#2e5a89",
+    "#609acf",
+    "#afc4cd",
+]
+
+cols_teal = [
+    "#37698a",
+    "#1dab99",
+    "#5c6c74",
+]
+
+cols_green = [
+    "#37698a",
+    "#80c343",
+    "#9cb6c1",
+]
+
+cols_red = [
+    "#e16566",
+    "#efc069",
+    "#b0c5cd",
+]
+
+col_gray  = "#aeaeae"
+col_black = "#060605"
+
+def ecdf(d, *args, **kwargs):
+    """Construct an ECDF from 1D data array `d`"""
+    x = np.sort(d)
+    y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
+    return hv.Scatter(np.array([x, y]).T, *args, *kwargs)
+
+def remove_RB_spines(plot, element):
+    """Hook to remove right and bottom spines from Holoviews plot"""
+    plot.state.axes[0].spines["right"].set_visible(False)
+    plot.state.axes[0].spines["bottom"].set_visible(False)
+    
+def remove_RT_spines(plot, element):
+    """Hook to remove right and top spines from Holoviews plot"""
+    plot.state.axes[0].spines["right"].set_visible(False)
+    plot.state.axes[0].spines["top"].set_visible(False)
+
+####### Constants
+
+# Measured carrying capacity density of transceiver cell line
+#   in dimensionless units. 
+rho_max_ = 5.63040245
+
+# Length of one dimensionless distance unit in microns
+length_scale = np.sqrt(
+    8 / (3 * np.sqrt(3)) 
+    / (1250)  # cells per mm^2
+    * (1e6)   # mm^2  per μm^2
+)
+
+####### Unit conversions
+
+@numba.njit
+def t_to_units(dimless_time, ref_growth_rate=7.28398176e-01):
+    """Convert dimensionless time to real units for a growth process.
+    
+    Returns
+    -------
+    time  :  number or numpy array (dtype float)
+        Time in units (hours, days, etc.)
+    
+    Parameters
+    ----------
+    
+    dimless_time  :  number or numpy array
+        Time in dimensionless units. An exponentially growing
+        function (e.g. cell population) grows by a factor of `e` 
+        over 1 dimensionless time unit.
+    
+    ref_growth_rate  :  float
+        The rate of growth, in the user's defined units. An exponentially
+        growing function (e.g. cell population) grows by a factor of `e` 
+        over a time of `1 / growth_rate`.
+        Defaults to 7.28398176e-01 days.
+    """
+    return dimless_time / ref_growth_rate
+
+
+@numba.njit
+def g_to_units(dimless_growth_rate, ref_growth_rate=7.28398176e-01):
+    """Convert dimensionless growth rate to real units for a growth process.
+    
+    Returns
+    -------
+    growth_rate  :  number or numpy array (dtype float)
+        Time in units (hours, days, etc.)
+    
+    Parameters
+    ----------
+    
+    dimless_growth_rate  :  number or numpy array
+        Time in dimensionless units. An exponentially growing
+        function (e.g. cell population) grows by a factor of `e` 
+        over 1 dimensionless time unit.
+    
+    ref_growth_rate  :  float
+        The rate of growth, in units of `1 / Time`. An exponentially
+        growing function (e.g. cell population) grows by a factor of `e` 
+        over a time of `1 / growth_rate`.
+        Defaults to 7.28398176e-01 days.
+    """
+    return dimless_growth_rate * ref_growth_rate
+
+@numba.njit
+def rho_to_units(rho, ref_density=1250):
+    """Convert dimensionless growth rate to real units for a growth process.
+    
+    Returns
+    -------
+    density  :  number or numpy array (dtype float)
+        Time in units (hours, days, etc.)
+    
+    Parameters
+    ----------
+    
+    rho  :  number or numpy array
+        Cell density in dimensionless units.
+    
+    ref_density  :  number or numpy array
+        The cell density at a dimensionless density of `rho = 1`. 
+        Defaults to 1250 cells / mm^2.
+    """
+    return rho * ref_density
+
+
+@numba.njit
+def ncells_to_area(ncells, rho, ref_density=1250):
+    """Return theoretical area taken up by `ncells` cells.
+    
+    Returns
+    -------
+    area  :  number or numpy array (dtype float)
+        Area in units (mm^2, μm^2, etc.)
+    
+    Parameters
+    ----------
+    
+    ncells  :  number or numpy array (dtype int)
+        Number of cells
+    
+    rho  :  number or numpy array
+        Cell density in dimensionless units.
+    
+    ref_density  :  number or numpy array
+        The cell density at a dimensionless density of `rho = 1`
+        in units of inverse area. Defaults to 1250 (mm^-2).
+    """
+    return ncells / (rho * ref_density)
+
 
 ####### Delay diff eq integration
 
@@ -70,6 +238,7 @@ def integrate_DDE(
     delay,
     progress_bar=False,
     min_delay=5,
+    past_state="zero",
 ):
     # Get # time-points, dt, and # cells
     n_t = t_span.size
@@ -84,8 +253,13 @@ def integrate_DDE(
     step_delay = ceil(step_delay)
     
     # Initialize expression vector
-    E_save = np.empty((n_t, n_c), dtype=np.float32)
+    E_save = np.zeros((n_t, n_c), dtype=np.float32)
     E_save[0] = E = E0
+    
+    if "static".startswith(past_state):
+        past_func = lambda step: max(0, step - step_delay)
+    elif "zero".startswith(past_state):
+        past_func = lambda step: step - step_delay
     
     # Construct time iterator
     iterator = np.arange(1, n_t)
@@ -94,7 +268,7 @@ def integrate_DDE(
 
     for step in iterator:
         # Get past E
-        past_step = max(0, step - step_delay)
+        past_step = past_func(step)
         E_delay = E_save[past_step]
         
         # Integrate
@@ -103,55 +277,6 @@ def integrate_DDE(
         E_save[step] = E
     
     return E_save
-
-
-def integrate_DDE2(
-    t_span,
-    rhs,
-    dde_args,
-    y0_fun,
-    delay,
-    progress_bar=False,
-    min_delay=5,
-):
-    # Get # time-points, dt, and # cells
-    n_t = t_span.size
-    dt = t_span[1] - t_span[0]
-    t0 = t_span[0]
-    n_c = y0_fun(t0).shape[1]
-    
-    # Get delay in steps
-    step_delay = np.atleast_1d(delay) / dt
-    assert (step_delay >= min_delay), (
-        "Delay time is too short. Lower dt or lengthen delay."
-    )
-    assert (step_delay < n_t), ("Time-span must be longer than delay")
-    step_delay = ceil(step_delay)
-    
-    # Initialize output
-    y_save = np.empty((n_t, n_c), dtype=np.float32)
-    y_save[0] = y = y0_fun(t0).flatten()
-    
-    # Temporarily store past values in the output vector
-    past_t = np.arange(-delay, t0, dt)
-    y_save[-step_delay:] = y0_fun(past_t)
-    
-    # Construct time iterator
-    iterator = np.arange(1, n_t)
-    if progress_bar:
-        iterator = tqdm.tqdm(iterator)
-
-    for step in iterator:
-        # Get past E
-        past_step = step - step_delay
-        y_delay = y_save[past_step]
-        
-        # Integrate
-        dy_dt = rhs(y, y_delay, *dde_args)
-        y = np.maximum(0, y + dy_dt * dt) 
-        y_save[step] = y
-    
-    return y_save
 
 
 def integrate_DDE_varargs(
@@ -164,6 +289,8 @@ def integrate_DDE_varargs(
     where_vars,
     progress_bar=False,
     min_delay=5,
+    varargs_type="1darray",
+    past_state="zero",
 ):
     # Get # time-points, dt, and # cells
     n_t = t_span.size
@@ -178,11 +305,27 @@ def integrate_DDE_varargs(
     step_delay = ceil(step_delay)
     
     # Initialize expression vector
-    E_save = np.empty((n_t, n_c), dtype=np.float32)
+    E_save = np.zeros((n_t, n_c), dtype=np.float32)
     E_save[0] = E = E0
     
-    # Make variable args a 2D array of appropriate shape
-    vvals = np.atleast_2d(var_vals).T
+    if "static".startswith(past_state):
+        past_func = lambda step: max(0, step - step_delay)
+    elif "zero".startswith(past_state):
+        past_func = lambda step: step - step_delay
+    
+    # Coax variable arguments into appropriate iterable type
+    if varargs_type.startswith("1darray"):
+        
+        # Make variable args a 2D array of appropriate shape
+        vvals = np.atleast_2d(var_vals).T
+
+    elif varargs_type.startswith("list"):
+        
+        # Just make sure it's a list
+        if type(var_vals) != "list":
+            vvals = list(var_vals)
+        else:
+            vvals = var_vals
     
     # Make variable indices iterable
     vidx = np.atleast_1d(where_vars)
@@ -197,13 +340,13 @@ def integrate_DDE_varargs(
 
     for step in iterator:
         # Get past E
-        past_step = max(0, step - step_delay)
+        past_step = past_func(step)
         E_delay = E_save[past_step]
         
         # Get past variable value(s)
-        v = vvals[past_step]
+#         v = vvals[past_step]
         for i, vi in enumerate(vidx):
-            dde_args[vi] = v[i]
+            dde_args[vi] = vvals[i][past_step]
         
         # Integrate
         dE_dt = rhs(E, E_delay, *dde_args)
@@ -449,6 +592,11 @@ def logistic(t, g, rho_0, rho_max):
     """Return logistic equation evaluated at time `t`."""
     return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
 
+@numba.njit
+def logistic_inv(rho, g, rho_0, rho_max):
+    """Return logistic equation evaluated at time `t`."""
+    return np.log(rho * (rho_max - rho_0) / (rho_0 * (rho_max - rho))) / g
+
 ####### Cell Adjacency
 
 def gaussian_irad_Adj(
@@ -499,6 +647,38 @@ def irad_Adj(
         A = csr_matrix(A)
     
     return A
+
+
+def k_step_Adj(k, rows, cols=0, dtype=np.float32, row_stoch=False, **kwargs):
+    """
+    """
+    
+    if not cols:
+        cols = rows
+        
+    # Construct adjacency matrix
+    a = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
+    
+    # Add self-edges
+    n = rows * cols
+    eye = identity(n).astype(dtype)
+    A = (a + eye)
+    
+    # Compute number of paths of length k between nodes
+    A = A ** k
+    
+    # Store as 0. or 1.
+    A = (A > 0).astype(dtype)
+    
+    # Remove self-edges
+    A = A - diags(A.diagonal())
+    
+    if row_stoch:
+        rowsum = np.sum(A, axis=1)
+        A = csr_matrix(A / rowsum)
+    
+    return A
+
 
 
 def make_Adj(rows, cols=0, dtype=np.float32, **kwargs):
@@ -677,11 +857,11 @@ def voronoi_finite_polygons_2d(vor, radius=None):
     return new_regions, np.asarray(new_vertices)
 
 def plot_var(
-    ax1,
+    ax,
     i,
     X,
-    cell_radii,
     var,
+    cell_radii=None,
     vmin=None,
     vmax=None,
     cmap="CET_L8",
@@ -697,19 +877,32 @@ def plot_var(
     plot_ifc=True,
     sender_idx=np.array([], dtype=int),
     sender_clr=("bmw", 150),
+    colorbar=False,
+    cbar_aspect=20,
+    cbar_kwargs=dict(),
+    extend=None,
     **kwargs
 ):
-    ax1.clear()
+    ax.clear()
     if axis_off:
-        ax1.axis("off")
+        ax.axis("off")
+        
     vor = Voronoi(X)
     regions, vertices = voronoi_finite_polygons_2d(vor)
+    
+    if cell_radii is None:
+        cell_radii = np.ones(vor.npoints) * 5
+    
     if vmin is None:
         vmin = var.min()
     if vmax is None:
         vmax = var.max()
-
-    cols = cc.cm[cmap](normalize(var[i], vmin, vmax))
+    
+    if type(cmap) is str:
+        cmap_ = cc.cm[cmap]
+    else:
+        cmap_ = cmap
+    cols = cmap_(normalize(var, vmin, vmax))
     sender_col = cc.cm[sender_clr[0]](sender_clr[1] / 256)
     for j, region in enumerate(regions):
         poly = Polygon(vertices[region])
@@ -717,9 +910,9 @@ def plot_var(
         cell_poly = circle.intersection(poly)
         if cell_poly.area != 0:
             if j in sender_idx:
-                ax1.add_patch(PolygonPatch(cell_poly, fc=sender_col, **ppatch_kwargs))
+                ax.add_patch(PolygonPatch(cell_poly, fc=sender_col, **ppatch_kwargs))
             else:
-                ax1.add_patch(PolygonPatch(cell_poly, fc=cols[j], **ppatch_kwargs))
+                ax.add_patch(PolygonPatch(cell_poly, fc=cols[j], **ppatch_kwargs))
     
     if plot_ifc:
         pts = [Point(*x).buffer(rad) for x, rad in zip(X, cell_radii)]
@@ -729,7 +922,7 @@ def plot_var(
             if (j - i > 0) & (pts[i].intersects(pts[j])):
                 infc = pts[i].boundary.intersection(pts[j].boundary)
                 infcs.append(infc)
-        ax1.add_collection(LineCollection(infcs, color=ifcc, **lcoll_kwargs))
+        ax.add_collection(LineCollection(infcs, color=ifcc, **lcoll_kwargs))
     
     if not xlim:
         xlim=[X[:, 0].min(), X[:, 0].max()]
@@ -737,22 +930,46 @@ def plot_var(
         ylim=[X[:, 1].min(), X[:, 1].max()]
     if aspect is None:
         aspect=1
-    ax1.set(
+    ax.set(
             xlim=xlim,
             ylim=ylim,
             aspect=aspect,
         )
     
     if title is not None:
-        ax1.set_title(title)
-    
+        ax.set_title(title)
+
+    if extend is None:
+        
+        # Extend colorbar if necessary
+        n = var.shape[0]        
+        ns_mask = ~ np.isin(np.arange(n), sender_idx)
+        is_under_min = var.min(initial=0.0, where=ns_mask) < vmin
+        is_over_max  = var.max(initial=0.0, where=ns_mask) > vmax
+        extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
+                
+    if colorbar:
+        
+        # Construct colorbar
+        cbar = plt.colorbar(
+            plt.cm.ScalarMappable(
+                norm=mpl.colors.Normalize(vmin, vmax), 
+                cmap=cmap_), 
+            ax=ax,
+            aspect=cbar_aspect,
+            extend=extend,
+            **cbar_kwargs
+        )
+
+        
 def animate_var(
     X,
-    cell_radii,    
-    var,
+    var_t,
+    cell_radii=None,    
     n_frames=100,
     file_name=None,
     dir_name="plots",
+    path=None,
     xlim=None,
     ylim=None,
     fps=20,
@@ -760,35 +977,44 @@ def animate_var(
     vmax=None,
     #     ec="red",
     cmap="CET_L8",
+    sender_idx=np.array([], dtype=int),
+    sender_clr=("bmw", 150),
     ifcc="red",
     ppatch_kwargs=dict(edgecolor="gray"),
     lcoll_kwargs=dict(),
     title_fun=None,
     plot_ifc=False,
+    colorbar=False,
+    cbar_aspect=20,
+    cbar_kwargs=dict(),
+    extend=None,
     **kwargs
 ):
     fig = plt.figure()
-    ax1 = fig.add_subplot(1, 1, 1)
+    ax = fig.add_subplot(1, 1, 1)
 
-    skip = int((var.shape[0]) / n_frames)
+    skip = int((var_t.shape[0]) / n_frames)
     
     if title_fun is not None:
         tf=title_fun
     else:
         tf=lambda x: None
     
-    def anim(i):
+    if cell_radii is None:
+        cell_radii = np.ones(X.shape[0]) * 5
+    
+    def anim(i, init_cbar=False):
         if cell_radii.ndim == 2:
             cr = cell_radii[skip * i]
         else:
             cr = cell_radii.copy()
-
+        
         plot_var(
-            ax1,
+            ax,
             skip * i,
             X,
-            cr,
-            var,
+            var_t[skip * i],
+            cell_radii=cr,
             vmin=vmin,
             vmax=vmax,
             cmap=cmap,
@@ -797,24 +1023,288 @@ def animate_var(
             lcoll_kwargs=lcoll_kwargs,
             title=tf(skip * i),
             plot_ifc=plot_ifc,
+            sender_idx=sender_idx,
+            sender_clr=sender_clr,
+            colorbar=init_cbar,
+            cbar_aspect=cbar_aspect,
+            cbar_kwargs=cbar_kwargs,
+            extend=extend,
             **kwargs,
         )
-
-    if not os.path.exists(dir_name):
-        os.makedirs(dir_name)
-    if file_name is None:
-        file_name = "animation_%d" % time.time()
-    print("Writing to:", os.path.join(dir_name, file_name))
+        
+    # Initialize colorbar
+    if colorbar:
+        anim(0, True);
+    
+    # Construct default file path if `path` not supplied
+    if path is None:
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)  
+        if file_name is None:
+            file_name = "animation_%d" % time.time()
+        vpath = os.path.join(dir_name, file_name)
+    else:
+        vpath = path
+    
+    # Add extension
+    if not vpath.endswith(".mp4"):
+        vpath = vpath + ".mp4"
+    
+    print("Writing to:", vpath)
 
     Writer = animation.writers["ffmpeg"]
     writer = Writer(fps=fps, bitrate=1800)
 
     an = animation.FuncAnimation(fig, anim, frames=n_frames, interval=200)
-    an.save("%s.mp4" % os.path.join(dir_name, file_name), writer=writer, dpi=264)
+    an.save(vpath, writer=writer, dpi=264)
+
+def animate_var_scalebar(
+    X,
+    var_t,
+    cell_radii=None,    
+    n_frames=100,
+    file_name=None,
+    dir_name="plots",
+    path=None,
+    xlim=None,
+    ylim=None,
+    fps=20,
+    vmin=None,
+    vmax=None,
+    #     ec="red",
+    cmap="CET_L8",
+    scalebar=True,
+    scale_factor=1,
+    sbar_kwargs=dict(),
+    ifcc="red",
+    ppatch_kwargs=dict(edgecolor="gray"),
+    lcoll_kwargs=dict(),
+    title_fun=None,
+    plot_ifc=False,
+    sender_idx=np.array([], dtype=int),
+    sender_clr=("bmw", 150),
+    extend=None,
+    **kwargs
+):
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
+    skip = int((var_t.shape[0]) / n_frames)
+    
+    if title_fun is not None:
+        tf=title_fun
+    else:
+        tf=lambda x: None
+    
+    if scalebar and (not sbar_kwargs):
+        sbar_kwargs = dict(
+            units="um", 
+            color="w", 
+            box_color="k", 
+            box_alpha=0.3, 
+            font_properties=dict(weight=1000), 
+            width_fraction=0.03,
+            location="lower right",
+        )
+    
+    if cell_radii is None:
+        cell_radii = np.ones(X.shape[0]) * 5
+    
+    
+    def anim(i):
+        if cell_radii.ndim > 1:
+            cr = cell_radii[skip * i]
+        else:
+            cr = cell_radii.copy()
+
+        plot_var(
+            ax,
+            skip * i,
+            X,
+            var_t[skip * i],
+            cell_radii=cr,
+            vmin=vmin,
+            vmax=vmax,
+            cmap=cmap,
+            ifcc=ifcc,
+            ppatch_kwargs=ppatch_kwargs,
+            lcoll_kwargs=lcoll_kwargs,
+            title=tf(skip * i),
+            plot_ifc=plot_ifc,
+            sender_idx=sender_idx,
+            sender_clr=sender_clr,
+            extend=extend,
+            **kwargs,
+        )
+        
+        if scalebar:
+            scalebar_ = ScaleBar(
+                scale_factor,   # unit distance in real units
+                **sbar_kwargs
+            )
+            ax.add_artist(scalebar_)
+
+    if path is None:
+
+        # Construct default path if `path` not supplied
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)  
+        if file_name is None:
+            file_name = "animation_%d" % time.time()
+        vpath = os.path.join(dir_name, file_name)
+    
+    else:
+        vpath = path
+    
+    if not vpath.endswith(".mp4"):
+        vpath = vpath + ".mp4"
+    
+    print("Writing to:", vpath)
+
+    Writer = animation.writers["ffmpeg"]
+    writer = Writer(fps=fps, bitrate=1800)
+
+    an = animation.FuncAnimation(fig, anim, frames=n_frames, interval=200)
+    an.save(vpath, writer=writer, dpi=264)
 
 
+def animate_var_lattice_scalebar(
+    X_arr,
+    var_t,
+    cell_radii=None,    
+    n_frames=100,
+    file_name=None,
+    dir_name="plots",
+    path=None,
+    xlim=None,
+    ylim=None,
+    fps=20,
+    vmin=None,
+    vmax=None,
+    #     ec="red",
+    cmap="CET_L8",
+    colorbar=False,
+    cbar_aspect=20,
+    cbar_kwargs=dict(),
+    extend=None,
+    scalebar=True,
+    scale_factor=1,
+    sbar_kwargs=dict(),
+    ifcc="red",
+    ppatch_kwargs=dict(edgecolor="gray"),
+    lcoll_kwargs=dict(),
+    title_fun=None,
+    plot_ifc=False,
+    sender_idx=np.array([], dtype=int),
+    sender_clr=("bmw", 150),
+    **kwargs
+):
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
+    skip = int((var_t.shape[0]) / n_frames)
+    
+    if title_fun is not None:
+        tf=title_fun
+    else:
+        tf=lambda x: None
+    
+    if scalebar and (not sbar_kwargs):
+        sbar_kwargs = dict(
+            units="um", 
+            color="w", 
+            box_color="k", 
+            box_alpha=0.3, 
+            font_properties=dict(weight=1000), 
+            width_fraction=0.03,
+            location="lower right",
+        )
+    
+    X_ndim = X_arr.ndim
+
+    if X_ndim > 2:
+        n = X_arr.shape[1]
+    else:
+        n = X_arr.shape[0]
+    
+    if cell_radii is None:
+        cell_radii = np.ones(n) * 5
+    
+    def anim(i, init_cbar=False):
+        if cell_radii.ndim > 1:
+            cr = cell_radii[skip * i]
+        else:
+            cr = cell_radii.copy()
+        
+        if X_ndim > 2:
+            Xi = X_arr[skip * i]
+        else:
+            Xi = X_arr.copy()
+        
+        plot_var(
+            ax,
+            skip * i,
+            Xi,
+            var_t[skip * i],
+            cell_radii=cr,
+            xlim=xlim,
+            ylim=ylim,
+            vmin=vmin,
+            vmax=vmax,
+            cmap=cmap,
+            colorbar=init_cbar,
+            cbar_aspect=cbar_aspect,
+            cbar_kwargs=cbar_kwargs,
+            extend=extend,
+            ifcc=ifcc,
+            ppatch_kwargs=ppatch_kwargs,
+            lcoll_kwargs=lcoll_kwargs,
+            title=tf(skip * i),
+            plot_ifc=plot_ifc,
+            sender_idx=sender_idx,
+            sender_clr=sender_clr,
+            **kwargs,
+        )
+        
+        if scalebar:
+            scalebar_ = ScaleBar(
+                scale_factor,   # unit distance in real units
+                **sbar_kwargs
+            )
+            ax.add_artist(scalebar_)
+        
+    # Initialize colorbar
+    if colorbar:
+        anim(0, True);
+    
+    # Construct default file path if `path` not supplied
+    if path is None:
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)  
+        if file_name is None:
+            file_name = "animation_%d" % time.time()
+        vpath = os.path.join(dir_name, file_name)
+    else:
+        vpath = path
+    
+    # Append file extension
+    if not vpath.endswith(".mp4"):
+        vpath = vpath + ".mp4"
+    
+    print("Writing to:", vpath)
+
+    Writer = animation.writers["ffmpeg"]
+    writer = Writer(fps=fps, bitrate=1800)
+
+    an = animation.FuncAnimation(fig, anim, frames=n_frames, interval=200)
+    an.save(vpath, writer=writer, dpi=264)
+    
+    
 def inspect_out(*args, **kwargs):
     """Deprecated: Please use inspect_hex()"""
+    
+    warnings.warn("inspect_out() is deprecated; use inspect_hex().", warnings.DeprecationWarning)
+    
     return inspect_hex(*args, **kwargs)
     
     
@@ -833,9 +1323,11 @@ def inspect_hex(
     lcoll_kwargs=dict(),
     plot_ifc=False,
     sender_idx=np.array([], dtype=int),
-    sender_clr="#e330ff",
+    sender_clr=("bmw", 150),
     colorbar=False,
     cbar_aspect=20,
+    cbar_kwargs=dict(),
+    extend=None,
     **kwargs
 ):
     if ax is None:
@@ -851,9 +1343,10 @@ def inspect_hex(
         Xk = X[k]
     
     if cell_radii is None:
-        Xk_centered = Xk - Xk.mean(axis=0)
-        max_rad = np.linalg.norm(Xk_centered, axis=1).max() * 2
-        crk = max_rad * np.ones(Xk.shape[0], dtype=np.float32) 
+#         Xk_centered = Xk - Xk.mean(axis=0)
+#         max_rad = np.linalg.norm(Xk_centered, axis=1).max() * 2
+#         crk = max_rad * np.ones(Xk.shape[0], dtype=np.float32) 
+        crk = np.ones(X.shape[0]) * 5
         
     elif cell_radii.ndim == 2:
         crk = cell_radii[k]
@@ -865,8 +1358,8 @@ def inspect_hex(
         ax,
         k,
         Xk,
-        crk,
-        var_t,
+        var_t[k],
+        cell_radii=crk,
         vmin=vmin,
         vmax=vmax,
         cmap=cmap,
@@ -876,18 +1369,13 @@ def inspect_hex(
         plot_ifc=plot_ifc,
         sender_idx=sender_idx,
         sender_clr=sender_clr,
+        colorbar=colorbar,
+        cbar_aspect=cbar_aspect,
+        cbar_kwargs=cbar_kwargs,
+        extend=extend,
        **kwargs
     )
     
-    if colorbar:
-        cbar = fig.colorbar(
-            plt.cm.ScalarMappable(
-                norm=mpl.colors.Normalize(vmin, vmax), 
-                cmap=cc.cm[cmap]), 
-            ax=ax,
-            aspect=cbar_aspect,
-        )
-
 
 def inspect_grid_hex(
     t,
@@ -907,9 +1395,10 @@ def inspect_grid_hex(
     axis_off=True,
     figsize=(10,6),
     sender_idx=np.array([], dtype=int),
-    sender_clr="#e330ff",
+    sender_clr=("bmw", 150),
     colorbar=False,
     cbar_aspect=20,
+    cbar_kwargs=dict(),
     **kwargs
 ):
     nt = t.size
@@ -948,33 +1437,20 @@ def inspect_grid_hex(
             axis_off=axis_off,
             sender_idx=sender_idx,
             sender_clr=sender_clr,
+            colorbar=colorbar,
+            cbar_aspect=cbar_aspect,
+            cbar_kwargs=cbar_kwargs,
             **kw
         )
-    
-    if colorbar:
-        n = var_t.shape[1]
-        ns_mask = ~ np.isin(np.arange(n), sender_idx)
-        is_under_min = var_t[plt_idx].min(initial=0.0, where=ns_mask) < vmin
-        is_over_max  = var_t[plt_idx].max(initial=0.0, where=ns_mask) > vmax
-        extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
-        
-        cbar = fig.colorbar(
-            plt.cm.ScalarMappable(
-                norm=mpl.colors.Normalize(vmin, vmax), 
-                cmap=cc.cm[cmap]), 
-            ax=axs,
-            shrink=1/ncols,
-            aspect=cbar_aspect,
-            extend=extend
-        )
+
     
     return fig, axs
 
 
 def animate_var_lattice(
     X_arr,
-    cell_radii,
-    var,
+    var_t,
+    cell_radii=None,
     n_frames=100,
     file_name=None,
     dir_name="plots",
@@ -990,35 +1466,48 @@ def animate_var_lattice(
     lcoll_kwargs=dict(),
     title_fun=None,
     plot_ifc=False,
+    sender_idx=np.array([], dtype=int),
+    sender_clr=("bmw", 150),
+    extend=None,
     **kwargs
 ):
     fig = plt.figure()
-    ax1 = fig.add_subplot(1, 1, 1)
+    ax = fig.add_subplot(1, 1, 1)
 
-    skip = int((var.shape[0]) / n_frames)
+    skip = int((var_t.shape[0]) / n_frames)
     
     if title_fun is not None:
         tf=title_fun
     else:
         tf=lambda x: None
+
+    X_ndim = X_arr.ndim
+
+    if X_ndim > 2:
+        n = X_arr.shape[1]
+    else:
+        n = X_arr.shape[0]
+    
+    if cell_radii is None:
+        cell_radii = np.ones(n) * 5
         
     def anim(i):
-        if cell_radii.ndim == 2:
+        if cell_radii.ndim > 1:
             cr = cell_radii[skip * i]
         else:
             cr = cell_radii.copy()
 
-        if X_arr.ndim == 2:
+        if X_arr.ndim > 2:
             X = X_arr[skip * i]
         else:
             X = X_arr.copy()
     
         plot_var(
-            ax1,
+            ax,
             skip * i,
             X,
-            cr,
-            var,
+            var_t[skip * i],
+            cell_radii=cr,
             xlim=xlim,
             ylim=ylim,
             vmin=vmin,
@@ -1029,6 +1518,8 @@ def animate_var_lattice(
             lcoll_kwargs=lcoll_kwargs,
             title=tf(skip * i),
             plot_ifc=plot_ifc,
+            sender_idx=sender_idx,
+            sender_clr=sender_clr,
             **kwargs
         )
 
@@ -1123,10 +1614,10 @@ def animate_colormesh(
     pcolormesh_kwargs=dict(),
     **kwargs
 ):
-    n_t = var_t.shape[0]
+    nt = var_t.shape[0]
     
     if X_arr.ndim == 2:
-        X_t = np.repeat(X_arr[np.newaxis, :], n_t, axis=0)
+        X_t = np.repeat(X_arr[np.newaxis, :], nt, axis=0)
     else:
         X_t = X_arr.copy()
     
@@ -1141,7 +1632,7 @@ def animate_colormesh(
         tf=lambda x: None
     
     fig, ax = plt.subplots()
-    skip = int(n_t / n_frames)
+    skip = int(nt / n_frames)
     def anim(i):
         plot_colormesh(
             ax,
@@ -1321,10 +1812,10 @@ def animate_interp_mesh(
     pcolormesh_kwargs=dict(),
     **kwargs
 ):
-    n_t = var_t.shape[0]
+    nt = var_t.shape[0]
     
     if X_arr.ndim == 2:
-        X_t = np.repeat(X_arr[np.newaxis, :], n_t, axis=0)
+        X_t = np.repeat(X_arr[np.newaxis, :], nt, axis=0)
     else:
         X_t = X_arr.copy()
     
@@ -1339,7 +1830,7 @@ def animate_interp_mesh(
         tf=lambda x: None
     
     fig, ax = plt.subplots()
-    skip = int(n_t / n_frames)
+    skip = int(nt / n_frames)
     def anim(i):
         plot_interp_mesh(
             ax,
@@ -1537,6 +2028,7 @@ def max_prop_area_vs_density(
     where_vars,
     min_delay=5,
     progress_bar=False,
+    varargs_type="list",
 ):
 
     # Get # cells and # time-points
@@ -1569,12 +2061,13 @@ def max_prop_area_vs_density(
         S_t = integrate_DDE_varargs(
             t,
             rhs,
-            var_vals=rho_t,
+            var_vals=[rho_t],
             dde_args=dde_args,
             E0=S0,
             delay=delay,
             where_vars=where_vars,
             min_delay=min_delay,
+            varargs_type=varargs_type,
         )
         
         rho_rho0_t[i] = rho_t

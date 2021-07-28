@@ -1,0 +1,12 @@
+# Set color cycle
+cycle = lsig.sample_cycle(cc.b_linear_grey_0_100_c0[:-50], 12)
+
+# Plot 
+plt = hv.Curve(
+...
+...
+).overlay(
+).options(
+    {"Curve": dict(color=cycle)}
+)
+
