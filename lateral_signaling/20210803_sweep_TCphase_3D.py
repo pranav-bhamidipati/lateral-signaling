@@ -209,18 +209,18 @@ n = X.shape[0]
 n_s = int(n * (pct_s / 100)) + 1
 
 # Define free parameters for parameter scan
-# # Dense sampling
-# rep_space     = np.arange(5)
-# g_space       = np.linspace(0.25, 2.25, 25)
-# rho_0_space   = np.linspace(0, rho_max, 25)[1:]
-# rho_max_space = np.linspace(0, 8, 25)[1:]
-
-# Sparse sampling
+# Dense sampling
 rep_space     = np.arange(5)
-g_space       = np.linspace(0.25, 2.25, 5)
-rho_0_space   = np.linspace(0, rho_max, 5)[1:]
-rho_max_space = np.linspace(0, 8, 5)[1:]
+g_space       = np.linspace(0.25, 2.25, 25)
+rho_0_space   = np.linspace(0, rho_max, 25)[1:]
+rho_max_space = np.linspace(0, 8, 25)[1:]
 
+# # Sparse sampling
+# rep_space     = np.arange(5)
+# g_space       = np.linspace(0.25, 2.25, 5)
+# rho_0_space   = np.linspace(0, rho_max, 5)[1:]
+# rho_max_space = np.linspace(0, 8, 5)[1:]
+ 
 free_params = (
     rep_space, 
     g_space, 
