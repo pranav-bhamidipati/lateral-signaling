@@ -78,7 +78,7 @@ def ecdf(d, *args, **kwargs):
     """Construct an ECDF from 1D data array `d`"""
     x = np.sort(d)
     y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
-    return hv.Scatter(np.array([x, y]).T, *args, *kwargs)
+    return hv.Scatter(np.array([x, y]).T, *args, **kwargs)
 
 def remove_RB_spines(plot, element):
     """Hook to remove right and bottom spines from Holoviews plot"""
@@ -716,7 +716,7 @@ def make_Adj(rows, cols=0, dtype=np.float32, **kwargs):
     
     return Adj
 
-def hex_Adj(rows, cols=0, dtype=np.float32, sparse=False, **kwargs):
+def hex_Adj(rows, cols=0, dtype=np.float32, sparse=False, row_stoch=False, **kwargs):
     """
     """
     # Make hexagonal grid
@@ -724,11 +724,26 @@ def hex_Adj(rows, cols=0, dtype=np.float32, sparse=False, **kwargs):
     
     # Construct adjacency matrix
     if sparse:
-        Adj = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
+        A = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
+        
+        # Make row-stochastic (rows sum to 1)
+        if row_stoch:
+            
+            # Calculate inverse of rowsum
+            inv_rowsum = diags(np.array(1/A.sum(axis=1)).ravel())
+            
+            # Multiply by each row
+            A = np.dot(inv_rowsum, A)
+            
     else:
-        Adj = make_Adj(rows, cols, dtype=dtype, **kwargs)
+        A = make_Adj(rows, cols, dtype=dtype, **kwargs)
+
+        # Make row-stochastic (rows sum to 1)
+        if row_stoch:
+            rowsum = np.sum(A, axis=1)[:, np.newaxis]
+            A = np.divide(A, rowsum)
     
-    return X, Adj
+    return X, A
 
 def make_Adj_sparse(rows, cols=0, dtype=np.float32, **kwargs):
     """Construct adjacency matrix for a periodic hexagonal 
