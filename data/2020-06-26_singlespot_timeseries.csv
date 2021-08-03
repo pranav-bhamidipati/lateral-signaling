@@ -1,0 +1,193 @@
+﻿Condition,SpotName,days,area (um2)
+1250 cell/mm2,spot1 XY10,0,0
+1250 cell/mm2,spot1 XY10,1,1495.848
+1250 cell/mm2,spot1 XY10,2,56001.698
+1250 cell/mm2,spot1 XY10,3,114980.845
+1250 cell/mm2,spot1 XY10,4,58366.562
+1250 cell/mm2,spot1 XY10,5,75148.551
+1250 cell/mm2,spot1 XY10,6,21582.949
+1250 cell/mm2,spot1 XY10,7,4074.405
+1250 cell/mm2,spot1 XY10,8,0
+1250 cell/mm2,spotB XY10,0,4900.683
+1250 cell/mm2,spotB XY10,1,58907.916
+1250 cell/mm2,spotB XY10,2,118499.649
+1250 cell/mm2,spotB XY10,3,155739.14
+1250 cell/mm2,spotB XY10,4,107416.128
+1250 cell/mm2,spotB XY10,5,167264.292
+1250 cell/mm2,spotB XY10,6,89565.676
+1250 cell/mm2,spotB XY10,7,40530.356
+1250 cell/mm2,spotB XY10,8,5342.314
+1250 cell/mm2,spotC XY10,0,4088.651
+1250 cell/mm2,spotC XY10,1,15414.357
+1250 cell/mm2,spotC XY10,2,105065.51
+1250 cell/mm2,spotC XY10,3,134526.591
+1250 cell/mm2,spotC XY10,4,69264.883
+1250 cell/mm2,spotC XY10,5,119254.696
+1250 cell/mm2,spotC XY10,6,55830.744
+1250 cell/mm2,spotC XY10,7,30173.39
+1250 cell/mm2,spotC XY10,8,612.585
+1250 cell/mm2,spot1 XY13 A,0,1168.186
+1250 cell/mm2,spot1 XY13 A,1,14801.772
+1250 cell/mm2,spot1 XY13 A,2,101276.029
+1250 cell/mm2,spot1 XY13 A,3,143601.402
+1250 cell/mm2,spot1 XY13 A,4,116961.063
+1250 cell/mm2,spot1 XY13 A,5,167677.431
+1250 cell/mm2,spot1 XY13 A,6,103740.616
+1250 cell/mm2,spot1 XY13 A,7,53237.94
+1250 cell/mm2,spot XY13 B,0,170.954
+1250 cell/mm2,spot XY13 B,1,6125.853
+1250 cell/mm2,spot XY13 B,2,70846.208
+1250 cell/mm2,spot XY13 B,3,82171.913
+1250 cell/mm2,spot XY13 B,4,32780.439
+1250 cell/mm2,spot XY13 B,5,72256.579
+1250 cell/mm2,spot XY13 B,6,23036.058
+1250 cell/mm2,spot XY13 B,7,7564.717
+2500 cell/mm2,spotA XY11,0,0
+2500 cell/mm2,spotA XY11,1,12707.584
+2500 cell/mm2,spotA XY11,2,47268.795
+2500 cell/mm2,spotA XY11,3,23776.859
+2500 cell/mm2,spotA XY11,4,16952.943
+2500 cell/mm2,spotA XY11,5,15742.019
+2500 cell/mm2,spotA XY11,6,4786.713
+2500 cell/mm2,spotA XY11,7,398.893
+2500 cell/mm2,spotA XY11,8,0
+2500 cell/mm2,spotB XY11,0,797.786
+2500 cell/mm2,spotB XY11,1,5840.93
+2500 cell/mm2,spotB XY11,2,30301.605
+2500 cell/mm2,spotB XY11,3,13776.047
+2500 cell/mm2,spotB XY11,4,5712.715
+2500 cell/mm2,spotB XY11,5,10470.936
+2500 cell/mm2,spotB XY11,6,3176.896
+2500 cell/mm2,spotB XY11,7,826.278
+2500 cell/mm2,spotB XY11,8,0
+2500 cell/mm2,spotC XY11,0,227.939
+2500 cell/mm2,spotC XY11,1,2136.926
+2500 cell/mm2,spotC XY11,2,34746.411
+2500 cell/mm2,spotC XY11,3,5285.329
+2500 cell/mm2,spotC XY11,4,2065.695
+2500 cell/mm2,spotC XY11,5,3333.604
+2500 cell/mm2,spotC XY11,6,1011.478
+2500 cell/mm2,spotC XY11,7,997.232
+2500 cell/mm2,spotC XY11,8,128.216
+2500 cell/mm2,spotA XY14,0,156.708
+2500 cell/mm2,spotA XY14,1,4829.452
+2500 cell/mm2,spotA XY14,2,28506.588
+2500 cell/mm2,spotA XY14,3,9174.534
+2500 cell/mm2,spotA XY14,4,10057.797
+2500 cell/mm2,spotA XY14,5,10755.859
+2500 cell/mm2,spotA XY14,6,4872.19
+2500 cell/mm2,spotA XY14,7,1310.648
+2500 cell/mm2,spotB XY14,0,0
+2500 cell/mm2,spotB XY14,1,6980.624
+2500 cell/mm2,spotB XY14,2,24275.475
+2500 cell/mm2,spotB XY14,3,10755.859
+2500 cell/mm2,spotB XY14,4,7422.255
+2500 cell/mm2,spotB XY14,5,5912.161
+2500 cell/mm2,spotB XY14,6,4074.405
+2500 cell/mm2,spotB XY14,7,356.154
+5000 cell/mm2,spotA XY12,0,299.17
+5000 cell/mm2,spotA XY12,1,755.047
+5000 cell/mm2,spotA XY12,2,5556.007
+5000 cell/mm2,spotA XY12,3,3874.958
+5000 cell/mm2,spotA XY12,4,1467.356
+5000 cell/mm2,spotA XY12,5,1054.217
+5000 cell/mm2,spotA XY12,6,370.4
+5000 cell/mm2,spotA XY12,7,356.154
+5000 cell/mm2,spotA XY12,8,0
+5000 cell/mm2,spotB XY12,0,883.263
+5000 cell/mm2,spotB XY12,1,3333.604
+5000 cell/mm2,spotB XY12,2,6225.577
+5000 cell/mm2,spotB XY12,3,3091.419
+5000 cell/mm2,spotB XY12,4,470.124
+5000 cell/mm2,spotB XY12,5,455.877
+5000 cell/mm2,spotB XY12,6,270.677
+5000 cell/mm2,spotB XY12,7,185.2
+5000 cell/mm2,spotB XY12,8,0
+5000 cell/mm2,missingLabel1,0,740.801
+5000 cell/mm2,missingLabel1,1,1908.987
+5000 cell/mm2,missingLabel1,2,4815.206
+5000 cell/mm2,missingLabel1,3,6182.838
+5000 cell/mm2,missingLabel1,4,527.108
+5000 cell/mm2,missingLabel1,5,698.062
+5000 cell/mm2,missingLabel1,6,384.647
+5000 cell/mm2,missingLabel1,7,113.969
+5000 cell/mm2,missingLabel1,8,213.693
+5000 cell/mm2,missingLabel2,0,398.893
+5000 cell/mm2,missingLabel2,1,4202.62
+5000 cell/mm2,missingLabel2,2,11382.691
+5000 cell/mm2,missingLabel2,3,8789.887
+5000 cell/mm2,missingLabel2,4,2022.956
+5000 cell/mm2,missingLabel2,5,1852.002
+5000 cell/mm2,missingLabel2,6,926.001
+5000 cell/mm2,missingLabel2,7,341.908
+5000 cell/mm2,missingLabel3,1,954.493
+5000 cell/mm2,missingLabel3,2,1937.479
+5000 cell/mm2,missingLabel3,3,4402.067
+5000 cell/mm2,missingLabel3,4,3575.789
+5000 cell/mm2,missingLabel3,5,997.232
+5000 cell/mm2,missingLabel3,6,1552.833
+5000 cell/mm2,missingLabel3,7,812.032
+5000 cell/mm2,missingLabel3,8,341.908
+clone 5cc,xy01,0,128.216
+clone 5cc,xy01,1,0
+clone 5cc,xy01,2,1453.109
+clone 5cc,xy01,3,10129.027
+clone 5cc,xy01,4,14246
+clone 5cc,xy01,5,0
+clone 5cc,xy01,6,413.139
+clone 5cc,xy01,7,28.492
+clone 5cc,xy01,8,270.677
+clone 5cc,missingLabel4,0,883.263
+clone 5cc,missingLabel4,1,85.477
+clone 5cc,missingLabel4,2,11112.013
+clone 5cc,missingLabel4,3,21540.21
+clone 5cc,missingLabel4,4,797.786
+clone 5cc,missingLabel4,5,1780.771
+clone 5cc,missingLabel4,6,1652.556
+clone 5cc,missingLabel4,7,0
+clone 5cc,missingLabel4,8,0
+clone 5cc,missingLabel5,0,85.477
+clone 5cc,missingLabel5,1,1624.063
+clone 5cc,missingLabel5,2,9445.211
+clone 5cc,missingLabel5,3,12308.692
+clone 5cc,missingLabel5,4,1039.97
+clone 5cc,missingLabel5,5,1253.663
+clone 5cc,missingLabel5,6,755.047
+clone 5cc,missingLabel5,7,56.985
+clone 5cc,missingLabel5,8,0
+clone 5cc,missingLabel6,0,997.232
+clone 5cc,missingLabel6,1,1310.648
+clone 5cc,missingLabel6,2,7863.886
+clone 5cc,missingLabel6,3,4359.328
+clone 5cc,missingLabel6,4,0
+clone 5cc,missingLabel6,5,327.662
+clone 5cc,missingLabel6,6,470.124
+clone 5cc,missingLabel6,7,213.693
+clone 5cc,missingLabel6,8,256.431
+clone 5cc,missingLabel7,0,213.693
+clone 5cc,missingLabel7,1,28.492
+clone 5cc,missingLabel7,2,3034.434
+clone 5cc,missingLabel7,3,12622.107
+clone 5cc,missingLabel7,4,869.016
+clone 5cc,missingLabel7,5,1552.833
+clone 5cc,missingLabel7,6,1424.617
+clone 5cc,missingLabel7,7,0
+clone 5cc,missingLabel7,8,0
+self propagation 25a2,XY16 A,0,142.462
+self propagation 25a2,XY16 A,1,185.2
+self propagation 25a2,XY16 A,2,7422.255
+self propagation 25a2,XY16 A,3,11083.521
+self propagation 25a2,XY16 A,4,14174.94
+self propagation 25a2,XY16 A,5,22209.78
+self propagation 25a2,XY16 A,6,8946.595
+self propagation 25a2,XY16 A,7,2977.45
+self propagation 25a2,XY16 A,8,2977.45
+self propagation 25a2,missingLabel8,0,0
+self propagation 25a2,missingLabel8,1,170.954
+self propagation 25a2,missingLabel8,2,1039.97
+self propagation 25a2,missingLabel8,3,11510.906
+self propagation 25a2,missingLabel8,4,9787.119
+self propagation 25a2,missingLabel8,5,19730.947
+self propagation 25a2,missingLabel8,6,8576.195
+self propagation 25a2,missingLabel8,7,3048.681
+self propagation 25a2,missingLabel8,8,3048.681
