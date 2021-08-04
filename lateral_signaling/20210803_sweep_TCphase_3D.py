@@ -56,7 +56,7 @@ def reporter_rhs(R, R_delay, S, gamma_R, sender_idx):
 
 
 # Unique name of current run
-run_name = "20210803_sweep_TCphase_sparse_HPC"
+run_name = "20210803_sweep_TCphase_dense2_HPC"
 
 # Name of parameter set
 trial_name = "lowcis_expbeta"
@@ -212,8 +212,8 @@ n_s = int(n * (pct_s / 100)) + 1
 # Dense sampling
 rep_space     = np.arange(5)
 g_space       = np.linspace(0.25, 2.25, 25)
-rho_0_space   = np.linspace(0, rho_max, 25)[1:]
-rho_max_space = np.linspace(0, 8, 25)[1:]
+rho_0_space   = np.linspace(0, 6, 25)[1:]
+rho_max_space = np.linspace(0, 6, 25)[1:]
 
 # # Sparse sampling
 # rep_space     = np.arange(5)
