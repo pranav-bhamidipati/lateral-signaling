@@ -25,7 +25,7 @@ from descartes import PolygonPatch
 
 import holoviews as hv
 import colorcet as cc
-import matplotlib as mpl
+import matplotlib as mplF
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 hv.extension('matplotlib')
@@ -36,17 +36,91 @@ hv.extension('matplotlib')
 # Function for vectorized integer ceiling operations
 ceiling = np.vectorize(ceil)
 
-# Sample a continuous colormap at regular intervals to get a linearly segmented map
 def sample_cycle(cycle, size): 
+    """Sample a continuous colormap at regular intervals to get a linearly segmented map"""
     return hv.Cycle(
         [cycle[i] for i in ceiling(np.linspace(0, len(cycle) - 1, size))]
     )
+
+def hex2rgb(h):
+    """Convert 6-digit hex code to RGB values (0, 255)"""
+    h = h.lstrip('#')
+    return tuple(int(h[(2*i):(2*(i + 1))], base=16) for i in range(3))
+
+
+def rgba2hex(rgba, background=(255,255,255)):
+    """
+    Adapted from StackOverflow
+    ------------------
+    
+    Question: Convert RGBA to RGB in Python
+    Link: https://stackoverflow.com/questions/50331463/convert-rgba-to-rgb-in-python/50332356
+    Asked: May 14 '18 at 13:25
+    Answered: Nov 7 '19 at 12:40
+    User: Feng Wang
+    """
+    
+    rgb = np.zeros((3,), dtype='float32')
+    r, g, b, a = rgba
+    R, G, B = background
+
+    rgb[0] = r * a + (1.0 - a) * R
+    rgb[1] = g * a + (1.0 - a) * G
+    rgb[2] = b * a + (1.0 - a) * B
+
+    rgb = np.asarray( rgb, dtype='uint8' )
+    
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+def _hexa2hex(h, alpha, background=(255,255,255)):
+    """
+    Returns hex code of the color observed when displaying 
+    color `h` (in hex code) with transparency `alpha` on a 
+    background color `background` (default white)
+    """
+    # Ensure background is in RGB
+    assert type(background) in (str, tuple), "`background` must be a hex code or RGB tuple"
+    if type(background) is str:
+        bg = hex2rgb(background)
+    elif type(background) is tuple:
+        bg = background
+    
+    # Get color in RGBA
+    rgba = *hex2rgb(h), alpha
+    
+    # Convert to HEX without transparency
+    return rgba2hex(rgba, bg)
+
+# Vectorized 
+hexa2hex = np.vectorize(_hexa2hex)
+
 
 # Make a custom version of the "KGY" colormap
 kgy_original = cc.cm["kgy"]
 kgy = ListedColormap(kgy_original(np.linspace(0, 0.92, 256)))
 
 # Color swatches
+
+pinks = [
+    "#fde0dd",
+    "#fa9fb5",
+    "#c51b8a",
+]
+
+greens = [
+    "#e5f5e0",
+    "#a1d99b",
+    "#31a354",
+    "#006d2c",
+]
+
+yob = [
+    "#fff7bc",
+    "#fec44f",
+    "#d95f0e",
+    "#9a3403",
+]
+
 cols_blue = [
     "#2e5a89",
     "#609acf",
@@ -71,8 +145,31 @@ cols_red = [
     "#b0c5cd",
 ]
 
-col_gray  = "#aeaeae"
-col_black = "#060605"
+purple = "#8856a7"
+gray   = "#aeaeae"
+black  = "#060605"
+
+col_light_gray = "#eeeeee"
+col_gray       = "#aeaeae"
+col_black      = "#060605"
+
+def ecdf_vals(d):
+    """
+    Returns the empirical CDF values of a data array `d`. 
+    
+    Arguments:
+    d : 1d_array
+        Empirical data values
+    
+    Returns:
+    x : 1d_array
+        sorted `d`
+    y : 1d_array
+        Empirical cumulative distribution values
+    """
+    x = np.sort(d)
+    y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
+    return x, y
 
 def ecdf(d, *args, **kwargs):
     """Construct an ECDF from 1D data array `d`"""
@@ -89,6 +186,36 @@ def remove_RT_spines(plot, element):
     """Hook to remove right and top spines from Holoviews plot"""
     plot.state.axes[0].spines["right"].set_visible(False)
     plot.state.axes[0].spines["top"].set_visible(False)
+
+    
+@numba.njit
+def get_lp_corners(src, dst, width):
+    """Given source and destination points, return the coordinates of the corners 
+    of the line profile along that line segment with specified width."""
+    
+    assert (src.dtype is dst.dtype), "src and dst should have the same dtype"
+    
+    dtype = src.dtype
+    src = src.ravel()
+    dst = dst.ravel()
+    
+    # Get slope perpendicular to the line segment
+    pslope = - (dst[0] - src[0]) / (dst[1] - src[1])
+    
+    # Get increments in x and y direction
+    dx = width / (2 * np.sqrt(1 + pslope ** 2))
+    dy = pslope * dx
+    
+    # Add/subtract increments from each point
+    corners = np.empty((4, 2), dtype=dtype)
+    corners[:, 0]  =  dx
+    corners[:, 1]  =  dy
+    corners[0]    *=  -1
+    corners[3]    *=  -1
+    corners[:2]   += src
+    corners[2:]   += dst
+    
+    return corners
 
 ####### Constants
 
@@ -209,13 +336,13 @@ def get_DDE_rhs(func, *func_args):
     """
     Returns a function `rhs` with call signature 
     
-      rhs(S, S_delay, *dde_args) 
+      rhs(E, E_delay, *dde_args) 
       
     that can be passed to `lsig.integrate_DDE` and 
     `lsig.integrate_DDE_varargs`. This is equivalent 
     to calling
     
-      func(S, S_delay, *func_args, *dde_args)
+      func(E, E_delay, *func_args, *dde_args)
     
     Examples of args in `func_args` include:
     
@@ -225,8 +352,8 @@ def get_DDE_rhs(func, *func_args):
     
     """
 
-    def rhs(S, S_delay, *dde_args):
-        return func(S, S_delay, *func_args, *dde_args)
+    def rhs(E, E_delay, *dde_args):
+        return func(E, E_delay, *func_args, *dde_args)
 
     return rhs
 
@@ -236,9 +363,10 @@ def integrate_DDE(
     dde_args,
     E0,
     delay,
+    sender_idx=None,
     progress_bar=False,
     min_delay=5,
-    past_state="zero",
+    past_state="senders_off",
 ):
     # Get # time-points, dt, and # cells
     n_t = t_span.size
@@ -256,20 +384,27 @@ def integrate_DDE(
     E_save = np.zeros((n_t, n_c), dtype=np.float32)
     E_save[0] = E = E0
     
-    if "static".startswith(past_state):
-        past_func = lambda step: max(0, step - step_delay)
+    if "senders_on".startswith(past_state):
+        past_func = lambda E_save, step: E_save[max(0, step - step_delay)]
+    
+    elif "senders_off".startswith(past_state):
+        def past_func(E_save, step): 
+            E_past = E_save[max(0, step - step_delay)].copy()
+            E_past[sender_idx] = E_past[sender_idx] * (step >= step_delay)
+            return E_past
+        
     elif "zero".startswith(past_state):
-        past_func = lambda step: step - step_delay
+        past_func = lambda E_save, step: np.zeros_like(E_save)
     
     # Construct time iterator
     iterator = np.arange(1, n_t)
     if progress_bar:
         iterator = tqdm.tqdm(iterator)
-
+    
     for step in iterator:
+        
         # Get past E
-        past_step = past_func(step)
-        E_delay = E_save[past_step]
+        E_delay = past_func(E_save, step)
         
         # Integrate
         dE_dt = rhs(E, E_delay, *dde_args)
@@ -287,10 +422,11 @@ def integrate_DDE_varargs(
     E0,
     delay,
     where_vars,
+    sender_idx=None,
     progress_bar=False,
     min_delay=5,
     varargs_type="1darray",
-    past_state="zero",
+    past_state="senders_off",
 ):
     # Get # time-points, dt, and # cells
     n_t = t_span.size
@@ -308,10 +444,17 @@ def integrate_DDE_varargs(
     E_save = np.zeros((n_t, n_c), dtype=np.float32)
     E_save[0] = E = E0
     
-    if "static".startswith(past_state):
-        past_func = lambda step: max(0, step - step_delay)
+    if "senders_on".startswith(past_state):
+        past_func = lambda E_save, step: E_save[max(0, step - step_delay)]
+    
+    elif "senders_off".startswith(past_state):
+        def past_func(E_save, step): 
+            E_past = E_save[max(0, step - step_delay)].copy()
+            E_past[sender_idx] = E_past[sender_idx] * (step >= step_delay)
+            return E_past
+        
     elif "zero".startswith(past_state):
-        past_func = lambda step: step - step_delay
+        past_func = lambda E_save, step: np.zeros_like(E_save)
     
     # Coax variable arguments into appropriate iterable type
     if varargs_type.startswith("1darray"):
@@ -339,13 +482,13 @@ def integrate_DDE_varargs(
         iterator = tqdm.tqdm(iterator)
 
     for step in iterator:
+        
         # Get past E
-        past_step = past_func(step)
-        E_delay = E_save[past_step]
+        E_delay = past_func(E_save, step)
         
         # Get past variable value(s)
-#         v = vvals[past_step]
         for i, vi in enumerate(vidx):
+            past_step = max(0, step - step_delay)
             dde_args[vi] = vvals[i][past_step]
         
         # Integrate
@@ -355,6 +498,8 @@ def integrate_DDE_varargs(
     
     return E_save
 
+
+####### Functions for calculating cell-cell contacts 
 
 @numba.njit
 def get_L_vals(xs, vs, vertices):
@@ -532,9 +677,6 @@ def make_B_gaps(vor, cr, betarho_func, rhos):
     return B + B.T
 
 
-####### Functions for calculating cell-cell contacts 
-
-
 @numba.njit
 def circle_intersect_length(c1, c2, r):
     """Length of the intersection between two circles of equal radius `r`."""
@@ -583,18 +725,20 @@ def rad_to_beta(rad, dist=1):
 
 ####### General utilities
 
+round = np.vectorize(round)
+
 @numba.njit
 def normalize(x, xmin, xmax):
     return (x - xmin) / (xmax - xmin)
 
 @numba.njit
 def logistic(t, g, rho_0, rho_max):
-    """Return logistic equation evaluated at time `t`."""
+    """Returns logistic equation evaluated at time `t`."""
     return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
 
 @numba.njit
 def logistic_inv(rho, g, rho_0, rho_max):
-    """Return logistic equation evaluated at time `t`."""
+    """Inverse of logistic equation (returns time at a given density `rho`)."""
     return np.log(rho * (rho_max - rho_0) / (rho_0 * (rho_max - rho))) / g
 
 ####### Cell Adjacency
@@ -870,6 +1014,7 @@ def voronoi_finite_polygons_2d(vor, radius=None):
         new_regions.append(new_region.tolist())
 
     return new_regions, np.asarray(new_vertices)
+
 
 def plot_var(
     ax,
@@ -1752,19 +1897,28 @@ def plot_interp_mesh(
     ylim=(),
     aspect=None,
     pcolormesh_kwargs=dict(),
+    sender_idx=np.array([], dtype=int),
+    sender_clr=("bmw", 150),
+    sender_kwargs=dict(),
+    colorbar=False,
+    cbar_aspect=20,
+    cbar_kwargs=dict(),
+    extend=None,
     **kwargs
 ):
     ax.clear()
     if axis_off:
         ax.axis("off")
     
-    if not xlim:
-        xlim=[X[:, 0].min(), X[:, 0].max()]
-    if not ylim:
-        ylim=[X[:, 1].min(), X[:, 1].max()]
+    if type(cmap) is str:
+        cmap_ = cc.cm[cmap]
+    else:
+        cmap_ = cmap
     
-    if aspect is None:
-        aspect=1
+    if vmin is None:
+        vmin = var.min()
+    if vmax is None:
+        vmax = var.max()
     
     if type(n_interp) is not tuple:
         n_interp_y = n_interp_x = n_interp
@@ -1782,11 +1936,53 @@ def plot_interp_mesh(
         yyi, 
         zzi, 
         shading="auto", 
-        cmap=cc.cm[cmap],
+        cmap=cmap_,
         vmin=vmin,
         vmax=vmax,
         **pcolormesh_kwargs
     )
+    
+    sender_col = cc.cm[sender_clr[0]](sender_clr[1] / 256)
+######################################################################### 
+    ax.plot(*X[sender_idx].T, color=sender_col, **sender_kwargs)
+    
+    
+    if not xlim:
+        xlim=[X[:, 0].min(), X[:, 0].max()]
+    if not ylim:
+        ylim=[X[:, 1].min(), X[:, 1].max()]
+    if aspect is None:
+        aspect=1
+    ax.set(
+        xlim=xlim,
+        ylim=ylim,
+        aspect=aspect,
+    )
+    
+    if title is not None:
+        ax.set_title(title)
+
+    if extend is None:
+        
+        # Extend colorbar if necessary
+        n = var.shape[0]        
+        ns_mask = ~ np.isin(np.arange(n), sender_idx)
+        is_under_min = var.min(initial=0.0, where=ns_mask) < vmin
+        is_over_max  = var.max(initial=0.0, where=ns_mask) > vmax
+        extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
+    
+    if colorbar:
+        
+        # Construct colorbar
+        cbar = plt.colorbar(
+            plt.cm.ScalarMappable(
+                norm=mpl.colors.Normalize(vmin, vmax), 
+                cmap=cmap_), 
+            ax=ax,
+            aspect=cbar_aspect,
+            extend=extend,
+            **cbar_kwargs
+        )
 
 #     ax.imshow(
 #         zzi, 
@@ -1879,7 +2075,7 @@ def animate_interp_mesh(
 
 def inspect_interp_mesh(
     X,
-    var,
+    var_t,
     n_interp=120,
     idx=-1,
     ax=None,
@@ -1892,43 +2088,51 @@ def inspect_interp_mesh(
     ylim=(),
     aspect=None,
     pcolormesh_kwargs=dict(),
+    sender_idx=np.array([], dtype=int),
+    sender_clr=("bmw", 150),
+    sender_kwargs=dict(),
+    colorbar=False,
+    cbar_aspect=20,
+    cbar_kwargs=dict(),
+    extend=None,
     **kwargs
 ):
     """
     """
     
-    if X.ndim == 2:
-        X_ = X.copy()
-    else:
-        X_ = X[idx]
-    
-    if var.ndim == 1:
-        var_ = var.copy()
-    else:
-        var_ = var[idx]
-    
-    if vmin is None:
-        vmin = var_.min()
-    if vmax is None:
-        vmax = var_.max()
-    
     if ax is None:
-        _, ax = plt.subplots()
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        
+    nt = var_t.shape[0]
+    k = np.arange(nt)[idx]
+    
+    if X.ndim == 2:
+        Xk = X.copy()
+    else:
+        Xk = X[k]
     
     plot_interp_mesh(
         ax,
-        X_,
-        var_,
+        Xk,
+        var_t[k],
         n_interp=n_interp,
         vmin=vmin,
         vmax=vmax,
         cmap=cmap,
+        title=title,
         axis_off=axis_off,
         xlim=xlim,
         ylim=ylim,
         aspect=aspect,
-        title=title,
         pcolormesh_kwargs=pcolormesh_kwargs,
+        sender_idx=sender_idx,
+        sender_clr=sender_clr,
+        sender_kwargs=sender_kwargs,
+        colorbar=colorbar,
+        cbar_aspect=cbar_aspect,
+        cbar_kwargs=cbar_kwargs,
+        extend=extend,
         **kwargs
     )
 
@@ -2612,77 +2816,10 @@ def ci_sim(n_tc, alpha, n, S_init, steps, dt):
     
     return df
 
-####### Hill functions
-
-# Activating Hill functions
-def hill_a(x, k, p):
-    """Activating Hill function. If x is 0, returns 0 and ignores divide by zero warning.
-    NOTE: x must be a Numpy array, else x = 0 will throw a Zero Division error."""
-    old_settings = np.seterr(divide='ignore')
-    h = 1 / ((k / x) ** p + 1)
-    np.seterr(**old_settings);
-        
-    return h
-
-####### 1D chained non-linear induction simulation
-
-def update_1D_ci_nl(S, A, dt, params):
-    """update function for 1D chained non-linear induction"""
-    alpha, n, k_s, p_s = params
-    dS_dt = alpha * hill_a(np.dot(A, S)/n, k_s, p_s) - S
-    dS_dt[0] = 0
-    dS_dt[1] = S[0] - S[1]
-    return np.maximum(S + dS_dt * dt, 0)
-
-def ci_sim_nl(n_tc, params, steps, dt, S_init=None, I_0=None, update_fun=update_1D_ci_nl):
-    """Returns a data frame of simulated data for chained non-linear induction in 1D."""
-    
-    # Get initial expression vector if S_init not specified
-    if S_init is None:
-        assert(I_0 is not None), """If no S_init is specified, I_0 must be specified."""
-        S_init = np.array((I_0,) + (0,) * n_tc)
-    
-    
-    # Initialize expression
-    cell_names = ["S_" + str(i).zfill(n_tc // 10 + 1) for i in range(n_tc + 1)]
-    df = pd.DataFrame(
-        {
-            "cell": cell_names,
-            "Signal expression": np.array(S_init),
-        }
-    )
-    df['step'] = 0
-    
-    # Get adjacency matrix
-    A = np.diag((1,) * (n_tc), -1) + np.diag((1,) * (n_tc), 1)
-    
-    # Run simulation
-    df_ls = [df]
-    S = S_init
-    
-    # Integrate over time
-    for step in np.arange(steps):
-        S = update_fun(S, A, dt, params=params)
-        df_ls.append(
-            pd.DataFrame(
-                {
-                    "cell": cell_names,
-                    "Signal expression": S,
-                    "step": step + 1,
-                }
-            )
-        )
-    
-    # Construct output dataframe
-    df = pd.concat(df_ls)
-    df["step"] = [int(x) for x in df["step"]]
-    df["time"] = df["step"] * dt
-    
-    return df
 
 ############# Lattice functions (X, A, meta_df)
 
-def hex_grid(rows, cols=0, r=1, sigma=0, **kwargs):
+def hex_grid(rows, cols=0, r=1., sigma=0, **kwargs):
     """
     Returns XY coordinates of a regular 2D hexagonal grid 
     (rows x cols) with edge length r. Points are optionally 
@@ -2704,9 +2841,9 @@ def hex_grid(rows, cols=0, r=1, sigma=0, **kwargs):
     
     # Apply Gaussian filter if specified
     if sigma != 0:
-        return np.array([np.random.normal(loc=x, scale=sigma*r) for x in X])
-    else:
-        return X
+        X = np.array([np.random.normal(loc=x, scale=sigma*r) for x in X])
+    
+    return X
 
 def hex_grid_square(n, **kwargs):
     """Returns XY coordinates of n points on a square regular 2D hexagonal grid with edge 
@@ -2807,7 +2944,7 @@ def Regular2DLattice_vid_mp4(
     return hmap
 
 
-###### Cell division functions
+###### Geometry utilities
 
 @numba.njit
 def shoelace_area(points):
@@ -2843,3 +2980,96 @@ def voronoi_areas(vor):
     
     return areas
 
+
+@numba.njit
+def verts_to_circle(xy):
+    """
+    Finds the least-squares estimate of the center of
+    a circle given a set of points in R^2.
+    
+    Parameters
+    ----------
+    xy  :  (N x 2) Numpy array, float
+        (x, y) coordinates of points sampled from the
+            edge of the circle
+           
+    Returns
+    -------
+    xy_c  :  (2,) Numpy array, float
+        (x, y) coordinates of least-squares estimated
+            center of circle
+    
+    R  :  float
+        Radius of circle
+        
+    Source: "Least-Squares Circle Fit" by Randy Bullock (bullock@ucar.edu)
+    Link:   https://dtcenter.org/sites/default/files/community-code/met/docs/write-ups/circle_fit.pdf
+    """
+    
+    # Unpack points
+    N = xy.shape[0]
+    x, y = xy.T
+    
+    # Get mean x and y
+    xbar, ybar = x.mean(), y.mean()
+    
+    # Transform to zero-centered coordinate system
+    u, v = x - xbar, y - ybar
+    
+    # Calculate sums used in estimate
+    Suu  = np.sum(u**2)
+    Suv  = np.sum(u * v)
+    Svv  = np.sum(v**2)
+    
+    Suuu = np.sum(u**3)
+    Suuv = np.sum((u**2) * v)
+    Suvv = np.sum(u * (v**2))
+    Svvv = np.sum(v**3)
+    
+    # Package sums into form Aw = b
+    A = np.array([
+        [Suu, Suv],
+        [Suv, Svv]
+    ])
+    b = 1 / 2 * np.array([
+        [Suuu + Suvv],
+        [Svvv + Suuv],
+    ])
+    
+    # Solve linear system for center coordinates
+    uv_c = (np.linalg.pinv(A) @ b).ravel()
+    
+    # Calculate center and radius
+    xy_c = uv_c + np.array([xbar, ybar])
+    R = np.sqrt((uv_c ** 2).sum() + (Suu + Svv) / N)
+    
+    return xy_c, R
+
+@numba.njit
+def cart2pol(xy):
+    r = np.linalg.norm(xy)
+    x, y = xy.flat
+    theta = np.arctan2(y, x)
+    return np.array([r, theta])
+
+
+@numba.njit
+def pol2cart(rt):
+    r, theta = rt.flat
+    return r * np.array([np.cos(theta), np.sin(theta)])
+
+
+# @numba.njit
+def make_circular_mask(h, w, center=None, radius=None):
+    """
+    Construct a mask to select elements within a circle
+    
+    Source: User `alkasm` on StackOverflow
+    Link:   https://stackoverflow.com/questions/44865023/how-can-i-create-a-circular-mask-for-a-numpy-array
+    """
+    
+    Y, X = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+
+    mask = dist_from_center <= radius
+    return mask
