@@ -2,8 +2,11 @@ data/
 HPC_data/
 sim_data/
 plots/
-
+old_plots/
 stan_output/
+
+# Symbolic links (could lead to other directories)
+*.lnk
 
 # sandbox/__pycache__/
 # sandbox/plots/
