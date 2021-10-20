@@ -1,0 +1,18 @@
+# run: conda env create --file environment.yml
+name: lateral_signaling
+
+dependencies:
+  - python=3.9.*
+  - numpy=1.19.*
+  - pandas=1.*
+  - scipy=1.7.*
+  - numba
+  - tqdm=4.*
+  - colorcet
+  - holoviews=1.*
+  - matplotlib=3.4.*
+  - conda-forge::ffmpeg
+  - pip
+  - pip:
+    - sacred
+    - cmocean
