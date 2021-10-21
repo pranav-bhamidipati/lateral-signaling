@@ -12,7 +12,7 @@ dependencies:
   - matplotlib=3.4.*
   - conda-forge::tqdm=4.*
   - conda-forge::ffmpeg
-  - conda-forge::ipywidgets
+#  - conda-forge::ipywidgets
   - conda-forge::shapely=1.*
   - conda-forge::descartes=1.*
   - pip
@@ -20,4 +20,5 @@ dependencies:
     - sacred
     - matplotlib-scalebar==0.*
     - cmocean
+    - ipywidgets
     - blackcellmagic
