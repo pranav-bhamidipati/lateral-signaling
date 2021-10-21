@@ -7,12 +7,14 @@ dependencies:
   - pandas=1.*
   - scipy=1.7.*
   - numba
-  - tqdm=4.*
   - colorcet
   - holoviews=1.*
   - matplotlib=3.4.*
+  - conda-forge::tqdm=4.*
   - conda-forge::ffmpeg
+  - conda-forge::ipywidgets
   - pip
   - pip:
     - sacred
+    - matplotlib-scalebar==0.*
     - cmocean
