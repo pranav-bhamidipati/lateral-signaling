@@ -13,8 +13,11 @@ dependencies:
   - conda-forge::tqdm=4.*
   - conda-forge::ffmpeg
   - conda-forge::ipywidgets
+  - conda-forge::shapely=1.*
+  - conda-forge::descartes=1.*
   - pip
   - pip:
     - sacred
     - matplotlib-scalebar==0.*
     - cmocean
+    - blackcellmagic
