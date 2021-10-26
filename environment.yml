@@ -6,6 +6,7 @@ dependencies:
   - numpy=1.19.*
   - pandas=1.*
   - scipy=1.7.*
+  - scikit-image
   - numba
   - colorcet
   - holoviews=1.*
@@ -18,6 +19,7 @@ dependencies:
   - pip
   - pip:
     - sacred
+    - bebi103==0.1.8
     - matplotlib-scalebar==0.*
     - cmocean
     - ipywidgets
