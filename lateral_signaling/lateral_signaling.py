@@ -187,7 +187,59 @@ def remove_RT_spines(plot, element):
     plot.state.axes[0].spines["right"].set_visible(False)
     plot.state.axes[0].spines["top"].set_visible(False)
 
+
+##### Image and ROI functions
+
+
+def rescale_img(im, interval=(None, None), dtype=np.float64, imask_val=0):
+    """
+    Returns an image with intensity values rescaled to the range (0,1).
+    """
     
+    # Get
+    _im = im.copy()
+    
+    # Get min and max for rescaling
+    if interval[0] is None:
+        interval = (_im.min(), interval[1])
+    if interval[1] is None:
+        interval = (interval[0], _im.max())
+    
+    # Perform rescaling
+    _im = (_im - interval[0]) / (interval[1] - interval[0])
+    
+    # Clip values to range [0, 1]
+    _im = np.maximum(np.minimum(_im, 1), 0)
+    
+    return _im
+
+
+def rescale_masked_img(im, mask, interval=(None, None), dtype=np.float64, imask_val=0):
+    """
+    Returns an image with intensity values inside a mask rescaled to the 
+    range (0,1) and values outside the max set to a constant value.
+    """
+    
+    # Get masked intensity values
+    vals = im[mask]
+    
+    # Get min and max for rescaling
+    if interval[0] is None:
+        interval = (vals.min(), interval[1])
+    if interval[1] is None:
+        interval = (interval[0],vals.max())
+        
+    # Perform rescaling
+    vals = (vals - interval[0]) / (interval[1] - interval[0])
+    vals = np.maximum(np.minimum(vals, 1), 0)
+
+    # Construct output
+    imf = np.ones_like(im, dtype=dtype) * imask_val
+    imf[mask] = vals
+    
+    return imf
+
+
 @numba.njit
 def get_lp_corners(src, dst, width):
     """Given source and destination points, return the coordinates of the corners 
