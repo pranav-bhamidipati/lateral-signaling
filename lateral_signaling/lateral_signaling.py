@@ -11,7 +11,6 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.interpolate import Rbf
 import scipy.stats
 
-
 import numba
 import tqdm
 import time
@@ -268,6 +267,15 @@ def get_lp_corners(src, dst, width):
     corners[2:]   += dst
     
     return corners
+
+
+def transform_point(point, center1, radius1, center2, radius2):
+    """
+    Convert a point on one circle to its transformed location on another circle.
+    """    
+    pt = (point - center1) * (center2 / center1) + center2
+    return pt.ravel()
+
 
 ####### Constants
 
