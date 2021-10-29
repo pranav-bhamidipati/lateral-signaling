@@ -30,73 +30,47 @@ from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 hv.extension('matplotlib')
 
 
-####### Plotting utils
+####### General utils
 
-# Function for vectorized integer ceiling operations
+# Vectorized integer ceiling
 ceiling = np.vectorize(ceil)
 
-def sample_cycle(cycle, size): 
-    """Sample a continuous colormap at regular intervals to get a linearly segmented map"""
-    return hv.Cycle(
-        [cycle[i] for i in ceiling(np.linspace(0, len(cycle) - 1, size))]
-    )
+# Vectorized rounding
+vround = np.vectorize(round)
 
-def hex2rgb(h):
-    """Convert 6-digit hex code to RGB values (0, 255)"""
-    h = h.lstrip('#')
-    return tuple(int(h[(2*i):(2*(i + 1))], base=16) for i in range(3))
+@numba.njit
+def normalize(x, xmin, xmax):
+    """Normalize `x` given explicit min/max values. """
+    return (x - xmin) / (xmax - xmin)
 
 
-def rgba2hex(rgba, background=(255,255,255)):
-    """
-    Adapted from StackOverflow
-    ------------------
-    
-    Question: Convert RGBA to RGB in Python
-    Link: https://stackoverflow.com/questions/50331463/convert-rgba-to-rgb-in-python/50332356
-    Asked: May 14 '18 at 13:25
-    Answered: Nov 7 '19 at 12:40
-    User: Feng Wang
-    """
-    
-    rgb = np.zeros((3,), dtype='float32')
-    r, g, b, a = rgba
-    R, G, B = background
-
-    rgb[0] = r * a + (1.0 - a) * R
-    rgb[1] = g * a + (1.0 - a) * G
-    rgb[2] = b * a + (1.0 - a) * B
-
-    rgb = np.asarray( rgb, dtype='uint8' )
-    
-    return "#{:02x}{:02x}{:02x}".format(*rgb)
-
-def _hexa2hex(h, alpha, background=(255,255,255)):
-    """
-    Returns hex code of the color observed when displaying 
-    color `h` (in hex code) with transparency `alpha` on a 
-    background color `background` (default white)
-    """
-    # Ensure background is in RGB
-    assert type(background) in (str, tuple), "`background` must be a hex code or RGB tuple"
-    if type(background) is str:
-        bg = hex2rgb(background)
-    elif type(background) is tuple:
-        bg = background
-    
-    # Get color in RGBA
-    rgba = *hex2rgb(h), alpha
-    
-    # Convert to HEX without transparency
-    return rgba2hex(rgba, bg)
-
-# Vectorized 
-hexa2hex = np.vectorize(_hexa2hex)
+@numba.njit
+def logistic(t, g, rho_0, rho_max):
+    """Returns logistic equation evaluated at time `t`."""
+    return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
 
 
-# Make a custom version of the "KGY" colormap
-kgy_original = cc.cm["kgy"]
-kgy = ListedColormap(kgy_original(np.linspace(0, 0.92, 256)))
+@numba.njit
+def logistic_inv(rho, g, rho_0, rho_max):
+    """Inverse of logistic equation (returns time at a given density `rho`)."""
+    return np.log(rho * (rho_max - rho_0) / (rho_0 * (rho_max - rho))) / g
+
+
+@numba.njit
+def cart2pol(xy):
+    r = np.linalg.norm(xy)
+    x, y = xy.flat
+    theta = np.arctan2(y, x)
+    return np.array([r, theta])
+
+
+@numba.njit
+def pol2cart(rt):
+    r, theta = rt.flat
+    return r * np.array([np.cos(theta), np.sin(theta)])
+
+
+####### Color utils
 
 # Color swatches
 
@@ -152,6 +126,332 @@ col_light_gray = "#eeeeee"
 col_gray       = "#aeaeae"
 col_black      = "#060605"
 
+# Make a custom version of the "KGY" colormap
+kgy_original = cc.cm["kgy"]
+kgy = ListedColormap(kgy_original(np.linspace(0, 0.92, 256)))
+
+
+def sample_cycle(cycle, size): 
+    """Sample a continuous colormap at regular intervals to get a linearly segmented map"""
+    return hv.Cycle(
+        [cycle[i] for i in ceiling(np.linspace(0, len(cycle) - 1, size))]
+    )
+
+def hex2rgb(h):
+    """Convert 6-digit hex code to RGB values (0, 255)"""
+    h = h.lstrip('#')
+    return tuple(int(h[(2*i):(2*(i + 1))], base=16) for i in range(3))
+
+
+def rgba2hex(rgba, background=(255,255,255)):
+    """
+    Adapted from StackOverflow
+    ------------------
+    
+    Question: Convert RGBA to RGB in Python
+    Link: https://stackoverflow.com/questions/50331463/convert-rgba-to-rgb-in-python/50332356
+    Asked: May 14 '18 at 13:25
+    Answered: Nov 7 '19 at 12:40
+    User: Feng Wang
+    """
+    
+    rgb = np.zeros((3,), dtype='float32')
+    r, g, b, a = rgba
+    R, G, B = background
+
+    rgb[0] = r * a + (1.0 - a) * R
+    rgb[1] = g * a + (1.0 - a) * G
+    rgb[2] = b * a + (1.0 - a) * B
+
+    rgb = np.asarray( rgb, dtype='uint8' )
+    
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+def _hexa2hex(h, alpha, background="#ffffff"):
+    """
+    Returns hex code of the color observed when displaying 
+    color `h` (in hex code) with transparency `alpha` on a 
+    background color `background` (default white)
+    """
+    
+    # Convert background to RGB
+    bg = hex2rgb(background)
+    
+    # Get color in RGBA
+    rgba = *hex2rgb(h), alpha
+    
+    # Convert to HEX without transparency
+    return rgba2hex(rgba, bg)
+
+# Vectorized function to convert HEX and alpha to HEX given background
+hexa2hex = np.vectorize(_hexa2hex)
+
+
+####### Lattice generation and adjacency
+
+def hex_grid(rows, cols=0, r=1., sigma=0, **kwargs):
+    """
+    Returns XY coordinates of a regular 2D hexagonal grid 
+    (rows x cols) with edge length r. Points are optionally 
+    passed through a Gaussian filter with std. dev. = sigma * r.
+    """
+    
+    # Check if square grid
+    if cols == 0:
+        cols = rows
+    
+    # Populate grid 
+    x_coords = np.linspace(-r * (cols - 1) / 2, r * (cols - 1) / 2, cols)
+    y_coords = np.linspace(-np.sqrt(3) * r * (rows - 1) / 4, np.sqrt(3) * r * (rows - 1) / 4, rows)
+    X = []
+    for i, x in enumerate(x_coords):
+        for j, y in enumerate(y_coords):
+            X.append(np.array([x + (j % 2) * r / 2, y]))
+    X = np.array(X)
+    
+    # Apply Gaussian filter if specified
+    if sigma != 0:
+        X = np.array([np.random.normal(loc=x, scale=sigma*r) for x in X])
+    
+    return X
+
+
+def hex_grid_square(n, **kwargs):
+    """Returns XY coordinates of n points on a square regular 2D hexagonal grid with edge 
+    length r, passed through a Gaussian filter with std. dev. = sigma * r."""
+    
+    # Get side length for square grid
+    rows = int(np.ceil(np.sqrt(n)))
+    
+    return hex_grid(rows, **kwargs)[:n]
+
+
+def hex_grid_circle(radius, sigma=0.0, r=1):
+    """Returns XY coordinates of all points on a regular 2D hexagonal grid of edge length r within 
+    distance radius of the origin, passed through a Gaussian filter with std. dev. = sigma * r."""
+    
+    # Get side length for a square grid
+    rad = ceil(radius)
+    num_rows = rad * 2 + 1;
+    
+    # Populate square grid with points
+    X = []
+    for i, x in enumerate(np.linspace(-r * (num_rows - 1) / 2, r * (num_rows - 1) / 2, num_rows)):
+        for j, y in enumerate(
+            np.linspace(-np.sqrt(3) * r * (num_rows - 1) / 4, np.sqrt(3) * r * (num_rows - 1) / 4, num_rows)
+        ):
+            X.append(np.array([x + ((rad - j) % 2) * r / 2, y]))
+    
+    # Pass each point through a Gaussian filter
+    if (sigma > 0):
+        X = np.array([np.random.normal(loc=x, scale=sigma*r) for x in X])
+    
+    # Select points within radius and return
+    dists = [np.linalg.norm(x) for x in X]
+    
+    return np.array([X[i] for i in np.argsort(dists) if np.linalg.norm(dists[i]) <= radius])
+
+
+def get_center_cells(X, n_center=1):
+    """Returns indices of the n_cells cells closest to the origin given their coordinates as an array X."""
+    return np.argpartition([np.linalg.norm(x) for x in X], n_center)[:n_center]
+
+
+def gaussian_irad_Adj(
+    X, irad, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
+):
+    """
+    Construct adjacency matrix for a non-periodic set of 
+    points (cells). Adjacency is determined by calculating pairwise 
+    distance and applying a threshold `irad` (interaction radius)
+    """
+    
+    n = X.shape[0]
+    d = pdist(X)
+    a = scipy.stats.norm.pdf(d, loc=0, scale=irad/2).astype(dtype)
+    a[d >= irad] = 0
+    A = squareform(a)
+    
+    if row_stoch:
+        rowsum = np.sum(A, axis=1)[:, np.newaxis]
+        A = np.divide(A, rowsum)
+    else:
+        A = A > 0
+        
+    if sparse:
+        A = csr_matrix(A)
+    
+    return A
+
+
+def irad_Adj(
+    X, irad, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
+):
+    """
+    Construct adjacency matrix for a non-periodic set of 
+    points (cells). Adjacency is determined by calculating pairwise 
+    distance and applying a threshold `irad` (interaction radius)
+    """
+    
+    n = X.shape[0]
+    A = squareform(pdist(X)) <= irad
+    A = A - np.eye(n)
+    
+    if row_stoch:
+        rowsum = np.sum(A, axis=1)[:, np.newaxis]
+        A = np.divide(A, rowsum)
+
+    if sparse:
+        A = csr_matrix(A)
+    
+    return A
+
+
+def k_step_Adj(k, rows, cols=0, dtype=np.float32, row_stoch=False, **kwargs):
+    """
+    """
+    
+    if not cols:
+        cols = rows
+        
+    # Construct adjacency matrix
+    a = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
+    
+    # Add self-edges
+    n = rows * cols
+    eye = identity(n).astype(dtype)
+    A = (a + eye)
+    
+    # Compute number of paths of length k between nodes
+    A = A ** k
+    
+    # Store as 0. or 1.
+    A = (A > 0).astype(dtype)
+    
+    # Remove self-edges
+    A = A - diags(A.diagonal())
+    
+    if row_stoch:
+        rowsum = np.sum(A, axis=1)
+        A = csr_matrix(A / rowsum)
+    
+    return A
+
+
+def make_Adj(rows, cols=0, dtype=np.float32, **kwargs):
+    """Construct adjacency matrix for a periodic hexagonal 
+    lattice of dimensions rows x cols."""
+    
+    # Check if square
+    if cols == 0:
+        cols = rows
+    
+    # Initialize matrix
+    n = rows * cols
+    Adj = np.zeros((n,n), dtype=dtype)
+    for i in range(cols):
+        for j in range(rows):
+            
+            # Get neighbors of cell at location i, j
+            nb = np.array(
+                [
+                    (i    , j + 1),
+                    (i    , j - 1),
+                    (i - 1, j    ),
+                    (i + 1, j    ),
+                    (i - 1 + 2*(j%2), j - 1),
+                    (i - 1 + 2*(j%2), j + 1),
+                ]
+            )
+            
+            nb[:, 0] = nb[:, 0] % cols
+            nb[:, 1] = nb[:, 1] % rows
+            
+            # Populate Adj
+            nbidx = np.array([ni*rows + nj for ni, nj in nb])
+            Adj[i*rows + j, nbidx] = 1
+    
+    return Adj
+
+def hex_Adj(rows, cols=0, dtype=np.float32, sparse=False, row_stoch=False, **kwargs):
+    """
+    """
+    # Make hexagonal grid
+    X = hex_grid(rows, cols, **kwargs)
+    
+    # Construct adjacency matrix
+    if sparse:
+        A = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
+        
+        # Make row-stochastic (rows sum to 1)
+        if row_stoch:
+            
+            # Calculate inverse of rowsum
+            inv_rowsum = diags(np.array(1/A.sum(axis=1)).ravel())
+            
+            # Multiply by each row
+            A = np.dot(inv_rowsum, A)
+            
+    else:
+        A = make_Adj(rows, cols, dtype=dtype, **kwargs)
+
+        # Make row-stochastic (rows sum to 1)
+        if row_stoch:
+            rowsum = np.sum(A, axis=1)[:, np.newaxis]
+            A = np.divide(A, rowsum)
+    
+    return X, A
+
+def make_Adj_sparse(rows, cols=0, dtype=np.float32, **kwargs):
+    """Construct adjacency matrix for a periodic hexagonal 
+    lattice of dimensions rows x cols.
+
+    Returns a `scipy.sparse.csr_matrix` object."""
+
+    # Check if square
+    if cols == 0:
+        cols = rows
+
+    # Initialize neighbor indices
+    n = rows * cols
+    nb_j = np.zeros(6 * n, dtype=int)
+    for i in range(cols):
+        for j in range(rows):
+
+            # Get neighbors of cell at location i, j
+            nb_col, nb_row = np.array(
+                [
+                    (i    , j + 1),
+                    (i    , j - 1),
+                    (i - 1, j    ),
+                    (i + 1, j    ),
+                    (i - 1 + 2*(j%2), j - 1),
+                    (i - 1 + 2*(j%2), j + 1),
+                ]
+            ).T
+
+            nb_col = nb_col % cols
+            nb_row = nb_row % rows
+
+            nb = nb_col * rows + nb_row
+            nb_j[6*(i * rows + j) : 6*(i * rows + j + 1)] = nb
+
+    nb_i = np.repeat(np.arange(n).astype(int), 6)
+    Adj_vals = np.ones(6 * n, dtype=np.float32)
+
+    return csr_matrix((Adj_vals, (nb_i, nb_j)), shape=(n, n))
+
+
+######### Spatial utils
+
+
+######### Statistics
+
+def data_to_hist(d, bins, data_range=(0, 1000)):
+    """Convert sampled data to a frequency distribution (histogram)"""
+    return np.histogram(d, bins=bins, range=data_range)
+
+
 def ecdf_vals(d):
     """
     Returns the empirical CDF values of a data array `d`. 
@@ -169,22 +469,6 @@ def ecdf_vals(d):
     x = np.sort(d)
     y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
     return x, y
-
-def ecdf(d, *args, **kwargs):
-    """Construct an ECDF from 1D data array `d`"""
-    x = np.sort(d)
-    y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
-    return hv.Scatter(np.array([x, y]).T, *args, **kwargs)
-
-def remove_RB_spines(plot, element):
-    """Hook to remove right and bottom spines from Holoviews plot"""
-    plot.state.axes[0].spines["right"].set_visible(False)
-    plot.state.axes[0].spines["bottom"].set_visible(False)
-    
-def remove_RT_spines(plot, element):
-    """Hook to remove right and top spines from Holoviews plot"""
-    plot.state.axes[0].spines["right"].set_visible(False)
-    plot.state.axes[0].spines["top"].set_visible(False)
 
 
 ##### Image and ROI functions
@@ -277,18 +561,98 @@ def transform_point(point, center1, radius1, center2, radius2):
     return pt.ravel()
 
 
-####### Constants
+@numba.njit
+def verts_to_circle(xy):
+    """
+    Finds the least-squares estimate of the center of
+    a circle given a set of points in R^2.
+    
+    Parameters
+    ----------
+    xy  :  (N x 2) Numpy array, float
+        (x, y) coordinates of points sampled from the
+            edge of the circle
+           
+    Returns
+    -------
+    xy_c  :  (2,) Numpy array, float
+        (x, y) coordinates of least-squares estimated
+            center of circle
+    
+    R  :  float
+        Radius of circle
+        
+    Source: "Least-Squares Circle Fit" by Randy Bullock (bullock@ucar.edu)
+    Link:   https://dtcenter.org/sites/default/files/community-code/met/docs/write-ups/circle_fit.pdf
+    """
+    
+    # Unpack points
+    N = xy.shape[0]
+    x, y = xy.T
+    
+    # Get mean x and y
+    xbar, ybar = x.mean(), y.mean()
+    
+    # Transform to zero-centered coordinate system
+    u, v = x - xbar, y - ybar
+    
+    # Calculate sums used in estimate
+    Suu  = np.sum(u**2)
+    Suv  = np.sum(u * v)
+    Svv  = np.sum(v**2)
+    
+    Suuu = np.sum(u**3)
+    Suuv = np.sum((u**2) * v)
+    Suvv = np.sum(u * (v**2))
+    Svvv = np.sum(v**3)
+    
+    # Package sums into form Aw = b
+    A = np.array([
+        [Suu, Suv],
+        [Suv, Svv]
+    ])
+    b = 1 / 2 * np.array([
+        [Suuu + Suvv],
+        [Svvv + Suuv],
+    ])
+    
+    # Solve linear system for center coordinates
+    uv_c = (np.linalg.pinv(A) @ b).ravel()
+    
+    # Calculate center and radius
+    xy_c = uv_c + np.array([xbar, ybar])
+    R = np.sqrt((uv_c ** 2).sum() + (Suu + Svv) / N)
+    
+    return xy_c, R
 
-# Measured carrying capacity density of transceiver cell line
-#   in dimensionless units. 
-rho_max_ = 5.63040245
 
-# Length of one dimensionless distance unit in microns
-length_scale = np.sqrt(
-    8 / (3 * np.sqrt(3)) 
-    / (1250)  # cells per mm^2
-    * (1e6)   # mm^2  per μm^2
-)
+# @numba.njit
+def make_circular_mask(h, w, center=None, radius=None):
+    """
+    Construct a mask to select elements within a circle
+    
+    Source: User `alkasm` on StackOverflow
+    Link:   https://stackoverflow.com/questions/44865023/how-can-i-create-a-circular-mask-for-a-numpy-array
+    """
+    
+    Y, X = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+
+    mask = dist_from_center <= radius
+    return mask
+
+# ####### Constants
+
+# # Measured carrying capacity density of transceiver cell line
+# #   in dimensionless units. 
+# rho_max_ = 5.63040245
+
+# # Length of one dimensionless distance unit in microns
+# length_scale = np.sqrt(
+#     8 / (3 * np.sqrt(3)) 
+#     / (1250)  # cells per mm^2
+#     * (1e6)   # mm^2  per μm^2
+# )
 
 ####### Unit conversions
 
@@ -559,437 +923,25 @@ def integrate_DDE_varargs(
     return E_save
 
 
-####### Functions for calculating cell-cell contacts 
+##### Visualization
 
-@numba.njit
-def get_L_vals(xs, vs, vertices):
-    """
-    Returns the cell-cell indices and the lengths of cell-cell 
-    contacts given information about the Voronoi tesselation.
+def ecdf(d, *args, **kwargs):
+    """Construct an ECDF from 1D data array `d`"""
+    x = np.sort(d)
+    y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
+    return hv.Scatter(np.array([x, y]).T, *args, **kwargs)
+
+
+def remove_RB_spines(plot, element):
+    """Hook to remove right and bottom spines from Holoviews plot"""
+    plot.state.axes[0].spines["right"].set_visible(False)
+    plot.state.axes[0].spines["bottom"].set_visible(False)
     
-    xs is an (n x 2) array containing the indices of `n` pairs of 
-        adjacent cells. For a Scipy Voronoi object `vor`, this is 
-        equivalent to `vor.ridge_points`. Order should be preserved 
-        with vs.
-       
-    vs is an (n x 2) array containing the indices of vertices for each
-        cell-cell interface (`n` in total). Order should be preserved 
-        with xs.
-        
-    vertices is an (m x 2) array containing the `m` vertices in the 
-        Voronoi tesselation in 2D Cartesian coordinates.
-    """
     
-    # Count number of non-infinite Voronoi ridges
-    n_l = 0
-    for v1, v2 in vs:
-        if (v1 >= 0) & (v2 >= 0):
-            n_l += 1
-    
-    Lij = np.zeros((n_l, 2), dtype=np.int_)
-    L_vals = np.empty(n_l, dtype=np.float32)
-    
-    k = 0
-    for i, x12 in enumerate(xs):
-        v1, v2 = vs[i]
-        
-        # Infinite Voronoi edges have zero length
-        if (v1 < 0) | (v2 < 0):
-            continue
-        
-        # Get length of cell-cell ridge
-        ell = np.linalg.norm(vertices[v1] - vertices[v2])
-        Lij[k] = x12
-        L_vals[k] = ell
-        
-        k += 1
-        
-    return Lij, L_vals
-
-
-@numba.njit
-def get_L_vals_gaps(xs, vs, pts, vertices, cr):
-    """
-    Returns the cell-cell indices and the lengths of cell-cell 
-    contacts given information about the Voronoi tesselation and
-    a uniform cell radius `cr`.
-    """
-    
-    # Make matrix cell-cell contact lengths
-    n_l = 0
-    for v1, v2 in vs:
-        if (v1 >= 0) & (v2 >= 0):
-            n_l += 1
-    
-    Lij = np.zeros((n_l, 2), dtype=np.int_)
-    L_vals = np.empty(n_l, dtype=np.float32)
-    
-    k = 0
-    for i, x_pair in enumerate(xs):
-        v1, v2 = vs[i]
-        # Infinite Voronoi edges have zero length
-        if (v1 < 0) | (v2 < 0):
-            continue
-        
-        # Get length of Voronoi ridge
-        ell_vor = np.linalg.norm(vertices[v1] - vertices[v2])
-        
-        # Get length of circles intersection
-        ell_cir = circle_intersect_length(pts[x_pair[0]], pts[x_pair[1]], cr)
-        
-        # Store the lower value of interface length
-        L_vals[k] = np.minimum(ell_vor, ell_cir)
-        
-        # Store point indices
-        Lij[k] = x_pair
-
-        k += 1
-        
-    return Lij, L_vals
-
-
-def make_L_gaps(vor, cr):
-    """
-    """
-    n = vor.npoints
-    xs = vor.ridge_points
-    vs = np.array(vor.ridge_vertices)
-    pts = vor.points
-    vertices = vor.vertices
-    
-    Lij, L_vals = get_L_vals_gaps(xs, vs, pts, vertices, cr=cr)
-    L = csr_matrix((L_vals, (*Lij.T,)), shape=(n, n))
-
-    return L + L.T
-
-
-def make_L(vor):
-    """
-    Return a Scipy CSRMatrix object (sparse matrix) encoding 
-    the length of cell-cell contacts given a Scipy Voronoi object 
-    `vor` describing the Voronoi tesselation of a set of cell centroids.
-    """
-    
-    n = vor.npoints
-    xs = vor.ridge_points
-    vs = np.array(vor.ridge_vertices)
-    vertices = vor.vertices
-    
-    Lij, L_vals = get_L_vals(n, xs, vs, vertices)
-    L = csr_matrix((L_vals, (*Lij.T,)), shape=(n, n))
-    
-    return L + L.T
-
-
-
-@numba.njit
-def get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr):
-    """
-    Returns the cell-cell indices and the phenomenological beta-function 
-    values given information about the Voronoi tesselation and
-    a uniform cell radius `cr`.
-    """
-    
-    # Make matrix cell-cell contact lengths
-    n_b = 0
-    for v1, v2 in vs:
-        if (v1 >= 0) & (v2 >= 0):
-            n_b += 1
-    
-    Bij = np.zeros((n_b, 2), dtype=np.int_)
-    B_vals = np.zeros(n_b, dtype=np.float32)
-    
-    k = 0
-    for i, x_pair in enumerate(xs):
-        
-        # Infinite Voronoi edges have zero length
-        v1, v2 = vs[i]
-        if (v1 < 0) | (v2 < 0):
-            continue
-        
-        # Check if cell-cell distance is too large to interact
-        x1, x2 = x_pair
-        bij_bool = np.linalg.norm(pts[x1] - pts[x2]) < (cr * 2)
-        
-        if bij_bool:
-            # Get average beta(rho) and store 
-            val = (betarho_func(rhos[x1]) + betarho_func(rhos[x2])) / 2
-            B_vals[k] = val
-        
-        # Store indices
-        Bij[k] = x_pair
-        k += 1
-        
-    return Bij, B_vals
-
-
-def make_B_gaps(vor, cr, betarho_func, rhos):
-    """
-    """
-    n = vor.npoints
-    xs = vor.ridge_points
-    vs = np.array(vor.ridge_vertices)
-    pts = vor.points
-    
-    Bij, B_vals = get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr)
-    B = csr_matrix((B_vals, (*Bij.T,)), shape=(n, n))
-
-    return B + B.T
-
-
-@numba.njit
-def circle_intersect_length(c1, c2, r):
-    """Length of the intersection between two circles of equal radius `r`."""
-    
-    # Get distance between circle centers
-    d = np.linalg.norm(c1 - c2)
-    
-    # Get length of interface, catching the case where circles do not intersect
-    ell2 = np.maximum(r**2 - (d**2)/4, 0)
-    return 2 * np.sqrt(ell2)
-    
-@numba.njit
-def circle_intersect_length2(c1, c2, r1, r2):
-    """Length of the intersection between two circles of radii `r1` and `r2`."""
-    
-    # Get distance between circle centers
-    d = np.linalg.norm(c1 - c2)
-    
-    # Check if circles do not intersect
-    if d >= (r1 + r2):
-        return 0
-    
-    # Else, calculate intersection length
-    return 2 * r1 * np.sqrt(1 - ((r1**2 + d**2 - r2**2) / (2 * r1 * d))**2)
-
-
-@numba.njit
-def A_cells_um(nc, rho, A_c_rho1=800):
-    """
-    Returns the area of `nc` cells at density `rho` in 
-    micrometers^2.
-    `A_c_rho1` is the area of each cell at `rho=1` in
-    micrometers^2.
-    """
-    return nc * A_c_rho1 / rho
-
-
-@numba.njit
-def beta_to_rad(beta, dist=1):
-    return dist/(np.sqrt(4-beta**2))
-
-@numba.njit
-def rad_to_beta(rad, dist=1):
-    return np.sqrt(4 - (dist**2 / rad**2))
-
-
-####### General utilities
-
-round = np.vectorize(round)
-
-@numba.njit
-def normalize(x, xmin, xmax):
-    return (x - xmin) / (xmax - xmin)
-
-@numba.njit
-def logistic(t, g, rho_0, rho_max):
-    """Returns logistic equation evaluated at time `t`."""
-    return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
-
-@numba.njit
-def logistic_inv(rho, g, rho_0, rho_max):
-    """Inverse of logistic equation (returns time at a given density `rho`)."""
-    return np.log(rho * (rho_max - rho_0) / (rho_0 * (rho_max - rho))) / g
-
-####### Cell Adjacency
-
-def gaussian_irad_Adj(
-    X, irad, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
-):
-    """
-    Construct adjacency matrix for a non-periodic set of 
-    points (cells). Adjacency is determined by calculating pairwise 
-    distance and applying a threshold `irad` (interaction radius)
-    """
-    
-    n = X.shape[0]
-    d = pdist(X)
-    a = scipy.stats.norm.pdf(d, loc=0, scale=irad/2).astype(dtype)
-    a[d >= irad] = 0
-    A = squareform(a)
-    
-    if row_stoch:
-        rowsum = np.sum(A, axis=1)[:, np.newaxis]
-        A = np.divide(A, rowsum)
-    else:
-        A = A > 0
-        
-    if sparse:
-        A = csr_matrix(A)
-    
-    return A
-
-
-def irad_Adj(
-    X, irad, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
-):
-    """
-    Construct adjacency matrix for a non-periodic set of 
-    points (cells). Adjacency is determined by calculating pairwise 
-    distance and applying a threshold `irad` (interaction radius)
-    """
-    
-    n = X.shape[0]
-    A = squareform(pdist(X)) <= irad
-    A = A - np.eye(n)
-    
-    if row_stoch:
-        rowsum = np.sum(A, axis=1)[:, np.newaxis]
-        A = np.divide(A, rowsum)
-
-    if sparse:
-        A = csr_matrix(A)
-    
-    return A
-
-
-def k_step_Adj(k, rows, cols=0, dtype=np.float32, row_stoch=False, **kwargs):
-    """
-    """
-    
-    if not cols:
-        cols = rows
-        
-    # Construct adjacency matrix
-    a = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
-    
-    # Add self-edges
-    n = rows * cols
-    eye = identity(n).astype(dtype)
-    A = (a + eye)
-    
-    # Compute number of paths of length k between nodes
-    A = A ** k
-    
-    # Store as 0. or 1.
-    A = (A > 0).astype(dtype)
-    
-    # Remove self-edges
-    A = A - diags(A.diagonal())
-    
-    if row_stoch:
-        rowsum = np.sum(A, axis=1)
-        A = csr_matrix(A / rowsum)
-    
-    return A
-
-
-
-def make_Adj(rows, cols=0, dtype=np.float32, **kwargs):
-    """Construct adjacency matrix for a periodic hexagonal 
-    lattice of dimensions rows x cols."""
-    
-    # Check if square
-    if cols == 0:
-        cols = rows
-    
-    # Initialize matrix
-    n = rows * cols
-    Adj = np.zeros((n,n), dtype=dtype)
-    for i in range(cols):
-        for j in range(rows):
-            
-            # Get neighbors of cell at location i, j
-            nb = np.array(
-                [
-                    (i    , j + 1),
-                    (i    , j - 1),
-                    (i - 1, j    ),
-                    (i + 1, j    ),
-                    (i - 1 + 2*(j%2), j - 1),
-                    (i - 1 + 2*(j%2), j + 1),
-                ]
-            )
-            
-            nb[:, 0] = nb[:, 0] % cols
-            nb[:, 1] = nb[:, 1] % rows
-            
-            # Populate Adj
-            nbidx = np.array([ni*rows + nj for ni, nj in nb])
-            Adj[i*rows + j, nbidx] = 1
-    
-    return Adj
-
-def hex_Adj(rows, cols=0, dtype=np.float32, sparse=False, row_stoch=False, **kwargs):
-    """
-    """
-    # Make hexagonal grid
-    X = hex_grid(rows, cols, **kwargs)
-    
-    # Construct adjacency matrix
-    if sparse:
-        A = make_Adj_sparse(rows, cols, dtype=dtype, **kwargs)
-        
-        # Make row-stochastic (rows sum to 1)
-        if row_stoch:
-            
-            # Calculate inverse of rowsum
-            inv_rowsum = diags(np.array(1/A.sum(axis=1)).ravel())
-            
-            # Multiply by each row
-            A = np.dot(inv_rowsum, A)
-            
-    else:
-        A = make_Adj(rows, cols, dtype=dtype, **kwargs)
-
-        # Make row-stochastic (rows sum to 1)
-        if row_stoch:
-            rowsum = np.sum(A, axis=1)[:, np.newaxis]
-            A = np.divide(A, rowsum)
-    
-    return X, A
-
-def make_Adj_sparse(rows, cols=0, dtype=np.float32, **kwargs):
-    """Construct adjacency matrix for a periodic hexagonal 
-    lattice of dimensions rows x cols.
-
-    Returns a `scipy.sparse.csr_matrix` object."""
-
-    # Check if square
-    if cols == 0:
-        cols = rows
-
-    # Initialize neighbor indices
-    n = rows * cols
-    nb_j = np.zeros(6 * n, dtype=int)
-    for i in range(cols):
-        for j in range(rows):
-
-            # Get neighbors of cell at location i, j
-            nb_col, nb_row = np.array(
-                [
-                    (i    , j + 1),
-                    (i    , j - 1),
-                    (i - 1, j    ),
-                    (i + 1, j    ),
-                    (i - 1 + 2*(j%2), j - 1),
-                    (i - 1 + 2*(j%2), j + 1),
-                ]
-            ).T
-
-            nb_col = nb_col % cols
-            nb_row = nb_row % rows
-
-            nb = nb_col * rows + nb_row
-            nb_j[6*(i * rows + j) : 6*(i * rows + j + 1)] = nb
-
-    nb_i = np.repeat(np.arange(n).astype(int), 6)
-    Adj_vals = np.ones(6 * n, dtype=np.float32)
-
-    return csr_matrix((Adj_vals, (nb_i, nb_j)), shape=(n, n))
-
-
-####### Plot/animate 
+def remove_RT_spines(plot, element):
+    """Hook to remove right and top spines from Holoviews plot"""
+    plot.state.axes[0].spines["right"].set_visible(False)
+    plot.state.axes[0].spines["top"].set_visible(False)
 
 
 def voronoi_finite_polygons_2d(vor, radius=None):
@@ -2003,7 +1955,6 @@ def plot_interp_mesh(
     )
     
     sender_col = cc.cm[sender_clr[0]](sender_clr[1] / 256)
-######################################################################### 
     ax.plot(*X[sender_idx].T, color=sender_col, **sender_kwargs)
     
     
@@ -2246,6 +2197,236 @@ def inspect_grid_interp_mesh(
             axis_off=axis_off,
             **kwargs
         )
+
+
+####################################################################
+############ DEPRECATED ############################################
+####################################################################
+
+
+####### Functions for calculating cell-cell contacts 
+
+@numba.njit
+def get_L_vals(xs, vs, vertices):
+    """
+    Returns the cell-cell indices and the lengths of cell-cell 
+    contacts given information about the Voronoi tesselation.
+    
+    xs is an (n x 2) array containing the indices of `n` pairs of 
+        adjacent cells. For a Scipy Voronoi object `vor`, this is 
+        equivalent to `vor.ridge_points`. Order should be preserved 
+        with vs.
+       
+    vs is an (n x 2) array containing the indices of vertices for each
+        cell-cell interface (`n` in total). Order should be preserved 
+        with xs.
+        
+    vertices is an (m x 2) array containing the `m` vertices in the 
+        Voronoi tesselation in 2D Cartesian coordinates.
+    """
+    
+    # Count number of non-infinite Voronoi ridges
+    n_l = 0
+    for v1, v2 in vs:
+        if (v1 >= 0) & (v2 >= 0):
+            n_l += 1
+    
+    Lij = np.zeros((n_l, 2), dtype=np.int_)
+    L_vals = np.empty(n_l, dtype=np.float32)
+    
+    k = 0
+    for i, x12 in enumerate(xs):
+        v1, v2 = vs[i]
+        
+        # Infinite Voronoi edges have zero length
+        if (v1 < 0) | (v2 < 0):
+            continue
+        
+        # Get length of cell-cell ridge
+        ell = np.linalg.norm(vertices[v1] - vertices[v2])
+        Lij[k] = x12
+        L_vals[k] = ell
+        
+        k += 1
+        
+    return Lij, L_vals
+
+
+@numba.njit
+def get_L_vals_gaps(xs, vs, pts, vertices, cr):
+    """
+    Returns the cell-cell indices and the lengths of cell-cell 
+    contacts given information about the Voronoi tesselation and
+    a uniform cell radius `cr`.
+    """
+    
+    # Make matrix cell-cell contact lengths
+    n_l = 0
+    for v1, v2 in vs:
+        if (v1 >= 0) & (v2 >= 0):
+            n_l += 1
+    
+    Lij = np.zeros((n_l, 2), dtype=np.int_)
+    L_vals = np.empty(n_l, dtype=np.float32)
+    
+    k = 0
+    for i, x_pair in enumerate(xs):
+        v1, v2 = vs[i]
+        # Infinite Voronoi edges have zero length
+        if (v1 < 0) | (v2 < 0):
+            continue
+        
+        # Get length of Voronoi ridge
+        ell_vor = np.linalg.norm(vertices[v1] - vertices[v2])
+        
+        # Get length of circles intersection
+        ell_cir = circle_intersect_length(pts[x_pair[0]], pts[x_pair[1]], cr)
+        
+        # Store the lower value of interface length
+        L_vals[k] = np.minimum(ell_vor, ell_cir)
+        
+        # Store point indices
+        Lij[k] = x_pair
+
+        k += 1
+        
+    return Lij, L_vals
+
+
+def make_L_gaps(vor, cr):
+    """
+    """
+    n = vor.npoints
+    xs = vor.ridge_points
+    vs = np.array(vor.ridge_vertices)
+    pts = vor.points
+    vertices = vor.vertices
+    
+    Lij, L_vals = get_L_vals_gaps(xs, vs, pts, vertices, cr=cr)
+    L = csr_matrix((L_vals, (*Lij.T,)), shape=(n, n))
+
+    return L + L.T
+
+
+def make_L(vor):
+    """
+    Return a Scipy CSRMatrix object (sparse matrix) encoding 
+    the length of cell-cell contacts given a Scipy Voronoi object 
+    `vor` describing the Voronoi tesselation of a set of cell centroids.
+    """
+    
+    n = vor.npoints
+    xs = vor.ridge_points
+    vs = np.array(vor.ridge_vertices)
+    vertices = vor.vertices
+    
+    Lij, L_vals = get_L_vals(n, xs, vs, vertices)
+    L = csr_matrix((L_vals, (*Lij.T,)), shape=(n, n))
+    
+    return L + L.T
+
+
+
+@numba.njit
+def get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr):
+    """
+    Returns the cell-cell indices and the phenomenological beta-function 
+    values given information about the Voronoi tesselation and
+    a uniform cell radius `cr`.
+    """
+    
+    # Make matrix cell-cell contact lengths
+    n_b = 0
+    for v1, v2 in vs:
+        if (v1 >= 0) & (v2 >= 0):
+            n_b += 1
+    
+    Bij = np.zeros((n_b, 2), dtype=np.int_)
+    B_vals = np.zeros(n_b, dtype=np.float32)
+    
+    k = 0
+    for i, x_pair in enumerate(xs):
+        
+        # Infinite Voronoi edges have zero length
+        v1, v2 = vs[i]
+        if (v1 < 0) | (v2 < 0):
+            continue
+        
+        # Check if cell-cell distance is too large to interact
+        x1, x2 = x_pair
+        bij_bool = np.linalg.norm(pts[x1] - pts[x2]) < (cr * 2)
+        
+        if bij_bool:
+            # Get average beta(rho) and store 
+            val = (betarho_func(rhos[x1]) + betarho_func(rhos[x2])) / 2
+            B_vals[k] = val
+        
+        # Store indices
+        Bij[k] = x_pair
+        k += 1
+        
+    return Bij, B_vals
+
+
+def make_B_gaps(vor, cr, betarho_func, rhos):
+    """
+    """
+    n = vor.npoints
+    xs = vor.ridge_points
+    vs = np.array(vor.ridge_vertices)
+    pts = vor.points
+    
+    Bij, B_vals = get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr)
+    B = csr_matrix((B_vals, (*Bij.T,)), shape=(n, n))
+
+    return B + B.T
+
+
+@numba.njit
+def circle_intersect_length(c1, c2, r):
+    """Length of the intersection between two circles of equal radius `r`."""
+    
+    # Get distance between circle centers
+    d = np.linalg.norm(c1 - c2)
+    
+    # Get length of interface, catching the case where circles do not intersect
+    ell2 = np.maximum(r**2 - (d**2)/4, 0)
+    return 2 * np.sqrt(ell2)
+    
+@numba.njit
+def circle_intersect_length2(c1, c2, r1, r2):
+    """Length of the intersection between two circles of radii `r1` and `r2`."""
+    
+    # Get distance between circle centers
+    d = np.linalg.norm(c1 - c2)
+    
+    # Check if circles do not intersect
+    if d >= (r1 + r2):
+        return 0
+    
+    # Else, calculate intersection length
+    return 2 * r1 * np.sqrt(1 - ((r1**2 + d**2 - r2**2) / (2 * r1 * d))**2)
+
+
+@numba.njit
+def A_cells_um(nc, rho, A_c_rho1=800):
+    """
+    Returns the area of `nc` cells at density `rho` in 
+    micrometers^2.
+    `A_c_rho1` is the area of each cell at `rho=1` in
+    micrometers^2.
+    """
+    return nc * A_c_rho1 / rho
+
+
+@numba.njit
+def beta_to_rad(beta, dist=1):
+    return dist/(np.sqrt(4-beta**2))
+
+@numba.njit
+def rad_to_beta(rad, dist=1):
+    return np.sqrt(4 - (dist**2 / rad**2))
+
 
 ####### Signaling code
 
@@ -2822,128 +3003,8 @@ def act_area_chull(X, E, thresh):
         
     return a
     
-    
-    
-    
-####### 1D chained linear induction simulation
-
-def update_1D_ci(S, A, dt):
-    """update function for 1D chained linear induction"""
-    return np.maximum(S + np.dot(A, S) * dt, 0)
-
-def ci_sim(n_tc, alpha, n, S_init, steps, dt):
-    """Returns a data frame of simulated data for chained simple linear induction in 1D."""
-    # Initialize expression
-    S = np.zeros(n_tc + 2) + S_init
-    df = pd.DataFrame(
-        {
-            "cell": ["I"] + ["S_" + str(i).zfill(n_tc // 10 + 1) for i in range(n_tc + 1)],
-            "Signal expression": S,
-            "step": 0,
-        }
-    )
-
-    df.head()
-
-    # Get system of equations as matrix
-    block1 = np.array([[0,         0], 
-                       [1,        -1]])
-    block2 = np.zeros((2, n_tc))
-    block3 = np.concatenate((np.array([[0, alpha / n],]), np.zeros((n_tc - 1, 2))))
-    block4 = np.diag((alpha / n,) * (n_tc - 1), -1) + np.diag((-1,) * n_tc, 0) + np.diag((alpha / n,) * (n_tc - 1), 1)
-
-    A = np.block([[block1, block2],
-                  [block3, block4]])
-    
-    # Run simulation
-    df_ls = [df]
-    for step in np.arange(steps):
-        S = update_1D_ci(S, A, dt)
-        df_ls.append(
-            pd.DataFrame(
-                {
-                    "cell": ["I"] + ["S_" + str(i).zfill(n_tc // 10 + 1) for i in range(n_tc + 1)],
-                    "Signal expression": S,
-                    "step": step + 1,
-                }
-            )
-        )
-    
-    # Construct output dataframe
-    df = pd.concat(df_ls)
-    df["step"] = [int(x) for x in df["step"]]
-    df["time"] = df["step"] * dt
-    
-    return df
-
 
 ############# Lattice functions (X, A, meta_df)
-
-def hex_grid(rows, cols=0, r=1., sigma=0, **kwargs):
-    """
-    Returns XY coordinates of a regular 2D hexagonal grid 
-    (rows x cols) with edge length r. Points are optionally 
-    passed through a Gaussian filter with std. dev. = sigma * r.
-    """
-    
-    # Check if square grid
-    if cols == 0:
-        cols = rows
-    
-    # Populate grid 
-    x_coords = np.linspace(-r * (cols - 1) / 2, r * (cols - 1) / 2, cols)
-    y_coords = np.linspace(-np.sqrt(3) * r * (rows - 1) / 4, np.sqrt(3) * r * (rows - 1) / 4, rows)
-    X = []
-    for i, x in enumerate(x_coords):
-        for j, y in enumerate(y_coords):
-            X.append(np.array([x + (j % 2) * r / 2, y]))
-    X = np.array(X)
-    
-    # Apply Gaussian filter if specified
-    if sigma != 0:
-        X = np.array([np.random.normal(loc=x, scale=sigma*r) for x in X])
-    
-    return X
-
-def hex_grid_square(n, **kwargs):
-    """Returns XY coordinates of n points on a square regular 2D hexagonal grid with edge 
-    length r, passed through a Gaussian filter with std. dev. = sigma * r."""
-    
-    # Get side length for square grid
-    rows = int(np.ceil(np.sqrt(n)))
-    
-    return hex_grid(rows, **kwargs)[:n]
-
-def hex_grid_circle(radius, sigma=0.0, r=1):
-    """Returns XY coordinates of all points on a regular 2D hexagonal grid of edge length r within 
-    distance radius of the origin, passed through a Gaussian filter with std. dev. = sigma * r."""
-    
-    # Get side length for a square grid
-    rad = ceil(radius)
-    num_rows = rad * 2 + 1;
-    
-    # Populate square grid with points
-    X = []
-    for i, x in enumerate(np.linspace(-r * (num_rows - 1) / 2, r * (num_rows - 1) / 2, num_rows)):
-        for j, y in enumerate(
-            np.linspace(-np.sqrt(3) * r * (num_rows - 1) / 4, np.sqrt(3) * r * (num_rows - 1) / 4, num_rows)
-        ):
-            X.append(np.array([x + ((rad - j) % 2) * r / 2, y]))
-    
-    # Pass each point through a Gaussian filter
-    if (sigma > 0):
-        X = np.array([np.random.normal(loc=x, scale=sigma*r) for x in X])
-    
-    # Select points within radius and return
-    dists = [np.linalg.norm(x) for x in X]
-    
-    return np.array([X[i] for i in np.argsort(dists) if np.linalg.norm(dists[i]) <= radius])
-
-
-def get_center_cells(X, n_center=1):
-    """Returns indices of the n_cells cells closest to the origin given their coordinates as an array X."""
-    return np.argpartition([np.linalg.norm(x) for x in X], n_center)[:n_center]
-
 
 ###### Make a time-lapse of single-gene ("signal") expression on a lattice
 
@@ -3040,96 +3101,3 @@ def voronoi_areas(vor):
     
     return areas
 
-
-@numba.njit
-def verts_to_circle(xy):
-    """
-    Finds the least-squares estimate of the center of
-    a circle given a set of points in R^2.
-    
-    Parameters
-    ----------
-    xy  :  (N x 2) Numpy array, float
-        (x, y) coordinates of points sampled from the
-            edge of the circle
-           
-    Returns
-    -------
-    xy_c  :  (2,) Numpy array, float
-        (x, y) coordinates of least-squares estimated
-            center of circle
-    
-    R  :  float
-        Radius of circle
-        
-    Source: "Least-Squares Circle Fit" by Randy Bullock (bullock@ucar.edu)
-    Link:   https://dtcenter.org/sites/default/files/community-code/met/docs/write-ups/circle_fit.pdf
-    """
-    
-    # Unpack points
-    N = xy.shape[0]
-    x, y = xy.T
-    
-    # Get mean x and y
-    xbar, ybar = x.mean(), y.mean()
-    
-    # Transform to zero-centered coordinate system
-    u, v = x - xbar, y - ybar
-    
-    # Calculate sums used in estimate
-    Suu  = np.sum(u**2)
-    Suv  = np.sum(u * v)
-    Svv  = np.sum(v**2)
-    
-    Suuu = np.sum(u**3)
-    Suuv = np.sum((u**2) * v)
-    Suvv = np.sum(u * (v**2))
-    Svvv = np.sum(v**3)
-    
-    # Package sums into form Aw = b
-    A = np.array([
-        [Suu, Suv],
-        [Suv, Svv]
-    ])
-    b = 1 / 2 * np.array([
-        [Suuu + Suvv],
-        [Svvv + Suuv],
-    ])
-    
-    # Solve linear system for center coordinates
-    uv_c = (np.linalg.pinv(A) @ b).ravel()
-    
-    # Calculate center and radius
-    xy_c = uv_c + np.array([xbar, ybar])
-    R = np.sqrt((uv_c ** 2).sum() + (Suu + Svv) / N)
-    
-    return xy_c, R
-
-@numba.njit
-def cart2pol(xy):
-    r = np.linalg.norm(xy)
-    x, y = xy.flat
-    theta = np.arctan2(y, x)
-    return np.array([r, theta])
-
-
-@numba.njit
-def pol2cart(rt):
-    r, theta = rt.flat
-    return r * np.array([np.cos(theta), np.sin(theta)])
-
-
-# @numba.njit
-def make_circular_mask(h, w, center=None, radius=None):
-    """
-    Construct a mask to select elements within a circle
-    
-    Source: User `alkasm` on StackOverflow
-    Link:   https://stackoverflow.com/questions/44865023/how-can-i-create-a-circular-mask-for-a-numpy-array
-    """
-    
-    Y, X = np.ogrid[:h, :w]
-    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
-
-    mask = dist_from_center <= radius
-    return mask
