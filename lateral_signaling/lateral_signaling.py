@@ -143,7 +143,7 @@ def hex2rgb(h):
     return tuple(int(h[(2*i):(2*(i + 1))], base=16) for i in range(3))
 
 
-def rgba2hex(rgba, background=(255,255,255)):
+def rgba2hex(rgba, background=(255, 255, 255)):
     """
     Adapted from StackOverflow
     ------------------
