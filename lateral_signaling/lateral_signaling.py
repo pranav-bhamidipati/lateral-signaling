@@ -30,6 +30,49 @@ from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 hv.extension('matplotlib')
 
 
+####### Differential equation right-hand-side functions
+
+def signal_rhs(
+    S,
+    S_delay,
+    Adj,
+    sender_idx,
+    beta_func,
+    beta_args,
+    alpha,
+    k,
+    p,
+    delta,
+    lambda_,
+    g,
+    rho,
+):
+    """
+    Right-hand side of the transciever circuit delay differential
+    equation. Uses a matrix of cell-cell adjacency `Adj`.
+    """
+
+    # Get signaling as a function of density
+    beta = beta_func(rho, *beta_args)
+
+    # Get input signal across each interface
+    S_bar = beta * (Adj @ S_delay)
+
+    # Calculate dE/dt
+    dS_dt = (
+        lambda_
+        + alpha * (S_bar ** p) / (k ** p + (delta * S_delay) ** p + S_bar ** p)
+        - S
+    )
+
+    # Set sender cell to zero
+    dS_dt[sender_idx] = 0
+
+    return dS_dt
+
+
+
+
 ####### General utils
 
 # Vectorized integer ceiling
