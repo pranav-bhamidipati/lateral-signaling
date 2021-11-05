@@ -174,6 +174,26 @@ kgy_original = cc.cm["kgy"]
 kgy = ListedColormap(kgy_original(np.linspace(0, 0.92, 256)))
 
 
+def as_rgbint(rgb):
+    """Coerce RGB iterable to a tuple of integers"""
+    if any([v >= 1. for v in rgb]):
+        _rgb = tuple(rgb)
+    else:
+        _rgb = tuple((round(255 * c) for c in rgb))
+    
+    return _rgb
+
+    
+def as_rgbfloat(rgb):
+    """Coerce RGB iterable to an ndarray of floats"""
+    if any([v >= 1. for v in rgb]) or any([type(v) is int for v in rgb]):
+        _rgb = (np.asarray(rgb) / 255).astype(float)
+    else:
+        _rgb = np.asarray(rgb).astype(float)
+    
+    return _rgb
+
+
 def sample_cycle(cycle, size): 
     """Sample a continuous colormap at regular intervals to get a linearly segmented map"""
     return hv.Cycle(
@@ -198,17 +218,23 @@ def rgba2hex(rgba, background=(255, 255, 255)):
     User: Feng Wang
     """
     
-    rgb = np.zeros((3,), dtype='float32')
-    r, g, b, a = rgba
-    R, G, B = background
+    rgb = np.zeros((3,), dtype=np.uint8)
+    *_rgb, a = rgba
 
-    rgb[0] = r * a + (1.0 - a) * R
-    rgb[1] = g * a + (1.0 - a) * G
-    rgb[2] = b * a + (1.0 - a) * B
-
-    rgb = np.asarray( rgb, dtype='uint8' )
+    for i, _c in enumerate(_rgb):
+        
+        # Convert vals in [0., 1.] to [0, 255]
+        if _c <= 1.:
+            c = int(_c * 255)
+        else:
+            c = _c
+        
+        # Calculate new values
+        new_c = round(a * c + (1 - a) * background[i])
+        rgb[i] = new_c
     
     return "#{:02x}{:02x}{:02x}".format(*rgb)
+
 
 def _hexa2hex(h, alpha, background="#ffffff"):
     """
@@ -231,6 +257,17 @@ hexa2hex = np.vectorize(_hexa2hex)
 
 
 ####### Lattice generation and adjacency
+
+# Vertices of a regular hexagon centered at (0,0) with width 1.
+_hex_vertices = (
+    np.array([
+        np.cos(np.arange(0, 2 * np.pi, np.pi / 3) + np.pi / 6), 
+        np.sin(np.arange(0, 2 * np.pi, np.pi / 3) + np.pi / 6),
+    ]).T 
+    / np.sqrt(3)
+)
+
+_hex_x, _hex_y = _hex_vertices.T
 
 def hex_grid(rows, cols=0, r=1., sigma=0, **kwargs):
     """
@@ -1162,7 +1199,7 @@ def plot_var(
         is_under_min = var.min(initial=0.0, where=ns_mask) < vmin
         is_over_max  = var.max(initial=0.0, where=ns_mask) > vmax
         extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
-                
+        
     if colorbar:
         
         # Construct colorbar
