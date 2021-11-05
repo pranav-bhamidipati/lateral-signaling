@@ -174,7 +174,7 @@ kgy_original = cc.cm["kgy"]
 kgy = ListedColormap(kgy_original(np.linspace(0, 0.92, 256)))
 
 
-def as_rgbint(rgb):
+def rgb_as_int(rgb):
     """Coerce RGB iterable to a tuple of integers"""
     if any([v >= 1. for v in rgb]):
         _rgb = tuple(rgb)
@@ -184,7 +184,7 @@ def as_rgbint(rgb):
     return _rgb
 
     
-def as_rgbfloat(rgb):
+def rgb_as_float(rgb):
     """Coerce RGB iterable to an ndarray of floats"""
     if any([v >= 1. for v in rgb]) or any([type(v) is int for v in rgb]):
         _rgb = (np.asarray(rgb) / 255).astype(float)
@@ -1106,6 +1106,112 @@ def voronoi_finite_polygons_2d(vor, radius=None):
         new_regions.append(new_region.tolist())
 
     return new_regions, np.asarray(new_vertices)
+
+
+def plot_hex_sheet(
+    ax,
+    X,
+    var,
+    r=1.,
+    vmin=None,
+    vmax=None,
+    cmap="CET_L8",
+    ec=None,
+    title=None,
+    poly_kwargs=dict(),
+    xlim=(),
+    ylim=(),
+    axis_off=True,
+    aspect=None,
+    sender_idx=np.array([], dtype=int),
+    sender_clr="#e330ff",
+    colorbar=False,
+    cbar_aspect=20,
+    cbar_kwargs=dict(),
+    extend=None,
+    poly_padding=0.1,
+    **kwargs
+):
+    
+    # Clear axis (allows you to reuse axis when animating)
+#     ax.clear()
+    if axis_off:
+        ax.axis("off")
+    
+    # Get min/max values in color space
+    if vmin is None:
+        vmin = var.min()
+    if vmax is None:
+        vmax = var.max()
+    
+    # Get colors based on supplied values of variable
+    if type(cmap) is str:
+        _cmap = cc.cm[cmap]
+    else:
+        _cmap = cmap
+    colors = _cmap(normalize(var, vmin, vmax))
+    
+    # Replace sender(s) with appropriate color
+    if isinstance(sender_clr, str):
+        _sender_clr = hex2rgb(sender_clr)
+    else:
+        _sender_clr = list(sender_clr)
+        
+    if len(_sender_clr) == 3:
+        _sender_clr = [*rgb_as_float(_sender_clr), 1.]
+    else:
+        _sender_clr = [rgb_as_float(_sender_clr[:3]), _sender_clr[3]]
+    
+    colors[sender_idx] = _sender_clr
+    
+    # Make polygon size slightly larger than cell 
+    #  so there's no visual gaps between cells
+    _r = r * (1 + poly_padding)
+    
+    # Plot cells as polygons
+    for i, (x, y, c) in enumerate(zip(*X.T, colors)):
+        ax.fill(
+            _r * _hex_x + x, 
+            _r * _hex_y + y, 
+            fc=c, 
+            ec=ec, 
+        )
+        
+    # Set figure args, accounting for defaults
+    if title is not None:
+        ax.set_title(title)
+    if not xlim:
+        xlim=[X[:, 0].min(), X[:, 0].max()]
+    if not ylim:
+        ylim=[X[:, 1].min(), X[:, 1].max()]
+    if aspect is None:
+        aspect=1
+    ax.set(
+        xlim=xlim,
+        ylim=ylim,
+        aspect=aspect,
+    )
+
+    if colorbar:
+        
+        # Calculate colorbar extension if necessary
+        if extend is None:
+            n = var.shape[0]        
+            ns_mask = ~np.isin(np.arange(n), sender_idx)
+            is_under_min = var.min(initial=0.0, where=ns_mask) < vmin
+            is_over_max  = var.max(initial=0.0, where=ns_mask) > vmax
+            extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
+    
+        # Construct colorbar
+        cbar = plt.colorbar(
+            plt.cm.ScalarMappable(
+                norm=mpl.colors.Normalize(vmin, vmax), 
+                cmap=cmap_), 
+            ax=ax,
+            aspect=cbar_aspect,
+            extend=extend,
+            **cbar_kwargs
+        )
 
 
 def plot_var(
