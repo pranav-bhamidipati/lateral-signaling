@@ -1,5 +1,5 @@
 # run: conda env create --file environment.yml
-name: lateral_signaling
+name: lateral_signaling_
 
 dependencies:
   - python=3.9.*
@@ -14,12 +14,14 @@ dependencies:
   - seaborn=0.*
   - selenium=3.*
   - conda-forge::tqdm=4.*
-  - conda-forge::ffmpeg
+    #  - conda-forge::ffmpeg
+  - conda-forge::imageio-ffmpeg
   - conda-forge::firefox
   - conda-forge::geckodriver
 #  - conda-forge::ipywidgets
   - conda-forge::shapely=1.*
   - conda-forge::descartes=1.*
+  - conda-forge::jupyterlab
   - pip
   - pip:
     - sacred
