@@ -24,7 +24,7 @@ from descartes import PolygonPatch
 
 import holoviews as hv
 import colorcet as cc
-import matplotlib as mplF
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 hv.extension('matplotlib')
@@ -1112,7 +1112,7 @@ def plot_hex_sheet(
     ax,
     X,
     var,
-    r=1.,
+    rho=1.,
     vmin=None,
     vmax=None,
     cmap="CET_L8",
@@ -1127,14 +1127,16 @@ def plot_hex_sheet(
     sender_clr="#e330ff",
     colorbar=False,
     cbar_aspect=20,
-    cbar_kwargs=dict(),
     extend=None,
-    poly_padding=0.1,
+    cbar_kwargs=dict(),
+    poly_padding=0.,
+    scalebar=False,
+    sbar_kwargs=dict(),
     **kwargs
 ):
     
     # Clear axis (allows you to reuse axis when animating)
-#     ax.clear()
+    # ax.clear()
     if axis_off:
         ax.axis("off")
     
@@ -1164,9 +1166,9 @@ def plot_hex_sheet(
     
     colors[sender_idx] = _sender_clr
     
-    # Make polygon size slightly larger than cell 
+    # Get polygon size. Optionally increase size  
     #  so there's no visual gaps between cells
-    _r = r * (1 + poly_padding)
+    _r = (1 + poly_padding) / np.sqrt(rho)
     
     # Plot cells as polygons
     for i, (x, y, c) in enumerate(zip(*X.T, colors)):
@@ -1200,18 +1202,149 @@ def plot_hex_sheet(
             ns_mask = ~np.isin(np.arange(n), sender_idx)
             is_under_min = var.min(initial=0.0, where=ns_mask) < vmin
             is_over_max  = var.max(initial=0.0, where=ns_mask) > vmax
-            extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
-    
+            _extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
+        else:
+            _extend = extend
+        
         # Construct colorbar
         cbar = plt.colorbar(
             plt.cm.ScalarMappable(
                 norm=mpl.colors.Normalize(vmin, vmax), 
-                cmap=cmap_), 
+                cmap=_cmap), 
             ax=ax,
             aspect=cbar_aspect,
-            extend=extend,
+            extend=_extend,
             **cbar_kwargs
         )
+        
+    if scalebar:
+        _scalebar = ScaleBar(**sbar_kwargs)
+        ax.add_artist(_scalebar)
+
+
+def animate_hex_sheet(
+    fpath,
+    X_t,
+    var_t,
+    rho_t=1.,
+    fig=None,
+    ax=None,
+    anim=None,
+    n_frames=100,
+    fps=20,
+    dpi=300,
+    title_fun=None,
+    writer="ffmpeg",
+    fig_kwargs=dict(),
+    plot_kwargs=dict(),
+    **kwargs
+):
+
+    nt = var_t.shape[0]
+    n = X_t.shape[-2]
+    
+    if X_t.ndim == 2:
+        _X_func = lambda i: X_t
+    elif X_t.ndim == 3:
+        _X_func = lambda i: X_t[i]
+    
+    _rho_t = np.asarray(rho_t)
+    if rho_t.ndim == 0:
+        _rho_func = lambda i: rho_t
+    elif rho_t.ndim == 1:
+        _rho_func = lambda i: rho_t[i]
+    
+    if title_fun is None:
+        tf=lambda i: None
+
+    # Generate figure and axes if necessary
+    if (fig is None) or (ax is None):
+        fig, ax = plt.subplots(**fig_kwargs)
+
+    # If colorbar is specified, plot only once
+    if "colorbar" in plot_kwargs:
+        if plot_kwargs["colorbar"]:
+            
+            # Unpack args for colorbar
+            _var = var_t[0]
+            _sender_idx = plot_kwargs["sender_idx"]
+            _vmin = plot_kwargs["vmin"]
+            _vmax = plot_kwargs["vmax"]
+            _cmap = plot_kwargs["cmap"]
+            _cbar_aspect = plot_kwargs["cbar_aspect"]
+            _cbar_kwargs = plot_kwargs["cbar_kwargs"]
+            
+            # Calculate colorbar extension if necessary
+            if "extend" in plot_kwargs:
+                _extend = plot_kwargs["extend"]
+            else:
+                _extend = None
+            
+            if _extend is None:
+                n = _var.shape[0]        
+                ns_mask = ~np.isin(np.arange(n), _sender_idx)
+                is_under_min = _var.min(initial=0.0, where=ns_mask) < _vmin
+                is_over_max  = _var.max(initial=0.0, where=ns_mask) > _vmax
+                _extend = ("neither", "min", "max", "both")[is_under_min + 2 * is_over_max]
+
+            # Construct colorbar
+            cbar = plt.colorbar(
+                plt.cm.ScalarMappable(
+                    norm=mpl.colors.Normalize(_vmin, _vmax), 
+                    cmap=_cmap), 
+                ax=ax,
+                aspect=_cbar_aspect,
+                extend=_extend,
+                **_cbar_kwargs
+            )
+    
+    # Turn off further colorbar plotting during animation
+    _plot_kwargs = plot_kwargs.copy()
+    _plot_kwargs["colorbar"] = False
+    
+    # Sub-sample time-points
+    skip = int(nt / n_frames)
+    
+    # Animate using plot_hex_sheet() if no animation func supplied
+    if anim is None:
+        def anim(**kw):
+            ax.clear()
+            return plot_hex_sheet(ax=ax, **kw)
+    
+    # Make wrapper function that changes arguments with each frame
+    def _anim(i):
+        
+        # Get changing arguments
+        var_kw = dict(
+            X     = _X_func(skip * i),
+            var   = var_t[skip * i],
+            rho   = _rho_func(skip * i),
+            title = title_fun(skip * i),
+        )
+        
+        # Make new plot
+        return anim(**var_kw, **_plot_kwargs)
+    
+    try:
+        _writer = animation.writers[writer](fps=fps, bitrate=1800)
+    except RuntimeError:
+        print("""
+        The `ffmpeg` writer must be installed inside the runtime environment.
+        Writer availability can be checked in the current enviornment by executing 
+        `matplotlib.animation.writers.list()` in Python. Install location can be
+        checked by running `which ffmpeg` on a command line/terminal.
+        """)
+    
+    _anim_FA = animation.FuncAnimation(fig, _anim, frames=n_frames, interval=200)
+    
+    # Get path and print to output
+    _fpath = str(fpath)
+    if not _fpath.endswith(".mp4"):
+        _fpath += ".mp4"
+    print("Writing to:", _fpath)
+    
+    # Save animation
+    _anim_FA.save(_fpath, writer=_writer, dpi=dpi)
 
 
 def plot_var(
