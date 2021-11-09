@@ -1,5 +1,5 @@
-# run: conda env create --file environment.yml
-name: lateral_signaling_
+# run: conda env create --file environment.yml --prefix ./env
+name: lateral_signaling
 
 dependencies:
   - python=3.9.*
