@@ -30,6 +30,12 @@ from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 hv.extension('matplotlib')
 
 
+####### Constants
+
+# Density at rho = 1 (units of cells / mm^2)
+ref_density = 1250 
+
+
 ####### Differential equation right-hand-side functions
 
 def signal_rhs(
@@ -69,8 +75,6 @@ def signal_rhs(
     dS_dt[sender_idx] = 0
 
     return dS_dt
-
-
 
 
 ####### General utils
@@ -1151,7 +1155,7 @@ def plot_hex_sheet(
         _cmap = cc.cm[cmap]
     else:
         _cmap = cmap
-    colors = _cmap(normalize(var, vmin, vmax))
+    colors = np.asarray(_cmap(normalize(var, vmin, vmax)))
     
     # Replace sender(s) with appropriate color
     if isinstance(sender_clr, str):
@@ -1162,7 +1166,7 @@ def plot_hex_sheet(
     if len(_sender_clr) == 3:
         _sender_clr = [*rgb_as_float(_sender_clr), 1.]
     else:
-        _sender_clr = [rgb_as_float(_sender_clr[:3]), _sender_clr[3]]
+        _sender_clr = [*rgb_as_float(_sender_clr[:3]), _sender_clr[3]]
     
     colors[sender_idx] = _sender_clr
     
@@ -1171,11 +1175,12 @@ def plot_hex_sheet(
     _r = (1 + poly_padding) / np.sqrt(rho)
     
     # Plot cells as polygons
-    for i, (x, y, c) in enumerate(zip(*X.T, colors)):
+    for i, (x, y) in enumerate(X):
+        
         ax.fill(
             _r * _hex_x + x, 
             _r * _hex_y + y, 
-            fc=c, 
+            fc=colors[i], 
             ec=ec, 
         )
         
@@ -1237,26 +1242,40 @@ def animate_hex_sheet(
     writer="ffmpeg",
     fig_kwargs=dict(),
     plot_kwargs=dict(),
+    _X_func=None,
+    _var_func=None,
+    _rho_func=None,
     **kwargs
 ):
 
     nt = var_t.shape[0]
     n = X_t.shape[-2]
     
-    if X_t.ndim == 2:
-        _X_func = lambda i: X_t
-    elif X_t.ndim == 3:
-        _X_func = lambda i: X_t[i]
+    if _X_func is None:
+
+        if X_t.ndim == 2:
+            _X_func = lambda i: X_t
+        elif X_t.ndim == 3:
+            _X_func = lambda i: X_t[i]
     
-    _rho_t = np.asarray(rho_t)
-    if rho_t.ndim == 0:
-        _rho_func = lambda i: rho_t
-    elif rho_t.ndim == 1:
-        _rho_func = lambda i: rho_t[i]
+    if _var_func is None:
+        
+        if var_t.ndim == 1:
+            _var_func = lambda i: var_t
+        elif var_t.ndim == 2:
+            _var_func = lambda i: var_t[i]
+    
+    if _rho_func is None:
+        
+        _rho_t = np.asarray(rho_t)
+        if rho_t.ndim == 0:
+            _rho_func = lambda i: rho_t
+        elif rho_t.ndim == 1:
+            _rho_func = lambda i: rho_t[i]
     
     if title_fun is None:
         tf=lambda i: None
-
+    
     # Generate figure and axes if necessary
     if (fig is None) or (ax is None):
         fig, ax = plt.subplots(**fig_kwargs)
@@ -1303,27 +1322,27 @@ def animate_hex_sheet(
     _plot_kwargs["colorbar"] = False
     
     # Sub-sample time-points
-    skip = int(nt / n_frames)
+    frames = vround(np.linspace(0, nt-1, n_frames))
     
     # Animate using plot_hex_sheet() if no animation func supplied
     if anim is None:
         def anim(**kw):
             ax.clear()
-            return plot_hex_sheet(ax=ax, **kw)
+            plot_hex_sheet(ax=ax, **kw)
     
     # Make wrapper function that changes arguments with each frame
     def _anim(i):
         
         # Get changing arguments
         var_kw = dict(
-            X     = _X_func(skip * i),
-            var   = var_t[skip * i],
-            rho   = _rho_func(skip * i),
-            title = title_fun(skip * i),
+            X     = _X_func(frames[i]),
+            var   = _var_func(frames[i]),
+            rho   = _rho_func(frames[i]),
+            title = title_fun(frames[i]),
         )
         
-        # Make new plot
-        return anim(**var_kw, **_plot_kwargs)
+        # Plot frame of animation
+        anim(**var_kw, **_plot_kwargs)
     
     try:
         _writer = animation.writers[writer](fps=fps, bitrate=1800)
