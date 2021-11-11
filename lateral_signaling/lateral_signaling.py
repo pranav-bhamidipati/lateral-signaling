@@ -119,6 +119,9 @@ def pol2cart(rt):
 
 ####### Color utils
 
+# Colors for specific uses
+_sender_clr="#e330ff"
+
 # Color swatches
 
 pinks = [
@@ -341,18 +344,53 @@ def get_center_cells(X, n_center=1):
     return np.argpartition([np.linalg.norm(x) for x in X], n_center)[:n_center]
 
 
+def get_weighted_Adj(
+    X, r_int, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
+):
+    """
+    Construct adjacency matrix for a non-periodic set of 
+    points (cells). Adjacency is determined by calculating pairwise 
+    distance and applying a threshold `r_int` (radius of interaction).
+    Within this radius, weights are calculated from pairwise distance 
+    as the value of the PDF of a Normal distribution with standard 
+    deviation `r_int / 2`.
+    """
+    
+    n = X.shape[0]
+    d = pdist(X)
+    a = scipy.stats.norm.pdf(d, loc=0, scale=r_int/2)
+    a[d >= r_int] = 0
+    A = squareform(a)
+    
+    if row_stoch:
+        rowsum = np.sum(A, axis=1)[:, np.newaxis]
+        A = np.divide(A, rowsum)
+    else:
+        A = (A > 0).astype(dtype)
+        
+    if sparse:
+        A = csr_matrix(A)
+    
+    return A
+
+
 def gaussian_irad_Adj(
     X, irad, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
 ):
     """
+    ===DEPRECATED===
+    
     Construct adjacency matrix for a non-periodic set of 
     points (cells). Adjacency is determined by calculating pairwise 
     distance and applying a threshold `irad` (interaction radius)
     """
     
+    # No longer should use this one
+    warnings.warn("gaussian_irad_Adj() is deprecated; use get_weighted_Adj().", DeprecationWarning)
+    
     n = X.shape[0]
     d = pdist(X)
-    a = scipy.stats.norm.pdf(d, loc=0, scale=irad/2).astype(dtype)
+    a = scipy.stats.norm.pdf(d, loc=0, scale=irad/2)
     a[d >= irad] = 0
     A = squareform(a)
     
@@ -360,7 +398,7 @@ def gaussian_irad_Adj(
         rowsum = np.sum(A, axis=1)[:, np.newaxis]
         A = np.divide(A, rowsum)
     else:
-        A = A > 0
+        A = (A > 0).astype(dtype)
         
     if sparse:
         A = csr_matrix(A)
@@ -1128,7 +1166,7 @@ def plot_hex_sheet(
     axis_off=True,
     aspect=None,
     sender_idx=np.array([], dtype=int),
-    sender_clr="#e330ff",
+    sender_clr=_sender_clr,
     colorbar=False,
     cbar_aspect=20,
     extend=None,
@@ -1182,6 +1220,7 @@ def plot_hex_sheet(
             _r * _hex_y + y, 
             fc=colors[i], 
             ec=ec, 
+            **kwargs
         )
         
     # Set figure args, accounting for defaults
@@ -1813,7 +1852,7 @@ def animate_var_lattice_scalebar(
 def inspect_out(*args, **kwargs):
     """Deprecated: Please use inspect_hex()"""
     
-    warnings.warn("inspect_out() is deprecated; use inspect_hex().", warnings.DeprecationWarning)
+    warnings.warn("inspect_out() is deprecated; use inspect_hex().", DeprecationWarning)
     
     return inspect_hex(*args, **kwargs)
     
