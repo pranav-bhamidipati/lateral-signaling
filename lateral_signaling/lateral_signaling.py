@@ -77,6 +77,48 @@ def signal_rhs(
     return dS_dt
 
 
+def reporter_rhs(
+    R, 
+    R_delay, 
+    Adj, 
+    sender_idx, 
+    beta_func, 
+    beta_args, 
+    alpha, 
+    k, 
+    p, 
+    delta, 
+    lambda_, 
+    g, 
+    rho, 
+    S_delay, 
+    gamma_R,
+):
+    
+    # Get signaling as a function of density
+    beta = beta_func(rho, *beta_args)
+    
+    # Get input signal across each interface
+    S_bar = beta * (Adj @ S_delay)
+
+    # Calculate dR/dt
+    dR_dt = (
+        alpha
+        * (S_bar ** p)
+        / (
+            k ** p 
+            + (delta * S_delay) ** p 
+            + S_bar ** p
+        )
+        - R
+    ) * gamma_R
+    
+    dR_dt[sender_idx] = 0
+    
+    return dR_dt
+
+
+
 ####### General utils
 
 # Vectorized integer ceiling
@@ -1219,10 +1261,10 @@ def plot_hex_sheet(
             _r * _hex_x + x, 
             _r * _hex_y + y, 
             fc=colors[i], 
-            ec=ec, 
+            ec=ec,
             **kwargs
         )
-        
+    
     # Set figure args, accounting for defaults
     if title is not None:
         ax.set_title(title)
