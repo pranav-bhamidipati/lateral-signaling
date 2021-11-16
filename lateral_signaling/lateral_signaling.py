@@ -894,7 +894,7 @@ def rho_to_units(rho, ref_density=1250):
 
 
 @numba.njit
-def ncells_to_area(ncells, rho, ref_density=1250):
+def _ncells_to_area(ncells, rho, ref_density=1250):
     """Return theoretical area taken up by `ncells` cells.
     
     Returns
@@ -916,6 +916,8 @@ def ncells_to_area(ncells, rho, ref_density=1250):
         in units of inverse area. Defaults to 1250 (mm^-2).
     """
     return ncells / (rho * ref_density)
+
+ncesll_to_area = np.vectorize(_ncells_to_area)
 
 
 ####### Delay diff eq integration

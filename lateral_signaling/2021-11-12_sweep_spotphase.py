@@ -157,7 +157,7 @@ n = X.shape[0]
 sender_idx = lsig.get_center_cells(X)
 X = X - X.mean(axis=0)
 
-# Interaction radius
+# Adjacency
 Adj = lsig.gaussian_irad_Adj(X, r_int, sparse=True, row_stoch=True)
 
 # Set random seed
