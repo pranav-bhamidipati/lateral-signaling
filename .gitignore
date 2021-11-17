@@ -6,12 +6,11 @@ plots/
 old_plots/
 stan_output/
 
+# Sacred (provenance system for experiments)
+sacred/
+
 # Symbolic links (could lead to other directories)
 *.lnk
-
-# sandbox/__pycache__/
-# sandbox/plots/
-# sandbox/.ipynb_checkpoints/
 
 # Dask (parallelization)
 dask-worker-space/
