@@ -13,6 +13,7 @@ dependencies:
   - matplotlib=3.4.*
   - seaborn=0.*
   - selenium=3.*
+  - h5py=3.*
   - conda-forge::tqdm=4.*
     #  - conda-forge::ffmpeg
   - conda-forge::imageio-ffmpeg
