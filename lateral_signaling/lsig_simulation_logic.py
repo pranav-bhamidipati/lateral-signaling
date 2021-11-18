@@ -7,27 +7,39 @@ import matplotlib.pyplot as plt
 
 import json
 
-## Important: Work on a temporary directory, as you now handle storage over the provenance system
-data_dir = "/mnt/c/Users/Pranav/tmp/work_dir"
+## Uses a temporary directory for data, since storage is handled by Sacred
+data_dir = "/tmp/work_dir"
 os.makedirs(data_dir, exist_ok=True)
 
 
 def do_one_simulation(
-    seed=seed,
-    ...,
+    seed,
+    tmax_days,
+    nt_t,
+    rows,
+    cols,
+    r_int,
+    alpha,
+    k,
+    p,
+    delta,
+    lambda_,
+    beta_args,
+    gamma_R,
+    g,
+    rho_0,
+    rho_max,
+    delay,
     ex=None,
     save=False,
-    save_frames=[],
 ):
     """Run a lateral signaling simulation"""
     
     # Set random seed                                                    
     rng = np.random.default_rng(seed)                                    
                                                                          
-    # Set time parameters                                                
+    # Set time parameters
     tmax = tmax_days / lsig.t_to_units(1)                                
-                                                                         
-    # Get time points                                                    
     nt = int(nt_t * tmax) + 1                                            
     t = np.linspace(0, tmax, nt)
     dt = t[1] - t[0]
@@ -96,7 +108,8 @@ def do_one_simulation(
     # Mean fluorescence
     S_t_tcmean = S_t[:, tc_mask].mean(axis=1)
     
-    # Number of activated TCs
+    # Number of activated TCs over threshold
+    thresh = k
     S_t_actnum = (S_t[:, tc_mask] > thresh).sum(axis=1)
     
     # Area of activated TCs
@@ -152,15 +165,15 @@ def do_one_simulation(
             # Dump data to a JSON file
             data_dump_fname = os.path.join(data_dir, "results.json")
             data_dump_dict = {
-                    "t": t.to_list(),               
+                    "t": t.tolist(),               
                     "sender_idx": float(sender_idx),      
-                    "rho_t": rho_t.to_list(),
-                    "S_t_tcmean": S_t_tcmean.to_list(),  
-                    "S_t_actnum": S_t_actnum.astype(np.float32).to_list(),  
-                    "S_t_actarea": S_t_actarea.to_list(),       
-                    "R_t_tcmean": R_t_tcmean.to_list(),  
-                    "R_t_actnum": R_t_actnum.astype(np.float32).to_list(),  
-                    "R_t_actarea": R_t_actarea.to_list(),       
+                    "rho_t": rho_t.tolist(),
+                    "S_t_tcmean": S_t_tcmean.tolist(),  
+                    "S_t_actnum": S_t_actnum.astype(np.float32).tolist(),  
+                    "S_t_actarea": S_t_actarea.tolist(),       
+                    "R_t_tcmean": R_t_tcmean.tolist(),  
+                    "R_t_actnum": R_t_actnum.astype(np.float32).tolist(),  
+                    "R_t_actarea": R_t_actarea.tolist(),       
             }
             
             # Save JSON to Sacred
