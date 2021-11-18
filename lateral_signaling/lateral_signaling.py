@@ -917,7 +917,7 @@ def _ncells_to_area(ncells, rho, ref_density=1250):
     """
     return ncells / (rho * ref_density)
 
-ncesll_to_area = np.vectorize(_ncells_to_area)
+ncells_to_area = np.vectorize(_ncells_to_area)
 
 
 ####### Delay diff eq integration
