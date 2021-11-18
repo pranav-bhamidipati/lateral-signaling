@@ -2,11 +2,17 @@ import os
 import json
 import sacred
 from sacred.observers import FileStorageObserver
-from lsig_simulation_logic import do_one_simulation
+from lsig_phase_simulation_logic import do_one_simulation
 
 # Set up Sacred experiment
-ex = sacred.Experiment("lateral_signaling")
-ex.observers.append(FileStorageObserver("./sacred"))  # Dir for storing results
+ex = sacred.Experiment("lateral_signaling_phase")
+
+# Set up results storage
+sacred_storage_dir = os.path.abspath("./sacred")
+# os.makedirs(sacred_storage_loc)   # Uncomment to make storage dir
+ex.observers.append(
+    FileStorageObserver(sacred_storage_dir)  # Use this dir for storage
+)
 
 # Get path to simulation parameters
 data_dir  = os.path.abspath("../data/sim_data")
@@ -17,23 +23,23 @@ with open(params_json_path, "r") as f:
     params = json.load(f)
 
 # Unpack
-_alpha     = params["alpha"]
-_k         = params["k"]
-_p         = params["p"]
-_delta     = params["delta"]
-_lambda_   = params["lambda_"]
-_g         = params["g"]
-_rho_0     = params["rho_0"]
-_delay     = params["delay"]
-_r_int     = params["r_int"]
-_gamma_R   = params["gamma_R"]
-_beta_args = tuple([params[k] for k in params.keys() if k.startswith("beta_")])
+_alpha     = float(params["alpha"])
+_k         = float(params["k"])
+_p         = float(params["p"])
+_delta     = float(params["delta"])
+_lambda_   = float(params["lambda_"])
+_g         = float(params["g"])
+_rho_0     = float(params["rho_0"])
+_delay     = float(params["delay"])
+_r_int     = float(params["r_int"])
+_gamma_R   = float(params["gamma_R"])
+_beta_args = tuple([float(params[k]) for k in params.keys() if k.startswith("beta_")])
 
 # Variables here are handled magically by the provenance system
 @ex.config
 def cfg():
     tmax_days = 8 
-    nt_t      = 250
+    nt_t      = 500
     rows      = 80
     cols      = 80
     alpha     = _alpha

@@ -52,8 +52,12 @@ def do_one_simulation(
                                                                          
     # Get sender cell and center lattice on it                           
     sender_idx = lsig.get_center_cells(X)                                
-    X = X - X.mean(axis=0)                                               
-                                                                         
+    X = X - X[sender_idx]
+    
+    # Get index of TC1 (closest TC to sender)
+    x_bias = np.array([-1e-6, 0.])
+    tc1_idx = np.argsort(np.linalg.norm(X + x_bias, axis=1))[1]
+    
     # Get cell-cell Adjacency                                                          
     Adj = lsig.get_weighted_Adj(X, r_int, sparse=True, row_stoch=True)  
                                                                          
@@ -112,8 +116,16 @@ def do_one_simulation(
     thresh = k
     S_t_actnum = (S_t[:, tc_mask] > thresh).sum(axis=1)
     
-    # Area of activated TCs
-    S_t_actarea = lsig.ncells_to_area(S_t_actnum, rho_t)
+    # # Area of activated TCs
+    # S_t_actarea = lsig.ncells_to_area(S_t_actnum, rho_t)
+    
+    # Intial velocity (dS/dt of the 1st TC at time t=delay)
+    v_init = (
+        S_t[(step_delay + 1), tc1_idx] - S_t[step_delay, tc1_idx]
+    ) / dt
+    
+    # Number of activated TCs at end of simulation
+    n_act_fin = S_t_actnum[-1]
     
     # Make version of S with delay
     step_delay = ceil(delay / dt) 
@@ -155,8 +167,8 @@ def do_one_simulation(
     # Number of activated TCs
     R_t_actnum = (R_t[:, tc_mask] > thresh).sum(axis=1)
     
-    # Area of activated TCs
-    R_t_actarea = lsig.ncells_to_area(R_t_actnum, rho_t)
+    # # Area of activated TCs
+    # R_t_actarea = lsig.ncells_to_area(R_t_actnum, rho_t)
     
     if save:
         
@@ -170,10 +182,10 @@ def do_one_simulation(
                     "rho_t": rho_t.tolist(),
                     "S_t_tcmean": S_t_tcmean.tolist(),  
                     "S_t_actnum": S_t_actnum.astype(np.float32).tolist(),  
-                    "S_t_actarea": S_t_actarea.tolist(),       
                     "R_t_tcmean": R_t_tcmean.tolist(),  
-                    "R_t_actnum": R_t_actnum.astype(np.float32).tolist(),  
-                    "R_t_actarea": R_t_actarea.tolist(),       
+                    "R_t_actnum": R_t_actnum.astype(np.float32).tolist(),
+                    "v_init"    : float(v_init),
+                    "n_act_fin" : float(n_act_fin),
             }
             
             # Save JSON to Sacred

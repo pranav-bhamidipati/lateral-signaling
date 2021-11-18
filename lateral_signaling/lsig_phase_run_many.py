@@ -1,5 +1,5 @@
 import os
-from lsig_run_one import ex # We import the experiment here. It knows what are the default values, how to run the code, and where to store it's results
+from lsig_phase_run_one import ex # We import the experiment here. It knows what are the default values, how to run the code, and where to store its results
 import numpy as np
 import pandas as pd
 
