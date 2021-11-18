@@ -32,8 +32,16 @@ hv.extension('matplotlib')
 
 ####### Constants
 
-# Density at rho = 1 (units of cells / mm^2)
-ref_density = 1250 
+# Density at rho = 1
+ref_density_mm = 1250.                 # cells / mm^2 
+ref_density_um = ref_density_mm / 1e6  # cells / um^2
+
+# Cell diameter at rho = 1
+#  (Approximates each cell as a hexagon)
+ref_cell_diam_mm = np.sqrt(
+    2 / (np.sqrt(3) * ref_density_mm)      # mm
+)
+ref_cell_diam_um = ref_cell_diam_mm * 1e3  # um
 
 
 ####### Differential equation right-hand-side functions
@@ -1089,7 +1097,43 @@ def integrate_DDE_varargs(
     return E_save
 
 
-##### Visualization
+##### Visualization options
+
+# Colorbar
+_vmin = 0.0
+_vmax = 0.3
+cbar_kwargs=dict(ticks=[_vmin, _vmax], label="GFP (AU)")
+
+# Scalebar
+sbar_kwargs = dict(
+    dx=cell_diam_um,
+    units="um", 
+    color="w", 
+    box_color="w", 
+    box_alpha=0, 
+    font_properties=dict(weight=1000, size=10), 
+    width_fraction=0.03,
+    location="lower right",
+)
+
+# Plot of cell sheet (passed to `plot_hex_sheet()`)
+plot_kwargs = dict(
+    # sender_idx=sender_idx,
+    # xlim=xlim,            
+    # ylim=ylim,            
+    vmin=_vmin,
+    vmax=_vmax,
+    cmap=kgy,
+    colorbar=True,
+    cbar_aspect=12,
+    extend=None,
+    cbar_kwargs=cbar_kwargs,
+    scalebar=False,
+    sbar_kwargs=sbar_kwargs,
+)
+
+
+##### Visualization util functions
 
 def ecdf(d, *args, **kwargs):
     """Construct an ECDF from 1D data array `d`"""
@@ -1193,6 +1237,8 @@ def voronoi_finite_polygons_2d(vor, radius=None):
 
     return new_regions, np.asarray(new_vertices)
 
+
+##### Plotting and animating
 
 def plot_hex_sheet(
     ax,
