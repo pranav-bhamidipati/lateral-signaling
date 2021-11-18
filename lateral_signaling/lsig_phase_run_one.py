@@ -35,6 +35,16 @@ _r_int     = float(params["r_int"])
 _gamma_R   = float(params["gamma_R"])
 _beta_args = tuple([float(params[k]) for k in params.keys() if k.startswith("beta_")])
 
+# Read in growth parameters
+mle_data_dir = os.path.abspath("../data")
+mle_params_path = os.path.join(mle_data_dir, "growth_parameters_MLE.csv")
+mle_params_df = pd.read_csv(mle_params_path, index_col=0)
+
+# Get MLE of carrying capacity
+_rho_max = mle_params_df.loc[
+    mle_params_df.condition == "untreated", ["rho_max_ratio"]
+].values.ravel()[0]
+
 # Variables here are handled magically by the provenance system
 @ex.config
 def cfg():
@@ -51,7 +61,7 @@ def cfg():
     # rep       = -1
     g         = _g
     rho_0     = _rho_0
-    rho_max   = 5.6
+    rho_max   = _rho_max
     r_int     = _r_int
     beta_args = _beta_args
     gamma_R   = _gamma_R

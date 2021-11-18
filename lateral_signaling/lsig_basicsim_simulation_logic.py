@@ -12,7 +12,6 @@ data_dir = "/tmp/work_dir"
 os.makedirs(data_dir, exist_ok=True)
 
 def do_one_simulation(
-    seed,
     tmax_days,
     nt_t,
     rows,
@@ -33,11 +32,9 @@ def do_one_simulation(
     save=False,
     save_frames=(),
     fmt="png",
+    dpi=300,
 ):
     """Run a lateral signaling simulation"""
-    
-    # Set random seed                                                    
-    rng = np.random.default_rng(seed)                                    
                                                                          
     # Set time parameters
     nt = int(nt_t * tmax_days) + 1
@@ -57,16 +54,14 @@ def do_one_simulation(
     sender_idx = lsig.get_center_cells(X)                                
     X = X - X[sender_idx]
     
-    # Get index of TC1 (closest TC to sender)
-    x_bias = np.array([-1e-6, 0.])
-    tc1_idx = np.argsort(np.linalg.norm(X + x_bias, axis=1))[1]
-    
     # Get cell-cell Adjacency                                                          
     Adj = lsig.get_weighted_Adj(X, r_int, sparse=True, row_stoch=True)  
                                                                          
     # Draw initial expression from a Half-Normal distribution with mean 
     #   `lambda` (basal expression)                                           
-    S0 = np.abs(rng.normal(size=n, scale=lambda_ * np.sqrt(np.pi/2)))
+    S0 = np.abs(np.random.normal(
+        size=n, scale=lambda_ * np.sqrt(np.pi/2)
+    ))
                                                                          
     # Fix sender cell(s) to constant expression                          
     S0[sender_idx] = 1                                            
@@ -112,24 +107,6 @@ def do_one_simulation(
         varargs_type="list",
     )
     
-    # Mean fluorescence
-    S_t_tcmean = S_t[:, tc_mask].mean(axis=1)
-    
-    # Number of activated TCs over threshold
-    thresh = k
-    S_t_actnum = (S_t[:, tc_mask] > thresh).sum(axis=1)
-    
-    # # Area of activated TCs
-    # S_t_actarea = lsig.ncells_to_area(S_t_actnum, rho_t)
-    
-    # Intial velocity (dS/dt of the 1st TC at time t=delay)
-    v_init = (
-        S_t[(step_delay + 1), tc1_idx] - S_t[step_delay, tc1_idx]
-    ) / dt
-    
-    # Number of activated TCs at end of simulation
-    n_act_fin = S_t_actnum[-1]
-    
     # Make version of S with delay
     step_delay = ceil(delay / dt) 
     S_t_delay = S_t[np.maximum(np.arange(nt) - step_delay, 0)]
@@ -163,15 +140,6 @@ def do_one_simulation(
         delay=delay,
         varargs_type="list",
     )
-
-    # Mean fluorescence
-    R_t_tcmean = R_t[:, tc_mask].mean(axis=1)
-    
-    # Number of activated TCs
-    R_t_actnum = (R_t[:, tc_mask] > thresh).sum(axis=1)
-    
-    # # Area of activated TCs
-    # R_t_actarea = lsig.ncells_to_area(R_t_actnum, rho_t)
     
     if save:
         
@@ -180,51 +148,88 @@ def do_one_simulation(
         # Calculate cell positions over time
         X_t = np.multiply.outer(1 / np.sqrt(rho_t), X)
         
-        # Save frames of simulation
-        frame_fname = lambda _f: f"time={t_days[_f]:.2f}_days" + "." + fmt
+        # Get default plot options
+        plot_kw_S = lsig.plot_kwargs.copy()
+        plot_kw_S[sender_idx] = sender_idx
         
-        for _f in save_frames:
+        # Scalebar length
+        sbar_value = 125  # um
+        sbar_units  = "um"
+        plot_kw_S["scalebar"] = True
+        plot_kw_S["sbar_kwargs"]["fixed_value"] = sbar_value
+        plot_kw_S["sbar_kwargs"]["fixed_units"] = sbar_units
+        
+        # Colormap
+        plot_kw_R = plot_kw_S.copy()
+        plot_kw_R["cmap"] = "kr"
+        plot_kw_R["cbar_kwargs"]["label"] = "mCherry (AU)"
+        
+        # Intensity range
+        vmin_S = 0.
+        vmax_S = S_t[:, tc_mask].max()
+        plot_kw_S["vmin"] = vmin_S
+        plot_kw_S["vmax"] = vmax_S
+        plot_kw_S["cbar_kwargs"]["ticks"] = [vmin_S, vmax_S]
+        
+        vmin_R = 0.
+        vmax_R = R_t[:, tc_mask].max()
+        plot_kw_R["vmin"] = vmin_R
+        plot_kw_R["vmax"] = vmax_R
+        plot_kw_R["cbar_kwargs"]["ticks"] = [vmin_R, vmax_R]
+        
+        # Frame titles and filenames
+        frame_title = lambda i: f"{t_days[i]:.2f} days"
+        frame_fname = lambda e, i: f"{e}_frame_{i}" + "." + fmt
+        
+        for i in range(2):
             
-            fig, ax = plt.subplots(figsize=())
+            # Select data
+            E       = ("S", "R")[i]
+            var_t   = (S_t, R_t)[i]
+            plot_kw = (plot_kw_S, plot_kw_R)[i]
             
-            # Plot frame
-            lsig.plot_hex_sheet(
-                ax  = ax,
-                X   = X_t[_f],
-                rho = rho_t[_f],
-                var = S_t[_f],
-                **plot_kwargs
-            )
-            
-            # Save frame
-            frame_fname = f"frame={f}.png"
-            frame_path = os.path.join(data_dir, frame_fname)
-            plt.savefig(frame_path, dpi=80, )
-            plt.close()
-            
-            # Save filename for Sacred
-            artifacts.append(frame_path)
+            for f in save_frames:
+                
+                # Plot frame
+                fig, ax = plt.subplots(figsize=(3, 3))
+                lsig.plot_hex_sheet(
+                    ax    = ax,
+                    X     = X_t[f],
+                    rho   = rho_t[f],
+                    var   = var_t[f],
+                    title = frame_title(f)
+                    **plot_kw
+                )
+
+                # Save frame
+                fname = frame_fname(E, f)
+                fpath = os.path.join(data_dir, fname)
+                plt.savefig(fpath, dpi=dpi, fmt=fmt)
+
+                # Add to Sacred artifacts
+                artifacts.append(fpath)
 
         if ex is not None:
             
             # Dump data to a JSON file
             data_dump_fname = os.path.join(data_dir, "results.json")
             data_dump_dict = {
-                    "t": t.tolist(),               
-                    "sender_idx": float(sender_idx),      
-                    "rho_t": rho_t.tolist(),
-                    "S_t_tcmean": S_t_tcmean.tolist(),  
-                    "S_t_actnum": S_t_actnum.astype(np.float32).tolist(),  
-                    "R_t_tcmean": R_t_tcmean.tolist(),  
-                    "R_t_actnum": R_t_actnum.astype(np.float32).tolist(),
-                    "v_init"    : float(v_init),
-                    "n_act_fin" : float(n_act_fin),
+                "t": t.tolist(),
+                "X": X.tolist(),
+                "sender_idx": float(sender_idx),      
+                "rho_t": rho_t.tolist(),
+                "S_t": S_t.tolist(),  
+                "R_t": R_t.tolist(),  
             }
             
-            # Save JSON to Sacred
+            # Save to JSON
             with open(data_dump_fname, "w") as f:
                 json.dump(data_dump_dict, f, indent=4)
-            ex.add_artifact(data_dump_fname)
+            artifacts.append(data_dump_fname)
+            
+            # Add all artifacts to Sacred
+            for _a in artifacts:
+                ex.add_artifact(_a)
 
             # Save any source code dependencies to Sacred
             source_files = [
