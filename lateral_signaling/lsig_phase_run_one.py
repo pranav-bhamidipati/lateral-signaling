@@ -2,6 +2,7 @@ import os
 import json
 import sacred
 from sacred.observers import FileStorageObserver
+import pandas as pd
 from lsig_phase_simulation_logic import do_one_simulation
 
 # Set up Sacred experiment

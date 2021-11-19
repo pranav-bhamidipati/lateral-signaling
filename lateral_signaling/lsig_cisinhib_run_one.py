@@ -2,6 +2,8 @@ import os
 import json
 import sacred
 from sacred.observers import FileStorageObserver
+
+import pandas as pd
 from lsig_basicsim_simulation_logic import do_one_simulation
 
 # Set up Sacred experiment
@@ -65,6 +67,8 @@ def cfg():
     r_int       = _r_int
     beta_args   = _beta_args
     gamma_R     = _gamma_R
+    animate     = False
+    n_frames    = 100
     save_frames = (0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000)
     fmt         = "png"
 
@@ -92,8 +96,10 @@ def run_one_simulation(_config, _run):
         rho_max     = _config["rho_max"],
         beta_args   = _config["beta_args"],
         gamma_R     = _config["gamma_R"],
+        animate     = _config["animate"],
+        n_frames    = _config["n_frames"],
+        save_frames = _config["save_frames"],
+        fmt         = _config["fmt"],
         save        = True,
         ex          = ex,  ## Pass over the experiment handler ex
-        save_frames = _config["save_frames"]
-        fmt         = _config["fmt"]
     )
