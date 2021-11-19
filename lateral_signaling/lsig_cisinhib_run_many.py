@@ -21,7 +21,7 @@ param_space = np.array(param_space).T.reshape(-1, len(param_space))
 for delta, *_ in param_space:  # Over what parameters do we loop
     config_updates = { # Update the default variables (all others are still the same)
         "tmax_days": 6.,
-        "delta": delta,
+        "delta": float(delta),
         "save_frames": save_frames,
         "rows": rows,
         "cols": cols,
