@@ -1,6 +1,7 @@
 ####### Load depenendencies
 import os
 import warnings
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -1106,7 +1107,7 @@ cbar_kwargs=dict(ticks=[_vmin, _vmax], label="GFP (AU)")
 
 # Scalebar
 sbar_kwargs = dict(
-    dx=cell_diam_um,
+    dx=ref_cell_diam_um,
     units="um", 
     color="w", 
     box_color="w", 
@@ -1447,10 +1448,9 @@ def animate_hex_sheet(
             )
     
     # Turn off further colorbar plotting during animation
-    _plot_kwargs = plot_kwargs.copy()
+    _plot_kwargs = deepcopy(plot_kwargs)
     _plot_kwargs["colorbar"] = False
-    
-    # Sub-sample time-points
+   
     frames = vround(np.linspace(0, nt-1, n_frames))
     
     # Animate using plot_hex_sheet() if no animation func supplied
@@ -2045,7 +2045,7 @@ def inspect_grid_hex(
     if title_fun is None:
         title_fun = lambda i: f"Time = {t[i]:.2f}"
     
-    kw = kwargs.copy()
+    kw = deepcopy(kwargs)
     if xlim is not None:
         kw["xlim"] = xlim
     if ylim is not None:
