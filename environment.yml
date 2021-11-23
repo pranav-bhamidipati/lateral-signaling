@@ -8,6 +8,7 @@ dependencies:
   - scipy=1.7.*
   - scikit-image
   - numba
+  - dask=2021.*
   - colorcet
   - holoviews=1.*
   - matplotlib=3.4.*
