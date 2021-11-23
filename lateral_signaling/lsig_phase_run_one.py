@@ -51,6 +51,7 @@ _rho_max = mle_params_df.loc[
 def cfg():
     tmax_days = 8 
     nt_t      = 500
+    nt_t_save = 100
     rows      = 80
     cols      = 80
     alpha     = _alpha
@@ -68,15 +69,15 @@ def cfg():
     gamma_R   = _gamma_R
 
 
-@ex.automain  # Tells python to use ex as our provenance system and call this function as the main function
+@ex.main  # Use ex as our provenance system and call this function as __main__()
 def run_one_simulation(_config, _run, seed):
     """Simulates SPV given a single parameter configuration"""
     # _config contains all the variables you define in cfg()
     # _run contains data about the run
     do_one_simulation(
-        seed      = seed,
         tmax_days = _config["tmax_days"],
         nt_t      = _config["nt_t"],
+        nt_t_save = _config["nt_t_save"],
         rows      = _config["rows"],
         cols      = _config["cols"],
         r_int     = _config["r_int"],

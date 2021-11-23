@@ -1,19 +1,21 @@
-import numpy as np
+from uuid import uuid4
 from math import ceil
-import lateral_signaling as lsig
 import os
+import h5py
 
+import numpy as np
 import matplotlib.pyplot as plt
 
-import json
+import lateral_signaling as lsig
+
 
 ## Uses a temporary directory for data, since storage is handled by Sacred
-data_dir = "/tmp/work_dir"
+uid = str(uuid4())
+data_dir = f"/tmp/{uid}"
 os.makedirs(data_dir, exist_ok=True)
 
 
 def do_one_simulation(
-    seed,
     tmax_days,
     nt_t,
     rows,
@@ -30,18 +32,18 @@ def do_one_simulation(
     rho_0,
     rho_max,
     delay,
+    nt_t_save=100,
     ex=None,
     save=False,
 ):
-    """Run a lateral signaling simulation"""
+    """Run a lateral signaling simulation and calculate phase metrics."""
     
-    # Set random seed                                                    
-    rng = np.random.default_rng(seed)                                    
-                                                                         
-    # Set time parameters
-    tmax = tmax_days / lsig.t_to_units(1)                                
-    nt = int(nt_t * tmax) + 1                                            
-    t = np.linspace(0, tmax, nt)
+    # Set time span
+    nt = int(nt_t * tmax_days) + 1
+    t_days = np.linspace(0, tmax_days, nt)
+    
+    # Convert to dimensionless units for simulation
+    t = t_days / lsig.t_to_units(1)
     dt = t[1] - t[0]
                                                                          
     # Make lattice                                                       
@@ -63,7 +65,9 @@ def do_one_simulation(
                                                                          
     # Draw initial expression from a Half-Normal distribution with mean 
     #   `lambda` (basal expression)                                           
-    S0 = np.abs(rng.normal(size=n, scale=lambda_ * np.sqrt(np.pi/2)))
+    S0 = np.abs(np.random.normal(
+        size=n, scale=lambda_ * np.sqrt(np.pi/2)
+    ))
                                                                          
     # Fix sender cell(s) to constant expression                          
     S0[sender_idx] = 1                                            
@@ -116,10 +120,8 @@ def do_one_simulation(
     thresh = k
     S_t_actnum = (S_t[:, tc_mask] > thresh).sum(axis=1)
     
-    # # Area of activated TCs
-    # S_t_actarea = lsig.ncells_to_area(S_t_actnum, rho_t)
-    
     # Intial velocity (dS/dt of the 1st TC at time t=delay)
+    step_delay = int(delay / dt)
     v_init = (
         S_t[(step_delay + 1), tc1_idx] - S_t[step_delay, tc1_idx]
     ) / dt
@@ -172,31 +174,42 @@ def do_one_simulation(
     
     if save:
         
+        print("Saving") 
+        
         if ex is not None:
             
-            # Dump data to a JSON file
-            data_dump_fname = os.path.join(data_dir, "results.json")
-            data_dump_dict = {
-                    "t": t.tolist(),               
-                    "sender_idx": float(sender_idx),      
-                    "rho_t": rho_t.tolist(),
-                    "S_t_tcmean": S_t_tcmean.tolist(),  
-                    "S_t_actnum": S_t_actnum.astype(np.float32).tolist(),  
-                    "R_t_tcmean": R_t_tcmean.tolist(),  
-                    "R_t_actnum": R_t_actnum.astype(np.float32).tolist(),
-                    "v_init"    : float(v_init),
-                    "n_act_fin" : float(n_act_fin),
-            }
-            
-            # Save JSON to Sacred
-            with open(data_dump_fname, "w") as f:
-                json.dump(data_dump_dict, f, indent=4)
-            ex.add_artifact(data_dump_fname)
+            # Keep track of objects that Sacred should save
+            artifacts = []
 
-            # Save any source code dependencies to Sacred
+            # Skip time-points to reduce filesize
+            save_skip = int(nt_t / nt_t_save)
+            
+            # Dump data to an HDF5 file
+            data_dump_fname = os.path.join(data_dir, "results.hdf5")
+            with h5py.File(data_dump_fname, "w") as f:
+                f.create_dataset("t",          data = t[::save_skip])
+                f.create_dataset("sender_idx", data = sender_idx)
+                f.create_dataset("X",          data = X)
+                f.create_dataset("rho_t",      data = rho_t[::save_skip])
+                f.create_dataset("S_t_tcmean", data = S_t_tcmean[::save_skip])
+                f.create_dataset("S_t_actnum", data = S_t_actnum[::save_skip])
+                f.create_dataset("R_t_tcmean", data = R_t_tcmean[::save_skip])
+                f.create_dataset("R_t_actnum", data = R_t_actnum[::save_skip])
+                f.create_dataset("v_init",     data = v_init)
+                f.create_dataset("n_act_fin",  data = n_act_fin)
+
+            # Add objects to save to Sacred
+            for _a in artifacts:
+                ex.add_artifact(_a)
+            
+            # Add any source code dependencies to Sacred
             source_files = [
                 "lateral_signaling.py",
             ]
             for sf in source_files:
                 ex.add_source_file(sf)
+
+        else:
+            print("Oops, `ex` is `None`")
+
 
