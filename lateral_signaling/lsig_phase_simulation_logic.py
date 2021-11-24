@@ -101,7 +101,7 @@ def do_one_simulation(
     rho_t = lsig.logistic(t, g, rho_0, rho_max)
     
     # Initialize output
-    S_t_rep = np.empty((n_reps, t, n), dtype=np.float32)
+    S_t_rep = np.empty((n_reps, nt, n), dtype=np.float32)
 
     for i in range(n_reps):
         # Simulate
@@ -165,7 +165,7 @@ def do_one_simulation(
         R_t_rep[i] = lsig.integrate_DDE_varargs(
             t,
             lsig.reporter_rhs,
-            var_vals=[rho_t, S_t_delay_rep[i]],
+            var_vals=[rho_t, S_t_rep_delay[i]],
             where_vars=[where_rho, where_S_delay],
             dde_args=R_args,
             E0=R0,

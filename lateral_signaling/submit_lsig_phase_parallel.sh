@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="LateralSignalingPhase"
 #SBATCH --ntasks=64                # How many threads to request
-#SBATCH --time=15:00:00               
+#SBATCH --time=09:00:00               
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=pbhamidi@usc.edu  
 

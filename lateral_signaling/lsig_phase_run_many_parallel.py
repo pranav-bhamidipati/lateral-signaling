@@ -38,7 +38,7 @@ if __name__ == "__main__":
     #   so big that this causes issues (like having too many files open).
     #   At that point, you should try capping n_workers at the number of threads.
 #     n_workers = n_runs                      # For smaller runs
-    n_workers = os.environ["SLURM_NPROCS"]  # Number of available threads (on Slurm)
+    n_workers = int(os.environ["SLURM_NPROCS"])  # Number of available threads (on Slurm)
 
     # Configure a Client that will spawn a local cluster of workers.
     #   Each task gets one worker and one worker gets one thread.

@@ -81,7 +81,7 @@ def run_one_simulation(_config, _run, seed):
     # _config contains all the variables you define in cfg()
     # _run contains data about the run
     do_one_simulation(
-        n_reps    = _config["n_reps"]
+        n_reps    = _config["n_reps"],
         tmax_days = _config["tmax_days"],
         nt_t      = _config["nt_t"],
         nt_t_save = _config["nt_t_save"],
