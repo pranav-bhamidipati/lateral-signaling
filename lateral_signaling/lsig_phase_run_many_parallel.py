@@ -1,3 +1,4 @@
+import os
 import dask
 import dask.distributed
 
@@ -18,34 +19,39 @@ if __name__ == "__main__":
     import numpy as np
 
     # Parameter values to scan
-    rep_space     = np.arange(1)                # Number of replicates per condition
-    g_space       = np.linspace(0, 2.4,  3)[1:]  # Proliferation rate
-    rho_0_space   = np.linspace(0,   6,  3)[1:]  # Initial density
-    rho_max_space = np.linspace(0,   6,  3)[1:]  # Carrying capacity
-
+    n_reps        = 5                            # Number of replicates per condition
+    g_space       = np.linspace(0, 2.4, 25)[1:]  # Proliferation rate
+    rho_0_space   = np.linspace(0,   6, 25)[1:]  # Initial density
+    rho_max_space = np.linspace(0,   6, 25)[1:]  # Carrying capacity
+    
     # Make matrix of all combinations of params
     param_space = np.asarray(np.meshgrid(
-        rep_space, 
         g_space, 
         rho_0_space, 
         rho_max_space,
     ))
     param_space = param_space.T.reshape(-1, len(param_space))
-    n_runs = param_space.shape[0]
+#     n_runs = param_space.shape[0]
     
-    # Holds simulation results (populated asynchronously)
-    lazy_results = []  
-    
+    # Decide how many workers to create in the Dask cluster
+    #   In general, you can make n_workers = n_runs until n_runs gets
+    #   so big that this causes issues (like having too many files open).
+    #   At that point, you should try capping n_workers at the number of threads.
+#     n_workers = n_runs                      # For smaller runs
+    n_workers = os.environ["SLURM_NPROCS"]  # Number of available threads (on Slurm)
+
     # Configure a Client that will spawn a local cluster of workers.
     #   Each task gets one worker and one worker gets one thread.
     #   Threads are allocated to workers as they become available
     client = dask.distributed.Client(
-        threads_per_worker=1, n_workers=n_runs
+        threads_per_worker=1, n_workers=n_workers
     )
 
-    # Assemble list of tasks to execute
+    # Make a list of tasks to execute (populated asynchronously)
+    lazy_results = [] 
     for *_, g, rho_0, rho_max in param_space:
         config_updates = dict(
+            n_reps  = n_reps,
             g       = float(g),
             rho_0   = float(rho_0),
             rho_max = float(rho_max),

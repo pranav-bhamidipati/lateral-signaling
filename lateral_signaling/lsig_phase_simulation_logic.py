@@ -15,11 +15,12 @@ uid = str(uuid4())
 # Write to temporary (fast read/write) directory of choice
 # data_dir = f"/tmp/{uid}"    # Use root temp dir (Linux/MacOS)
 # data_dir = f"./tmp/{uid}"   # Use local temp
-data_dir = f"~/scratch/lateral_signaling/tmp/{uid}"  # Use scratch dir on compute cluster
+data_dir = f"/home/pbhamidi/scratch/lateral_signaling/tmp/{uid}"  # Use scratch dir on compute cluster
 os.makedirs(data_dir, exist_ok=True)
 
 
 def do_one_simulation(
+    n_reps,
     tmax_days,
     nt_t,
     rows,
@@ -69,18 +70,12 @@ def do_one_simulation(
                                                                          
     # Draw initial expression from a Half-Normal distribution with mean 
     #   `lambda` (basal expression)                                           
-    S0 = np.abs(np.random.normal(
-        size=n, scale=lambda_ * np.sqrt(np.pi/2)
-    ))
-                                                                         
-    # Fix sender cell(s) to constant expression                          
-    S0[sender_idx] = 1                                            
+    S0_rep = np.abs(np.random.normal(
+        size=n * n_reps, scale=lambda_ * np.sqrt(np.pi/2)
+    )).reshape(n_reps, n)
 
-    # Package into args for lsig.reporter_rhs
-    R_args = [S0, gamma_R, sender_idx]
-    
-    # Initial R expression 
-    R0 = np.zeros(n, dtype=np.float32)
+    # Fix sender cell(s) to constant expression                          
+    S0_rep[:, sender_idx] = 1                                            
 
     # Make a mask for transceivers
     tc_mask = np.ones(n, dtype=bool)
@@ -105,37 +100,41 @@ def do_one_simulation(
     # Calculate density
     rho_t = lsig.logistic(t, g, rho_0, rho_max)
     
-    # Simulate
-    S_t = lsig.integrate_DDE_varargs(
-        t,
-        rhs=lsig.signal_rhs,
-        var_vals=[rho_t],
-        where_vars=where_rho,
-        dde_args=S_args,
-        E0=S0,
-        delay=delay,
-        varargs_type="list",
-    )
+    # Initialize output
+    S_t_rep = np.empty((n_reps, t, n), dtype=np.float32)
+
+    for i in range(n_reps):
+        # Simulate
+        S_t_rep[i] = lsig.integrate_DDE_varargs(
+            t,
+            rhs=lsig.signal_rhs,
+            var_vals=[rho_t],
+            where_vars=where_rho,
+            dde_args=S_args,
+            E0=S0_rep[i],
+            delay=delay,
+            varargs_type="list",
+        )
     
     # Mean fluorescence
-    S_t_tcmean = S_t[:, tc_mask].mean(axis=1)
+    S_t_tcmean = S_t_rep[:, :, tc_mask].mean(axis=(0,2))
     
     # Number of activated TCs over threshold
     thresh = k
-    S_t_actnum = (S_t[:, tc_mask] > thresh).sum(axis=1)
+    S_t_actnum = (S_t_rep[:, :, tc_mask] > thresh).sum(axis=2).mean(axis=0)
     
     # Intial velocity (dS/dt of the 1st TC at time t=delay)
     step_delay = int(delay / dt)
     v_init = (
-        S_t[(step_delay + 1), tc1_idx] - S_t[step_delay, tc1_idx]
-    ) / dt
+        S_t_rep[:, (step_delay + 1), tc1_idx] - S_t_rep[:, step_delay, tc1_idx]
+    ).mean() / dt
     
     # Number of activated TCs at end of simulation
     n_act_fin = S_t_actnum[-1]
     
     # Make version of S with delay
     step_delay = ceil(delay / dt) 
-    S_t_delay = S_t[np.maximum(np.arange(nt) - step_delay, 0)]
+    S_t_rep_delay = S_t_rep[:, np.maximum(np.arange(nt) - step_delay, 0)]
 
     # Package args for DDe integrator
     R_args = (
@@ -150,31 +149,35 @@ def do_one_simulation(
         lambda_, 
         g, 
         rho_0,
-        S_t_delay[0],
+        S_t_rep_delay[0, 0],
         gamma_R,
     )
     where_S_delay = where_rho + 1
     
-    # Simulate reporter expression
-    R_t = lsig.integrate_DDE_varargs(
-        t,
-        lsig.reporter_rhs,
-        var_vals=[rho_t, S_t_delay],
-        where_vars=[where_rho, where_S_delay],
-        dde_args=R_args,
-        E0=R0,
-        delay=delay,
-        varargs_type="list",
-    )
+    # Initial R expression 
+    R0 = np.zeros(n, dtype=np.float32)
+
+    # Initialize R output
+    R_t_rep = np.empty_like(S_t_rep)
+    for i in range(n_reps):
+        
+        # Simulate reporter expression
+        R_t_rep[i] = lsig.integrate_DDE_varargs(
+            t,
+            lsig.reporter_rhs,
+            var_vals=[rho_t, S_t_delay_rep[i]],
+            where_vars=[where_rho, where_S_delay],
+            dde_args=R_args,
+            E0=R0,
+            delay=delay,
+            varargs_type="list",
+        )
 
     # Mean fluorescence
-    R_t_tcmean = R_t[:, tc_mask].mean(axis=1)
+    R_t_tcmean = R_t_rep[:, :, tc_mask].mean(axis=(0,2))
     
-    # Number of activated TCs
-    R_t_actnum = (R_t[:, tc_mask] > thresh).sum(axis=1)
-    
-    # # Area of activated TCs
-    # R_t_actarea = lsig.ncells_to_area(R_t_actnum, rho_t)
+    # Number of TCs over threshold
+    R_t_actnum = (R_t_rep[:, :, tc_mask] > thresh).sum(axis=2).mean(axis=0)
     
     if save:
         

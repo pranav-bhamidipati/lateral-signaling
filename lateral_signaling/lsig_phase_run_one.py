@@ -8,10 +8,10 @@ from lsig_phase_simulation_logic import do_one_simulation
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_phase")
 
-# Set results storage dir. Varies depending on if you're working
-#   on a local machine or high-performance computing cluster
-# res_dir = "./sacred"                            # Store locally
-res_dir = "~/scratch/lateral_signaling/sacred"  # Store in scratch (compute cluster)
+# Set storage dir for all Sacred results. Could be made locally
+#   on a local machine or elsewhere high-performance computing cluster
+# res_dir = "./sacred"                          # Store locally
+res_dir = "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Store in scratch (compute cluster)
 
 # Use this dir for storage
 sacred_storage_dir = os.path.abspath(res_dir)
@@ -54,6 +54,7 @@ _rho_max = mle_params_df.loc[
 # Variables here are handled magically by the provenance system
 @ex.config
 def cfg():
+    n_reps    = 5
     tmax_days = 8 
     nt_t      = 500
     nt_t_save = 100
@@ -80,6 +81,7 @@ def run_one_simulation(_config, _run, seed):
     # _config contains all the variables you define in cfg()
     # _run contains data about the run
     do_one_simulation(
+        n_reps    = _config["n_reps"]
         tmax_days = _config["tmax_days"],
         nt_t      = _config["nt_t"],
         nt_t_save = _config["nt_t_save"],
@@ -92,7 +94,6 @@ def run_one_simulation(_config, _run, seed):
         delta     = _config["delta"],
         lambda_   = _config["lambda_"],
         delay     = _config["delay"],
-     #    rep       = rep,
         g         = _config["g"],
         rho_0     = _config["rho_0"],
         rho_max   = _config["rho_max"],
