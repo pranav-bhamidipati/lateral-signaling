@@ -9,9 +9,13 @@ import matplotlib.pyplot as plt
 import lateral_signaling as lsig
 
 
-## Uses a temporary directory for data, since storage is handled by Sacred
+# Use a unique directory name for this run 
 uid = str(uuid4())
-data_dir = f"/tmp/{uid}"
+
+# Write to temporary (fast read/write) directory of choice
+# data_dir = f"/tmp/{uid}"    # Use root temp dir (Linux/MacOS)
+# data_dir = f"./tmp/{uid}"   # Use local temp
+data_dir = f"~/scratch/lateral_signaling/tmp/{uid}"  # Use scratch dir on compute cluster
 os.makedirs(data_dir, exist_ok=True)
 
 

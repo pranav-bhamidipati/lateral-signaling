@@ -8,11 +8,16 @@ from lsig_phase_simulation_logic import do_one_simulation
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_phase")
 
-# Set up results storage
-sacred_storage_dir = os.path.abspath("./sacred")
-# os.makedirs(sacred_storage_loc)   # Uncomment to make storage dir
+# Set results storage dir. Varies depending on if you're working
+#   on a local machine or high-performance computing cluster
+# res_dir = "./sacred"                            # Store locally
+res_dir = "~/scratch/lateral_signaling/sacred"  # Store in scratch (compute cluster)
+
+# Use this dir for storage
+sacred_storage_dir = os.path.abspath(res_dir)
+# os.makedirs(sacred_storage_dir)   # Make dir if it doesn't exist
 ex.observers.append(
-    FileStorageObserver(sacred_storage_dir)  # Use this dir for storage
+    FileStorageObserver(sacred_storage_dir)
 )
 
 # Get path to simulation parameters
