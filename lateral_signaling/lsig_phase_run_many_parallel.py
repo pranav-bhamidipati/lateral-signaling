@@ -19,9 +19,9 @@ if __name__ == "__main__":
 
     # Parameter values to scan
     rep_space     = np.arange(1)                # Number of replicates per condition
-    g_space       = np.linspace(0, 2.4, 3)[1:]  # Proliferation rate
-    rho_0_space   = np.linspace(0,   6, 3)[1:]  # Initial density
-    rho_max_space = np.linspace(0,   6, 3)[1:]  # Carrying capacity
+    g_space       = np.linspace(0, 2.4,  3)[1:]  # Proliferation rate
+    rho_0_space   = np.linspace(0,   6,  3)[1:]  # Initial density
+    rho_max_space = np.linspace(0,   6,  3)[1:]  # Carrying capacity
 
     # Make matrix of all combinations of params
     param_space = np.asarray(np.meshgrid(

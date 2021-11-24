@@ -174,8 +174,6 @@ def do_one_simulation(
     
     if save:
         
-        print("Saving") 
-        
         if ex is not None:
             
             # Keep track of objects that Sacred should save
@@ -197,6 +195,7 @@ def do_one_simulation(
                 f.create_dataset("R_t_actnum", data = R_t_actnum[::save_skip])
                 f.create_dataset("v_init",     data = v_init)
                 f.create_dataset("n_act_fin",  data = n_act_fin)
+            artifacts.append(data_dump_fname)
 
             # Add objects to save to Sacred
             for _a in artifacts:
@@ -206,10 +205,7 @@ def do_one_simulation(
             source_files = [
                 "lateral_signaling.py",
             ]
-            for sf in source_files:
-                ex.add_source_file(sf)
-
-        else:
-            print("Oops, `ex` is `None`")
+            for _sf in source_files:
+                ex.add_source_file(_sf)
 
 
