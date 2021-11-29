@@ -1,9 +1,15 @@
 #!/bin/bash
-#SBATCH --job-name="LateralSignalingPhase"
-#SBATCH --ntasks=64                # How many threads to request
-#SBATCH --time=09:00:00               
-#SBATCH --mail-type=ALL
-#SBATCH --mail-user=pbhamidi@usc.edu  
+
+#Submit this script with: sbatch submit_lsig_phase_parallel.sh
+
+#SBATCH --time=9:00:00   # walltime
+#SBATCH --ntasks=64   # number of processor cores (i.e. tasks)
+#SBATCH --mem-per-cpu=4G   # memory per CPU core
+#SBATCH -J "LateralSignalingPhase"   # job name
+#SBATCH --mail-user=pbhamidi@usc.edu   # email address
+#SBATCH --mail-type=BEGIN
+#SBATCH --mail-type=END
+#SBATCH --mail-type=FAIL
 
 #SBATCH -o /home/pbhamidi/scratch/lateral_signaling/slurm_out/slurm.%N.%j.out # STDOUT
 #SBATCH -e /home/pbhamidi/scratch/lateral_signaling/slurm_out/slurm.%N.%j.err # STDERR

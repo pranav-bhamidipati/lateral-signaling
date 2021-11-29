@@ -40,11 +40,19 @@ if __name__ == "__main__":
 #     n_workers = n_runs                      # For smaller runs
     n_workers = int(os.environ["SLURM_NPROCS"])  # Number of available threads (on Slurm)
 
+    # Memory for each worker
+#     memory_limit = "auto"   # Default (change if memory errors)
+#     memory_limit = "3 GiB"  # Custom
+    mb_per_mem = int(int(os.environ["SLURM_MEM_PER_CPU"]) * 0.7)
+    memory_limit = f"{mb_per_mem} MiB"  # For Slurm tasks 
+
     # Configure a Client that will spawn a local cluster of workers.
     #   Each task gets one worker and one worker gets one thread.
     #   Threads are allocated to workers as they become available
     client = dask.distributed.Client(
-        threads_per_worker=1, n_workers=n_workers
+        threads_per_worker=1, 
+        n_workers=n_workers,
+        memory_limit=memory_limit,
     )
 
     # Make a list of tasks to execute (populated asynchronously)
