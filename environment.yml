@@ -23,6 +23,7 @@ dependencies:
 #  - conda-forge::ipywidgets
   - conda-forge::shapely=1.*
   - conda-forge::descartes=1.*
+  - conda-forge::dask-jobqueue=0.*
   - conda-forge::jupyterlab
   - pip
   - pip:
@@ -32,3 +33,4 @@ dependencies:
     - cmocean
     - ipywidgets
     - blackcellmagic
+    - dask-labextension
