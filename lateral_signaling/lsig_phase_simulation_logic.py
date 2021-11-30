@@ -147,7 +147,7 @@ def do_one_simulation(
 
     for j in range(n_g):
         
-        S_t_rep = np.empty((n_reps, nt), dtype=np.float32)
+        S_t_rep = np.empty((n_reps, nt, n), dtype=np.float32)
         R_t_rep = np.empty_like(S_t_rep)
         
         for i in range(n_reps):
