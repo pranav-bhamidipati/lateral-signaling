@@ -4,7 +4,7 @@ import dask
 import dask.distributed
 
 # Set dir for Dask to use (spill to disk, etc.)
-local_dir = os.path.abspath("~/scratch/lateral_signaling/dask-worker-space")
+local_dir = os.path.abspath("/home/pbhamidi/scratch/lateral_signaling/dask-worker-space")
 
 @dask.delayed
 def run_one(config_updates):
