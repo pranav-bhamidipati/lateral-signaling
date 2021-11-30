@@ -1,3 +1,4 @@
+import sys
 import os
 import dask
 import dask.distributed
@@ -26,7 +27,6 @@ if __name__ == "__main__":
     
     # Make matrix of all combinations of params
     param_space = np.asarray(np.meshgrid(
-        g_space, 
         rho_0_space, 
         rho_max_space,
     ))
@@ -43,8 +43,8 @@ if __name__ == "__main__":
     # Memory for each worker
 #     memory_limit = "auto"   # Default (change if memory errors)
 #     memory_limit = "3 GiB"  # Custom
-    mb_per_mem = int(int(os.environ["SLURM_MEM_PER_CPU"]) * 0.7)
-    memory_limit = f"{mb_per_mem} MiB"  # For Slurm tasks 
+    mb_per_cpu = int(int(os.environ["SLURM_MEM_PER_CPU"]) * 0.7)
+    memory_limit = f"{mb_per_cpu} MiB"  # For Slurm tasks 
 
     # Configure a Client that will spawn a local cluster of workers.
     #   Each task gets one worker and one worker gets one thread.
@@ -57,14 +57,16 @@ if __name__ == "__main__":
 
     # Make a list of tasks to execute (populated asynchronously)
     lazy_results = [] 
-    for *_, g, rho_0, rho_max in param_space:
+    for *_, rho_0, rho_max in param_space:
         config_updates = dict(
             n_reps  = n_reps,
-            g       = float(g),
+            g_space = g_space.tolist(),
             rho_0   = float(rho_0),
             rho_max = float(rho_max),
         ) 
         lazy_results.append(run_one(config_updates)) 
+        
+        print(sys.getsizeof(lazy_results[-1]))
 
     # Compute tasks lazily - tasks in list are assigned to workers
     #   on demand and the list is populated with results asynchronously.

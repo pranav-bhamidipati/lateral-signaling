@@ -3,8 +3,8 @@
 #Submit this script with: sbatch submit_lsig_phase_parallel.sh
 
 #SBATCH --time=9:00:00   # walltime
-#SBATCH --ntasks=64   # number of processor cores (i.e. tasks)
-#SBATCH --mem-per-cpu=4G   # memory per CPU core
+#SBATCH --ntasks=32   # number of processor cores (i.e. tasks)
+#SBATCH --mem-per-cpu=8G   # memory per CPU core
 #SBATCH -J "LateralSignalingPhase"   # job name
 #SBATCH --mail-user=pbhamidi@usc.edu   # email address
 #SBATCH --mail-type=BEGIN
@@ -26,6 +26,7 @@ env
 echo ""
 
 echo "Activating conda environment"
+source ~/miniconda3/etc/profile.d/conda.sh
 conda deactivate
 conda activate ~/git/evomorph/env
 echo ""
