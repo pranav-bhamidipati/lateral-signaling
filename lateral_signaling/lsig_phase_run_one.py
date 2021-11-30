@@ -80,7 +80,7 @@ def run_one_simulation(_config, _run, seed):
     # _config contains all the variables you define in cfg()
     # _run contains data about the run
     
-    print(f"({_run._id}) Doing one simulation")
+    print("Doing one simulation")
     
     do_one_simulation(
         n_reps    = _config["n_reps"],

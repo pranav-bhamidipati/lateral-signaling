@@ -57,6 +57,7 @@ if __name__ == "__main__":
         n_workers=n_workers,
         memory_limit=memory_limit,
         interface="ib0",
+        timeout=600,
         local_directory=local_dir,
     )
 

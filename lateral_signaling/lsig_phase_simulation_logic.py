@@ -44,6 +44,8 @@ def do_one_simulation(
 ):
     """Run a lateral signaling simulation and calculate phase metrics."""
     
+    print("Calling sim function")
+    
     # Set time span
     nt = int(nt_t * tmax_days) + 1
     t_days = np.linspace(0, tmax_days, nt)
@@ -134,6 +136,8 @@ def do_one_simulation(
     # Set the threshold to consider a cell activated (equal to promoter threshold)
     thresh = k
     
+    print("Making output objects")
+
     # Initialize output
     n_g = len(g_space)
     S_t_g_tcmean = np.empty((n_g, nt_save), dtype=np.float32)
@@ -143,12 +147,14 @@ def do_one_simulation(
     v_init_g     = np.empty((n_g),          dtype=np.float32)
     n_act_fin_g  = np.empty((n_g),          dtype=np.float32)
     
-    print(uid, ": Starting sim")
+    print("Starting sim")
 
     for j in range(n_g):
         
         S_t_rep = np.empty((n_reps, nt, n), dtype=np.float32)
         R_t_rep = np.empty_like(S_t_rep)
+        
+        print(f"Replicate {j}")
         
         for i in range(n_reps):
             # Simulate
@@ -202,6 +208,8 @@ def do_one_simulation(
         
         if ex is not None:
             
+            print("Saving")
+
             # Keep track of objects that Sacred should save
             artifacts = []
 
@@ -220,6 +228,8 @@ def do_one_simulation(
                 f.create_dataset("v_init_g",     data = v_init_g)
                 f.create_dataset("n_act_fin_g",  data = n_act_fin_g)
             artifacts.append(data_dump_fname)
+            
+            print("Saved data to file")
 
             # Add objects to save to Sacred
             for _a in artifacts:
