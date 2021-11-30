@@ -57,6 +57,7 @@ if __name__ == "__main__":
         n_workers=n_workers,
         memory_limit=memory_limit,
         interface="ib0",
+        local_directory=local_dir,
     )
 
     # Make a list of tasks to execute (populated asynchronously)
