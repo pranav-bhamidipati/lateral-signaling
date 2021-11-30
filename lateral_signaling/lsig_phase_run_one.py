@@ -11,7 +11,7 @@ ex = sacred.Experiment("lateral_signaling_phase")
 # Set storage dir for all Sacred results. Could be made locally
 #   on a local machine or elsewhere high-performance computing cluster
 # res_dir = "./sacred"                          # Store locally
-res_dir = "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Store in scratch (compute cluster)
+res_dir = "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Store in a fast read-write dir (scratch on Caltech HPC)
 
 # Use this dir for storage
 sacred_storage_dir = os.path.abspath(res_dir)
@@ -67,7 +67,6 @@ def cfg():
     delta     = _delta
     lambda_   = _lambda_
     delay     = _delay
-    # rep       = -1
     g         = _g
     rho_0     = _rho_0
     rho_max   = _rho_max
@@ -80,6 +79,9 @@ def run_one_simulation(_config, _run, seed):
     """Simulates SPV given a single parameter configuration"""
     # _config contains all the variables you define in cfg()
     # _run contains data about the run
+    
+    print(f"({_run._id}) Doing one simulation")
+    
     do_one_simulation(
         n_reps    = _config["n_reps"],
         g_space   = _config["g_space"],

@@ -3,6 +3,9 @@ import os
 import dask
 import dask.distributed
 
+# Set dir for Dask to use (spill to disk, etc.)
+local_dir = os.path.abspath("~/scratch/lateral_signaling/dask-worker-space")
+
 @dask.delayed
 def run_one(config_updates):
     """Run single simulation - executed independently in every thread"""
@@ -53,10 +56,12 @@ if __name__ == "__main__":
         threads_per_worker=1, 
         n_workers=n_workers,
         memory_limit=memory_limit,
+        interface="ib0",
     )
 
     # Make a list of tasks to execute (populated asynchronously)
     lazy_results = [] 
+    print("building lazy results")
     for *_, rho_0, rho_max in param_space:
         config_updates = dict(
             n_reps  = n_reps,
@@ -66,7 +71,7 @@ if __name__ == "__main__":
         ) 
         lazy_results.append(run_one(config_updates)) 
         
-        print(sys.getsizeof(lazy_results[-1]))
+    print("built lazy results")
 
     # Compute tasks lazily - tasks in list are assigned to workers
     #   on demand and the list is populated with results asynchronously.
