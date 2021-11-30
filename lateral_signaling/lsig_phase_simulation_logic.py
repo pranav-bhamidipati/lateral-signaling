@@ -106,6 +106,8 @@ def do_one_simulation(
     # Initialize output
     n_g = len(g_space)
     S_t_g_rep = np.empty((n_reps, n_g, nt, n), dtype=np.float32)
+    
+    print(uid, ": Starting sim")
 
     for j in range(n_g):
         for i in range(n_reps):

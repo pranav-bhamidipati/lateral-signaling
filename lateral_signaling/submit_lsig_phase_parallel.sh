@@ -4,7 +4,7 @@
 
 #SBATCH --time=9:00:00   # walltime
 #SBATCH --ntasks=32   # number of processor cores (i.e. tasks)
-#SBATCH --mem-per-cpu=8G   # memory per CPU core
+#SBATCH --mem-per-cpu=16G   # memory per CPU core
 #SBATCH -J "LateralSignalingPhase"   # job name
 #SBATCH --mail-user=pbhamidi@usc.edu   # email address
 #SBATCH --mail-type=BEGIN
