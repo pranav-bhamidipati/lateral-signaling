@@ -5,6 +5,8 @@ from sacred.observers import FileStorageObserver
 import pandas as pd
 from lsig_phase_simulation_logic import do_one_simulation
 
+import lateral_signaling
+
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_phase")
 

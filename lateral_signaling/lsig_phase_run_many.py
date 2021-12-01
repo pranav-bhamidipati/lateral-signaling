@@ -18,7 +18,7 @@ param_space = np.meshgrid(
 )
 param_space = np.array(param_space).T.reshape(-1, len(param_space))
 
-for *_, rho_0, rho_max in param_space:  # Over what parameters do we loop
+for *_, rho_0, rho_max in param_space[:1]:  # Over what parameters do we loop
     config_updates = { # Update the default variables (all others are still the same)
         "n_reps": n_reps,
         "g_space": g_space,
