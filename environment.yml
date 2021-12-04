@@ -28,6 +28,7 @@ dependencies:
   - conda-forge::dask-jobqueue=0.*
   - conda-forge::nodejs
   - conda-forge::jupyterlab
+  - conda-forge::ipympl
   - pip
   - pip:
     - sacred
