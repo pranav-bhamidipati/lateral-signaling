@@ -263,6 +263,23 @@ def hex2rgb(h):
     h = h.lstrip('#')
     return tuple(int(h[(2*i):(2*(i + 1))], base=16) for i in range(3))
 
+def rgb2hex(rgb):
+    """Converts rgb colors to hex"""
+    
+    RGB = np.zeros((3,), dtype=np.uint8)
+    for i, _c in enumerate(rgb):
+        
+        # Convert vals in [0., 1.] to [0, 255]
+        if _c <= 1.:
+            c = int(_c * 255)
+        else:
+            c = _c
+        
+        # Calculate new values
+        RGB[i] = round(c)
+    
+    return "#{:02x}{:02x}{:02x}".format(*RGB)
+
 
 def rgba2hex(rgba, background=(255, 255, 255)):
     """
@@ -288,8 +305,7 @@ def rgba2hex(rgba, background=(255, 255, 255)):
             c = _c
         
         # Calculate new values
-        new_c = round(a * c + (1 - a) * background[i])
-        rgb[i] = new_c
+        rgb[i] = round(a * c + (1 - a) * background[i])
     
     return "#{:02x}{:02x}{:02x}".format(*rgb)
 
