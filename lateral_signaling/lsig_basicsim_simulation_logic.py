@@ -1,3 +1,4 @@
+from uuid import uuid4
 import os
 from math import ceil
 from copy import deepcopy
@@ -8,8 +9,13 @@ import colorcet as cc
 import h5py
 # import json
 
-## Uses a temporary directory for data, since storage is handled by Sacred
-data_dir = "/tmp/work_dir"
+# Use a unique directory name for this run 
+uid = str(uuid4())
+
+# Write to temporary (fast read/write) directory of choice
+data_dir = os.path.abspath(f"/tmp/{uid}")    # Use root temp dir (Linux/MacOS)
+# data_dir = f"/home/pbhamidi/scratch/lateral_signaling/tmp/{uid}"  # Use scratch dir on compute cluster
+
 os.makedirs(data_dir, exist_ok=True)
 
 def do_one_simulation(
