@@ -4,6 +4,9 @@ import dask.distributed
 
 # from lsig_phase_run_one import ex # We import the experiment here. It knows what are the default values, how to run the code, and where to store its results
 
+# Set dir for Dask to use (spill to disk, etc.)
+local_dir = os.path.abspath("/home/pbhamidi/scratch/dask-worker-space")
+
 @dask.delayed
 def run_one(config_updates):
     """Run single simulation - executed independently in every thread"""
