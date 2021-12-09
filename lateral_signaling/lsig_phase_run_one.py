@@ -12,8 +12,8 @@ ex = sacred.Experiment("lateral_signaling_phase")
 
 # Set storage dir for all Sacred results. Could be made locally
 #   on a local machine or elsewhere high-performance computing cluster
-# res_dir = "./sacred"                          # Store locally
-res_dir = "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Store in a fast read-write dir (scratch on Caltech HPC)
+res_dir = "./sacred"                          # Store locally
+# res_dir = "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Store in a fast read-write dir (scratch on Caltech HPC)
 
 # Use this dir for storage
 sacred_storage_dir = os.path.abspath(res_dir)
