@@ -58,6 +58,13 @@ for g, rho_0 in zip(example_gs, example_rho_0s):
                 print(f"Found example {np.where(example_rho_0s == rho_0)[0][0]} - rho_0")
 
             rho_max  = config["rho_max"]
+            rows       = _config["rows"]
+            cols       = _config["cols"]
+            X          = lsig.hex_grid(rows, cols)
+            sender_idx = lsig.get_center_cells(X)
+            n          = X.shape[0]
+            
+            X          = X - X[sender_idx]
 
         # Get remaining info from run's data dump
         with h5py.File(_results_file, "r") as f:
@@ -80,12 +87,8 @@ for g, rho_0 in zip(example_gs, example_rho_0s):
         actnum_ts.append(S_t_g_actnum
         rho_ts.append(rho_t_g)
 
-# Concatenate into one dataset and isolate rows with the right parameters
-df = pd.concat(dfs).reset_index(drop=True)
-df = df.loc[np.isin(df.g, example_gs), :]
 
-print(df)
-
+                         
 0 / 0
 
 # Path to save animation
