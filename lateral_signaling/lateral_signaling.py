@@ -636,6 +636,7 @@ def make_Adj_sparse(rows, cols=0, dtype=np.float32, **kwargs):
 
 ######### Statistics
 
+@numba.njit
 def data_to_hist(d, bins, data_range=(0, 1000)):
     """Convert sampled data to a frequency distribution (histogram)"""
     return np.histogram(d, bins=bins, range=data_range)
