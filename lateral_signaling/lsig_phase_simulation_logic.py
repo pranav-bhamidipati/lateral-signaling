@@ -154,7 +154,7 @@ def do_one_simulation(
         S_t_rep = np.empty((n_reps, nt, n), dtype=np.float32)
         R_t_rep = np.empty_like(S_t_rep)
         
-        print(f"Param set {j+1} / {n_g+1}")
+        print(f"Param set {j+1} / {n_g}")
         
         for i in range(n_reps):
             # Simulate
