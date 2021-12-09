@@ -15,7 +15,7 @@ import lateral_signaling as lsig
 
 # Path to save animation
 save_dir = os.path.abspath("../plots")
-fpath = os.path.join(save_dir, f"propagation_cis-inhibition_examples.mp4")
+fpath = os.path.join(save_dir, f"propagation_cis-inhibition_examples_.mp4")
         
 def main(
     fpath=fpath,
@@ -72,15 +72,15 @@ def main(
                 n          = X.shape[0]
                 X_t        = np.multiply.outer(1 / np.sqrt(rho_t), X)
             
-            if _config["delta"] is dict:
+            if isinstance(_config["delta"], dict):
                 _delta = _config["delta"]["value"]
             else:
                 _delta = _config["delta"]
-
-            deltas.append(_delta)
+            
+            deltas.append(f"{_delta:.1f}")
 
     if save:
-        
+
         # Make figure
         fig, axs = plt.subplots(
             nrows=1, 
@@ -93,18 +93,26 @@ def main(
         var_func     = lambda r, i: S_t_res[r][i]
         rho_func     = lambda    i: rho_t[i]
         suptitle_fun = lambda    i: f"Time: {t[i]:.2f} days"
-        title_fun    = lambda    r: ("No", "Weak", "Strong")[r] + " inhibition"
-            
+        titles = [
+            ("No inhibition\n", "Weak inhibition\n", "Strong inhibition\n")[r] 
+            + fr"$\delta={deltas[r]}$" 
+            for r in range(3)
+        ]
+
         # Get default kwargs for plotting
         plot_kwargs = deepcopy(lsig.plot_kwargs)
         plot_kwargs["sender_idx"] = sender_idx
+
+        # Get axis limits
+        plot_kwargs["xlim"] = X_t[-1, :, 0].min(), X_t[-1, :, 0].max()
+        plot_kwargs["ylim"] = X_t[-1, :, 1].min(), X_t[-1, :, 1].max()
 
         # Set some args for colorbar
         plot_kwargs["cmap"] = lsig.kgy
         plot_kwargs["cbar_aspect"] = 8
         plot_kwargs["cbar_kwargs"]["shrink"] = 0.7
         plot_kwargs["extend"] = "neither"
-                    
+
         # Get colorscale limits
         ns_mask = np.ones(n, dtype=bool)
         ns_mask[sender_idx] = False
@@ -116,12 +124,7 @@ def main(
         # Make list to hold colorbars for easy reference
         colorbars = []
 
-#        # Make colorbar for each plot
-#        for r, ax in enumerate(axs):
-#
-#
-            
-        # Turn off subsequent colorbar plotting
+        # Turn off automatic colorbar plotting
         plot_kwargs["colorbar"] = False
            
         # Get frames to animate
@@ -143,10 +146,10 @@ def main(
 
                 # Get changing arguments
                 var_kw = dict(
-                     X     = X_func(frames[i]),
+                    X     = X_func(frames[i]),
                     var   = var_func(r, frames[i]),
                     rho   = rho_func(frames[i]),
-                    title = title_fun(r),
+                    title = titles[r],
                     vmin  = vmins[r],
                     vmax  = vmaxs[r],
                 )
