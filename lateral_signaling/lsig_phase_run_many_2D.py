@@ -47,7 +47,7 @@ if __name__ == "__main__":
     
     # Specify interface (can run `ifconfig` to see what's available)
     interface="lo"   # Localhost (available on all machines)
-    interface="ib0"  # Infiniband (faster, available on Caltech HPC Cluster)
+#    interface="ib0"  # Infiniband (faster, available on Caltech HPC Cluster)
    
     # Timeout time for Client
     timeout=600
