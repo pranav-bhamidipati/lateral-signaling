@@ -1509,7 +1509,12 @@ def animate_hex_sheet(
     print("Writing to:", _fpath)
     
     # Save animation
-    _anim_FA.save(_fpath, writer=_writer, dpi=dpi)
+    _anim_FA.save(
+        _fpath, 
+        writer=_writer, 
+        dpi=dpi,
+        progress_callback=lambda i, n: print(f"Frame {i+1} / {n}"),
+    )
 
 
 def plot_var(
