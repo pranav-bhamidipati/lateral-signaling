@@ -60,7 +60,6 @@ def cfg():
     delta       = _delta
     lambda_     = _lambda_
     delay       = _delay
-    # rep         = -1
     g           = _g
     rho_0       = _rho_0
     rho_max     = _rho_max
@@ -90,7 +89,6 @@ def run_one_simulation(_config, _run):
         delta       = _config["delta"],
         lambda_     = _config["lambda_"],
         delay       = _config["delay"],
-     #    rep         = rep,
         g           = _config["g"],
         rho_0       = _config["rho_0"],
         rho_max     = _config["rho_max"],
