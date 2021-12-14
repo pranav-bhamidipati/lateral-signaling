@@ -111,6 +111,7 @@ def main(
         plot_kwargs["cmap"] = lsig.kgy
         plot_kwargs["cbar_aspect"] = 8
         plot_kwargs["cbar_kwargs"]["shrink"] = 0.7
+        plot_kwargs["cbar_kwargs"]["format"] = "%.2f"
         plot_kwargs["extend"] = "neither"
 
         # Get colorscale limits
