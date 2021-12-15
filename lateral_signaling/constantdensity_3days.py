@@ -24,6 +24,7 @@ save_dir = os.path.abspath("../plots")
 params_json_path = os.path.join(data_dir, "sim_parameters.json")
 
 save_figs = True
+save_vids = False
 dpi = 300
 
 fmt = "png"
@@ -167,8 +168,8 @@ fig, axs = plt.subplots(
 for i, ax in enumerate(axs.flat):
     
     # Select current frame
-    row = i % rows
-    col = i // rows
+    row = i // rows
+    col = i % rows
     frame = nt_t * (1 + col)
     
     # Make colorbars invisible except in first row
@@ -211,7 +212,7 @@ for i, ax in enumerate(axs.flat):
 plt.tight_layout()
 
 if save_figs:
-    fig_fname = f"simulation_constant_density_rho_1-4x_3days_"
+    fig_fname = f"simulation_constant_density_rho_1-4x_3days"
     fig_path = os.path.join(save_dir, fig_fname + "." + fmt)
     plt.savefig(fig_path, dpi=dpi, format=fmt,)
     print(f"Saved figure to {fig_path}")
@@ -285,7 +286,7 @@ def anim_func(**kw):
 # Specify axis for colorbar
 cbar_ax = axs[-1]
 
-if save_figs:
+if save_vids:
     
     # Path for video
     vid_fname = f"simulation_constant_density_{int(rhos[0])}x-{int(rhos[-1])}x_.mp4"
