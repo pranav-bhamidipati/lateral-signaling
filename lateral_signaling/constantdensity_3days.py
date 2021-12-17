@@ -32,10 +32,6 @@ fmt = "png"
 # Set seed for RNG
 seed = 2021
 
-# Read parameters from CSV
-params_df = pd.read_csv("parameters.csv")
-params_df
-
 # Read from JSON file
 with open(params_json_path, "r") as f:
     params = json.load(f)
@@ -55,7 +51,7 @@ beta_args = tuple([float(params[k]) for k in params.keys() if k.startswith("beta
 dde_args  = tuple([float(params[k]) for k in params["dde_args"]])
 
 # Set time parameters (dimensionless units)
-tmax = 3
+tmax = 10 * delay
 nt_t = 500
 nt = int(nt_t * tmax) + 1
 t = np.linspace(0, tmax, nt)
