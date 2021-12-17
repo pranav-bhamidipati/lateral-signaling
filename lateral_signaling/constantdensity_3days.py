@@ -12,7 +12,6 @@ import colorcet as cc
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 from matplotlib_scalebar.scalebar import ScaleBar
 
 import os
@@ -24,7 +23,7 @@ save_dir = os.path.abspath("../plots")
 params_json_path = os.path.join(data_dir, "sim_parameters.json")
 
 save_figs = True
-save_vids = False
+save_vids = True
 dpi = 300
 
 fmt = "png"
@@ -51,10 +50,11 @@ beta_args = tuple([float(params[k]) for k in params.keys() if k.startswith("beta
 dde_args  = tuple([float(params[k]) for k in params["dde_args"]])
 
 # Set time parameters (dimensionless units)
-tmax = 10 * delay
-nt_t = 500
-nt = int(nt_t * tmax) + 1
-t = np.linspace(0, tmax, nt)
+tmax_tau = 6
+nt_tau   = 200
+tmax     = tmax_tau * delay
+nt       = int(nt_tau * tmax_tau) + 1
+t        = np.linspace(0, tmax, nt)
 
 # Make square lattice centered on a sender cell
 rows = cols = 50
@@ -157,7 +157,7 @@ cols = 3
 fig, axs = plt.subplots(
     rows, 
     cols, 
-    figsize=(6.5, 5),
+    figsize=(6.25, 5),
     gridspec_kw=dict(width_ratios=[1, 1, 1.2]),
 )
 
@@ -166,14 +166,20 @@ for i, ax in enumerate(axs.flat):
     # Select current frame
     row = i // rows
     col = i % rows
-    frame = nt_t * (1 + col)
+    time_tau = (tmax_tau // cols) * (1 + col)
+    frame = time_tau * nt_tau
     
     # Make colorbars invisible except in first row
     if row == 0:
-        cbar_kwargs = dict(ticks=[vmin, vmax], label="GFP (AU)", shrink=0.9, format="%.2f")
+#        cbar_kwargs = dict(ticks=[vmin, vmax], label="GFP (AU)", shrink=0.9, format="%.2f")
+        cbar_kwargs = dict(ticks=[], label="", shrink=1.0)
     else: 
         cbar_kwargs = dict(ticks=[], label="", alpha=0, shrink=1e-5)
     
+    if row == 2:
+        mpl.rcParams["axes.titlesize"] = 14
+        ax.set_title(fr"{time_tau:.0f} $\tau$", y=-0.2)
+
     # Plot frame
     lsig.plot_hex_sheet(
         ax=ax,
@@ -206,9 +212,10 @@ for i, ax in enumerate(axs.flat):
     ax.add_artist(scalebar)
 
 plt.tight_layout()
+plt.subplots_adjust(wspace=0.05, hspace=0.05)
 
 if save_figs:
-    fig_fname = f"simulation_constant_density_rho_1-4x_3days"
+    fig_fname = f"simulation_constant_density_rho_1-4x_{tmax_tau}tau"
     fig_path = os.path.join(save_dir, fig_fname + "." + fmt)
     plt.savefig(fig_path, dpi=dpi, format=fmt,)
     print(f"Saved figure to {fig_path}")
@@ -216,7 +223,7 @@ if save_figs:
 ########### Animation    
 
 # Make title of animation
-suptitle_fun = lambda i: f"Simulation time: {t[i]:.2f}"
+suptitle_fun = lambda i: fr"Simulation time: {t[i]:.2f} ({t[i]:.2f} $\tau$)"
 
 # Change args for animation
 anim_plot_kwargs = deepcopy(plot_kwargs)
