@@ -8,7 +8,7 @@ from lsig_basicsim_simulation_logic import do_one_simulation
 import lateral_signaling
 
 # Set up Sacred experiment
-ex = sacred.Experiment("lateral_signaling_phase_examples")
+ex = sacred.Experiment("lateral_signaling_examples")
 
 # Set storage dir for all Sacred results. Could be made locally
 #   on a local machine or elsewhere high-performance computing cluster
@@ -56,11 +56,11 @@ _rho_max = mle_params_df.loc[
 # Variables here are handled magically by the provenance system
 @ex.config
 def cfg():
-    n_reps    = 5
-    g_space   = [_g]
+    # n_reps    = 5
+    # g_space   = [_g]
     tmax_days = 8 
     nt_t      = 500
-    nt_t_save = 100
+    # nt_t_save = 100
     rows      = 80
     cols      = 80
     alpha     = _alpha

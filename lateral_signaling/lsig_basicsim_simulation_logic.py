@@ -46,7 +46,7 @@ def do_one_simulation(
     dpi=300,
 ):
     """Run a lateral signaling simulation"""
-                                                                         
+
     # Set time parameters
     nt = int(nt_t * tmax_days) + 1
     t_days = np.linspace(0, tmax_days, nt)

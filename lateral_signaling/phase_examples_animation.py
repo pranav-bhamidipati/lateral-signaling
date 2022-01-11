@@ -24,7 +24,6 @@ dpi           = 300
 
 def main(
     fpath=fpath,
-    sacred_runs=(301, 302, 303),
     save=False,
     vmins=None,
     vmaxs=None,
@@ -36,7 +35,7 @@ def main(
 ):
 
     # Read in data from experiments
-    run_dirs = [os.path.abspath(f"./sacred/{r}/") for r in sacred_runs]
+    run_dirs = glob(os.path.join(data_dir, "[0-9]*"))[0]
     
     # Initialize data to read from files
     names      = []
