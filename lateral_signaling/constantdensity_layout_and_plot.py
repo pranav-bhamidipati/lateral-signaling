@@ -18,8 +18,8 @@ import lateral_signaling as lsig
 
 data_dir     = os.path.abspath("../data/sim_data/20220111_constantdensity/sacred")
 save_dir     = os.path.abspath("../plots")
-layout_fpath = os.path.join(save_dir, "constant_density_layout_")
-curves_fpath = os.path.join(save_dir, "constant_density_plot_")
+layout_fpath = os.path.join(save_dir, "constant_density_imlayout_")
+curves_fpath = os.path.join(save_dir, "constant_density_sqrtarea_")
 fmt          = "png"
 dpi          = 300
 
@@ -27,8 +27,10 @@ def main(
     layout_fpath=layout_fpath,
     curves_fpath=curves_fpath,
     delays_to_plot=[],
-    curves_xlim=(),
-    save=False,
+    curves_tmax=None,
+    pad=0.05,
+    save_layout=False,
+    save_curves=False,
     fmt=fmt,
     dpi=dpi,
 ):
@@ -67,7 +69,6 @@ def main(
 
                 # Time-points
                 t = np.asarray(f["t"])
-                nt = t.size
                 dt = t[1] - t[0]
 
                 # Index of sender cell
@@ -115,9 +116,9 @@ def main(
     BIGGER_SIZE = 16
     
     # Zoom in to a factor of `zoom` (to emphasize ROI)
-    zoom = 0.45
+    zoom = 0.7
 
-    if save:
+    if save_layout:
         
         # Set font sizes
         plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
@@ -147,7 +148,7 @@ def main(
 
         # colorscale limits
         plot_kwargs["vmin"] = 0
-        plot_kwargs["vmax"] = S_ts[:, :, ns_mask].max()
+        plot_kwargs["vmax"] = S_ts[:, :(plot_frames.max() + 1), ns_mask].max()
 
         # some args for colorscale
         plot_kwargs["cmap"] = lsig.kgy
@@ -214,9 +215,20 @@ def main(
         # Save
         plt.savefig(_fpath, dpi=dpi)
 
+    if save_curves:
+
         ## Plot timeseries of expression
+        # Get early time-range 
+        if curves_tmax is not None:
+            tmax_idx = np.searchsorted(t, delay * curves_tmax)
+            tslice   = slice(tmax_idx)
+        else:
+            tslice   = slice(None)
+        
+        nt = t[tslice].size
+
         # Calculate the number of activated transceivers
-        n_act_ts = (S_ts > k).sum(axis=2) - 1
+        n_act_ts = (S_ts[:, tslice] > k).sum(axis=2) - 1
 
 #        # Percent of activated transceivers
 #        pct_act_t = n_act_t / n * 100
@@ -224,44 +236,44 @@ def main(
 #        # Optionally normalize percentage
 #        pct_act_t = lsig.normalize(pct_act_t, 0, pct_act_t.max()) * 100
 
-        # Area of activation
+        # Area and sqrt(Area) of activation
         A_ts = np.array([lsig.ncells_to_area(n, rho) for n, rho in zip(n_act_ts, rhos)])
-        
-        # Normalize
-        A_ts_norm = lsig.normalize(A_ts, 0, A_ts.max())
-        
-        # Get sqrt(Area)
         sqrtA_ts = np.sqrt(A_ts)
 
-        # Make color cycle
-#        cycle = lsig.sample_cycle(cc.gray[:200], 3)
-        cycle = hv.Cycle(lsig.cols_blue)
+        # Normalize area and sqrt(area)
+        A_ts_norm = lsig.normalize(A_ts, 0, A_ts.max())
+        sqrtA_ts_norm = lsig.normalize(sqrtA_ts, 0, sqrtA_ts.max())
 
-        # Restrict time-range (optional)
-        if curves_xlim:
-            tmin   = np.searchsorted(t, delay * curves_xlim[0])
-            tmax   = np.searchsorted(t, delay * curves_xlim[1])
-            tslice = slice(tmin, tmax)
-        else:
-            tslice = slice(None)
+        # Axis limits with padding
+        xmin = 0.0
+        xmax = t[tslice][-1]
+        ymin = 0.0
+        ymax = 0.45 
+        xlim = xmin - pad * (xmax - xmin), xmax + pad * (xmax - xmin)
+        ylim = ymin - pad * (ymax - ymin), ymax + pad * (ymax - ymin)
+
+        # Make color/linestyle cycles
+        ccycle = lsig.sample_cycle(cc.gray[:150], 3)
+#        ccycle = hv.Cycle(lsig.cols_blue)
+        lcycle = hv.Cycle(["solid", "dashed", "dotted"])
 
         # Make data
         curve_data = {
-            "t"        : np.tile(t[tslice], len(rhos)),
-            "A_t"      : A_ts[:, tslice].ravel(),
-            "sqrtA_t"  : sqrtA_ts[:, tslice].ravel(), 
-            "A_t_norm" : A_ts_norm[:, tslice].ravel(),
-            "density"  : np.repeat([f"{int(r)}X" for r in rhos], t[tslice].size),
+            "t"            : np.tile(t[tslice], len(rhos)),
+            "A_t"          : A_ts.ravel(),
+            "sqrtA_t"      : sqrtA_ts.ravel(), 
+            "sqrtA_t_norm" : sqrtA_ts_norm.ravel(),
+            "A_t_norm"     : A_ts_norm.ravel(),
+            "density"      : np.repeat([fr"$\rho =$ {int(r)}" for r in rhos], nt),
         }
         
         # Tick labels
         xticks = [
-            (0, "0"), 
-            (delay, "τ"), 
+            (0 * delay, "0"), 
+            (1 * delay, "τ"), 
             (2 * delay, "2τ"), 
             (3 * delay, "3τ"), 
             (4 * delay, "4τ"), 
-            (5 * delay, "5τ"),
         ]
 
         # Plot curves
@@ -273,19 +285,21 @@ def main(
             "density",
         ).opts(
             xlabel="Simulation time",
-#            ylabel=r"Activated area ($mm^2$)",
-            ylabel=r"$\sqrt{Area}$ ($mm$)",
-#            xlim=(-0.15, t[tslice][-1] + 0.15),
+            xlim=xlim,
             xticks=xticks,
-#            ylim=(-0.05, 1.05),
-#            yticks=[0.0, 0.5, 1.0],
-            linewidth=4,
-            color=cycle,
-            padding=0.05,
+            ylabel=r"$\sqrt{Area}$ ($mm$)",
+#            ylabel=r"$\sqrt{Area}$ (norm.)",
+            ylim=ylim,
+            yticks=[0.0, 0.1, 0.2, 0.3, 0.4],
+            linewidth=2,
+            linestyle=lcycle,
+            color=ccycle,
+#            color="k",
             aspect=1,
         ).overlay(
+            "density"
         ).opts(
-            show_legend=False,
+#            show_legend=False,
             legend_position="right",
             fontscale=1.3,
         )
@@ -297,8 +311,9 @@ def main(
 
 
 main(
-    save=True,
+    save_layout=True,
+    save_curves=True,
 #    plot_frames=(100, 200, 300),
-    delays_to_plot=[3, 6, 9],
-    curves_xlim=(0, 6)
+    delays_to_plot=[2, 4, 6],
+    curves_tmax=4,
 )
