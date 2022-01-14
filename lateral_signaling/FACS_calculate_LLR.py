@@ -23,7 +23,7 @@ def draw_bs_sample(data, samplesize=None):
     return rng.choice(data, size=samplesize)
 
 # Options/files/directories for reading
-data_dir      = os.path.abspath("../data/FACS_data")
+data_dir      = os.path.abspath("../data/FACS")
 metadata_fname     = os.path.join(data_dir, "metadata.csv")
 
 # Options/files/directories for writing

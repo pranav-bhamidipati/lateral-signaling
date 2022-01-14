@@ -16,7 +16,7 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-data_dir     = os.path.abspath("../data/sim_data/20220111_constantdensity/sacred")
+data_dir     = os.path.abspath("../data/simulations/20220111_constantdensity/sacred")
 save_dir     = os.path.abspath("../plots")
 layout_fpath = os.path.join(save_dir, "constant_density_imlayout_")
 curves_fpath = os.path.join(save_dir, "constant_density_sqrtarea_")

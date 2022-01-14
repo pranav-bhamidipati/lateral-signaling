@@ -69,7 +69,7 @@ free_param_names = (
 ####################################
 
 # Paths to data files
-data_dir = os.path.abspath("../data/sim_data")
+data_dir = os.path.abspath("../data/simulations")
 mle_params_fname = "growth_parameters_MLE.csv"
 mle_params_path = os.path.join(data_dir, mle_params_fname)
 

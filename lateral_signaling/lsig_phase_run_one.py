@@ -23,7 +23,7 @@ ex.observers.append(
 )
 
 # Get path to simulation parameters
-data_dir  = os.path.abspath("../data/sim_data")
+data_dir  = os.path.abspath("../data/simulations")
 params_json_path = os.path.join(data_dir, "sim_parameters.json")
 
 # Read from JSON file
@@ -44,7 +44,7 @@ _gamma_R   = float(params["gamma_R"])
 _beta_args = tuple([float(params[k]) for k in params.keys() if k.startswith("beta_")])
 
 # Read in growth parameters
-mle_data_dir = os.path.abspath("../data")
+mle_data_dir = os.path.abspath("../data/MLE")
 mle_params_path = os.path.join(mle_data_dir, "growth_parameters_MLE.csv")
 mle_params_df = pd.read_csv(mle_params_path, index_col=0)
 

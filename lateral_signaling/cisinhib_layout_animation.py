@@ -12,10 +12,12 @@ from matplotlib import animation
 
 import lateral_signaling as lsig
 
+# Path to read data
+data_dir = os.path.abspath("../data/simulations/20211119_sweep_cisparam")
 
 # Path to save animation
 save_dir = os.path.abspath("../plots")
-fpath = os.path.join(save_dir, f"propagation_cis-inhibition_examples_.mp4")
+fpath    = os.path.join(save_dir, "cis_inhibition_examples_animation_.mp4")
         
 def main(
     fpath=fpath,
@@ -31,7 +33,7 @@ def main(
 ):
 
     # Read in data from experiments
-    run_dirs = [f"./sacred/{r}/" for r in sacred_runs]
+    run_dirs = [os.path.join(data_dir, f"sacred/{r}/") for r in sacred_runs]
 
     deltas    = []
     t         = []
@@ -219,30 +221,6 @@ def main(
         
         # Make animation
         _anim_FA.save(_fpath, writer=_writer, dpi=dpi)
-
-#        # Make video
-#        lsig.animate_hex_sheet(
-#            fpath=layout_vid_path,
-#            X_t=X_rho_arr[-1],
-#            var_t=var_rho_t[-1],
-#            rho_t=rhos[-1],
-#            fig=fig,
-#            ax=cbar_ax,
-#            anim=anim_func,
-#            n_frames=100,
-#            fps=15,
-#            dpi=dpi,
-#            title_fun=suptitle_fun,
-#            plot_kwargs=anim_plot_kwargs,
-#            _X_func   = lambda i: X_rho_arr,
-#            _var_func = lambda i: var_rho_t[:, i],
-#            _rho_func = lambda i: rhos,
-#        )
-#
-
-# # Run animation function
-# vmin = 0.
-# vmax = 0.75
 
 main(
     save=True, 

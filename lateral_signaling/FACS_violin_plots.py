@@ -19,7 +19,7 @@ fmt       = "png"
 dpi       = 300
 
 # Set directories for I/O
-data_dir  = os.path.abspath("../data/FACS_data")
+data_dir  = os.path.abspath("../data/FACS")
 plot_dir  = os.path.abspath("../plots")
 
 # Set filenames for I/O

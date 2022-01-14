@@ -16,7 +16,7 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-data_dir = os.path.abspath("../data/sim_data/20220113_increasingdensity/sacred")
+data_dir = os.path.abspath("../data/simulations/20220113_increasingdensity/sacred")
 save_dir = os.path.abspath("../plots")
 fpath    = os.path.join(save_dir, "increasing_density_imlayout_")
 fmt      = "png"
@@ -24,6 +24,7 @@ dpi      = 300
 
 def main(
     plot_days=[],
+    vmax_R_scale=1.,
     pad=0.05,
     save=False,
     fmt=fmt,
@@ -116,7 +117,7 @@ def main(
     # colorscale limits
     plot_kwargs["vmin"] = 0
     vmax_S = S_t[plot_frames][:, ns_mask].max()
-    vmax_R = R_t[plot_frames][:, ns_mask].max()
+    vmax_R = vmax_R_scale * R_t[plot_frames][:, ns_mask].max()
 
     # some args for colorscale
     cmap_S = lsig.kgy
@@ -178,7 +179,8 @@ def main(
 
         # Make colorbars in last column
         if col == pcols - 1:
-            cmap_label = ("GFP", "mCherry")[row]
+            cmap_label  = ("GFP", "mCherry")[row]
+            cmap_extend = ("neither", "max")[row * (vmax_R_scale <= 1.)]
             cbar = plt.colorbar(
                 plt.cm.ScalarMappable(
                     norm=mpl.colors.Normalize(
@@ -187,7 +189,7 @@ def main(
                     cmap=var_kw["cmap"]), 
                 ax=ax,
                 aspect=kw["cbar_aspect"],
-                extend=kw["extend"],
+                extend=cmap_extend,
                 shrink = 0.95,
                 label=cmap_label,
                 ticks=[],
@@ -211,4 +213,5 @@ def main(
 main(
     save=True,
     plot_days=np.arange(1, 8),
+    vmax_R_scale = 0.5,
 )

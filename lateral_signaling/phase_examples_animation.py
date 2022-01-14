@@ -14,9 +14,9 @@ from matplotlib import animation
 
 import lateral_signaling as lsig
 
-example_fpath = os.path.abspath("../data/sim_data/phase_examples.json")
-thresh_fpath  = os.path.abspath("../data/sim_data/phase_threshold.json")
-data_dir      = os.path.abspath("../data/sim_data/20211209_phase_examples/sacred")
+example_fpath = os.path.abspath("../data/simulations/phase_examples.json")
+thresh_fpath  = os.path.abspath("../data/simulations/phase_threshold.json")
+data_dir      = os.path.abspath("../data/simulations/20211209_phase_examples/sacred")
 
 save_dir      = os.path.abspath("../plots")
 fpath         = os.path.join(save_dir, f"phase_examples_.mp4")

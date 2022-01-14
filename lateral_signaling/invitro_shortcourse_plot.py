@@ -16,7 +16,7 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-data_fname = os.path.abspath("../data/propagation_data/singlespot_timeseries.csv")
+data_fname = os.path.abspath("../data/single_spots/singlespot_timeseries.csv")
 save_dir   = os.path.abspath("../plots")
 fpath      = os.path.join(save_dir, "invitro_shortcourse_sqrtarea_")
 fmt        = "png"

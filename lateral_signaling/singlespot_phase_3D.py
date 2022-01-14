@@ -32,9 +32,9 @@ import lateral_signaling as lsig
 # In[4]:
 
 
-data_dir     = os.path.abspath("../data/sim_data/20211201_singlespotphase/sacred")
+data_dir     = os.path.abspath("../data/simulations/20211201_singlespotphase/sacred")
 save_dir     = os.path.abspath("../plots")
-thresh_fpath = os.path.abspath("../data/sim_data/phase_threshold.json")
+thresh_fpath = os.path.abspath("../data/simulations/phase_threshold.json")
 
 save_figs = True
 fig_fmt   = "png"

@@ -4,7 +4,7 @@ import dask.distributed
 
 
 # Location of phase example params
-example_fpath = os.path.abspath("../data/sim_data/phase_examples.json")
+example_fpath = os.path.abspath("../data/simulations/phase_examples.json")
 
 # Set dir for Dask to use (spill to disk, etc.)
 local_dir = os.path.abspath("/home/pbhamidi/scratch/dask-worker-space")

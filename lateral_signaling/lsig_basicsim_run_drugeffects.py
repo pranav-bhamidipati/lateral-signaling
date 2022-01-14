@@ -7,7 +7,7 @@ import pandas as pd
 ex.add_config(dict(drug_condition=""))
 
 # Read in MLE growth parameters
-data_dir  = os.path.abspath("../data")
+data_dir  = os.path.abspath("../data/MLE")
 mle_fpath = os.path.join(data_dir, "growth_parameters_MLE.csv")
 mle_df    = pd.read_csv(mle_fpath, index_col=0)
 
