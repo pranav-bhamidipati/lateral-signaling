@@ -15,7 +15,7 @@ import pandas as pd
 # param_space = np.array(param_space).T.reshape(-1, len(param_space))
 
 config_updates = { # Update the default variables (all others are still the same)
-    "tmax_days": 7.,
+    "tmax_days": 8.,
     # "rows": rows,
     # "cols": cols,
     # "animate": True,

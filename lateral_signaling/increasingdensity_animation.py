@@ -14,7 +14,7 @@ from matplotlib import animation
 
 import lateral_signaling as lsig
 
-data_dir = os.path.abspath("../data/sim_data/20220107_increasingdensity/sacred")
+data_dir = os.path.abspath("../data/sim_data/20220113_increasingdensity/sacred")
 
 save_dir = os.path.abspath("../plots")
 fpath    = os.path.join(save_dir, f"increasingdensity_simulation_.mp4")
@@ -25,7 +25,6 @@ def main(
     save=False,
     writer="ffmpeg",
     n_frames=100,
-    print_frame=False,
     fps=20,
     dpi=300,
 ):
@@ -237,5 +236,4 @@ def main(
 main(
     save=True, 
     n_frames=100,
-    print_frame=True,
 )
