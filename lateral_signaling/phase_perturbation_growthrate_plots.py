@@ -20,7 +20,7 @@ sim_dir    = os.path.abspath("../data/simulations/20220114_phase_perturbations/s
 data_fname = os.path.abspath("../data/whole_wells/drug_conditions_propagation_and_cellcount.csv")
 
 save_dir   = os.path.abspath("../plots")
-save_pfx   = os.path.join(save_dir, "growthrate_perturbation_sqrtarea_")
+save_pfx   = os.path.join(save_dir, "growthrate_perturbation_normarea_")
 fmt        = "png"
 dpi        = 300
 
@@ -37,51 +37,43 @@ def main(
 ):
     
     ## Read invitro data from file
-    data = pd.read_csv(data_fname)
-    data = data.loc[data.Condition.str.contains("cell/mm2")]
-    data = data.astype({"Condition": "category", "days": float})
-    
+    data = pd.read_csv(data_fname).dropna()
+
     # Get last time point
-    tmax_days = data.days.max()
+    tmax_days = data.Day.max()
 
     # Get conditions
-    conds = np.unique(data.Condition.values)
+    conds = data.Condition.unique()
 
-    # Convert area units and take sqrt
-    data["Area_mm2"]  = data["area (um2)"] / 1e6
-    del data["area (um2)"]
-    data["sqrtA_mm"] = np.sqrt(data["Area_mm2"])
+    # Get normalized area
+    data["Area_norm"] = data["GFP_um2"] / data["GFP_um2"].max()
 
-    # Get means and standard deviations
-    agg_data = data.groupby(
-        ["Condition", "days"]
-    ).agg(
-        [np.mean, np.std, np.max]
-    ).reset_index()
-    agg_data.columns = ['_'.join(col).strip("_") for col in agg_data.columns.values]
-    agg_data["sqrtA_mm_mean_norm"] = agg_data["sqrtA_mm_mean"] / data["sqrtA_mm"].max()
-    agg_data["sqrtA_mm_std_norm"]  = agg_data["sqrtA_mm_std"]  / data["sqrtA_mm"].max()
-    
+#    # Convert area units and take sqrt
+#    data["Area_mm2"]  = data["GFP_um2"] / 1e6
+#    del data["GFP_um2"]
+#    data["sqrtA_mm"] = np.sqrt(data["Area_mm2"])
+
     # axis limits with padding
-    xmin = 0.0
+    xmin = 1.0
     xmax = tmax_days
     ymin = 0.0
-    ymax = 0.45 
+    ymax = 1.0
     xlim = xmin - pad * (xmax - xmin), xmax + pad * (xmax - xmin)
     ylim = ymin - pad * (ymax - ymin), ymax + pad * (ymax - ymin)
     
     # axis ticks
-    yticks = (0, 0.1, 0.2, 0.3, 0.4)
+    yticks = (0, 0.2, 0.4, 0.6, 0.8, 1.0)
+    xticks = (1, 2, 3, 4, 5, 6, 7, 8)
     
     # Set colors/linestyles/markers
-    ccycle = lsig.sample_cycle(lsig.yob[1:], conds.size)
+    ccycle = hv.Cycle([lsig.purple, lsig.greens[3], lsig.yob[1]])
     
     # Other options
     opts = dict(
         xlabel="Days",
         xlim=xlim,
-        xticks=(0, 2, 4, 6, 8),
-        ylabel=r"$\sqrt{Area}$ ($mm$)",
+        xticks=xticks,
+        ylabel="Area (norm.)",
         ylim=ylim,
         yticks=yticks,
         aspect=1.3,
@@ -91,104 +83,43 @@ def main(
     )
 
     ## Plot in vitro data
-    curves = [
-        hv.Curve(
-            agg_data.loc[agg_data.Condition == cond],
-            kdims=["days"],
-            vdims=["sqrtA_mm_mean", "Condition"],
-            label=("1x", "2x", "4x")[i],
-        ).opts(
-            c=ccycle.values[i],
-            linewidth=3,
-        )
-        for i, cond in enumerate(conds)
-    ]
+    invitro_curves = hv.Curve(
+        data,
+        kdims=["Day"],
+        vdims=["Area_norm", "Condition"],
+    ).groupby(
+        "Condition"
+    ).opts(
+        c=ccycle,
+        linewidth=2,
+    ).overlay()
     
-    errors = [
-        hv.ErrorBars(
-            agg_data.loc[agg_data.Condition == cond],
-            kdims=["days"],
-            vdims=["sqrtA_mm_mean", "sqrtA_mm_std"],
-            label=("1x", "2x", "4x")[i],
-        ).opts(
-            edgecolor=ccycle.values[i],
-            linewidth=1,
-            capsize=2,
-        )
-        for i, cond in enumerate(conds)
-    ]
-    
+    invitro_points = hv.Scatter(
+        data,
+        kdims=["Day"],
+        vdims=["Area_norm", "Condition"],
+    ).groupby(
+        "Condition"
+    ).opts(
+        c=ccycle,
+        s=40,
+    ).overlay()
+
     invitro_plot = hv.Overlay(
-        [c * e for c, e in zip(curves, errors)]
+        [invitro_curves, invitro_points]
     ).opts(**opts)
     
     if save:
 
         # Print update and save
-        fpath = prefix + "invitro_" + suffix
+        fpath =  prefix + "invitro_" + suffix
         _fpath = fpath + "." + fmt
         print(f"Writing to: {_fpath}")
         hv.save(invitro_plot, fpath, fmt=fmt, dpi=dpi)
+    
+    return
+    0/0
 
-    ## Plot summary of max sqrt(area)
-    
-    # Get the maximum sqrt(area) achieved by each spot 
-    max_data = data.groupby(["Condition", "SpotNum"]).agg(np.max).reset_index()
-    max_data["xval"] = 1 + max_data.Condition.cat.codes.values
-
-    # Get mean of max(sqrt(area)) for each condition
-    mean_max = max_data.groupby("Condition").agg(np.mean).reset_index()
-    
-    # Apply jitter for swarm plotting
-    max_data["jitter_xval"] = (
-        max_data.xval.values + np.random.normal(0, 0.1, size=max_data.shape[0])
-    )
-    
-    # Construct line segments through the means for plotting
-    width = 0.5
-    xvals = mean_max["xval"].values
-    means = mean_max["sqrtA_mm"].values
-    mean_max_arr = np.array([xvals - width/2, means, xvals + width/2, means]).T
-    
-    # Plot points and means
-    max_points = hv.Scatter(
-        max_data,
-        kdims=["jitter_xval"],
-        vdims=["sqrtA_mm"],
-    ).opts(
-        c="k",
-        s=45,
-        alpha=0.6,
-    )
-    
-    mean_max_segs = hv.Segments(
-        mean_max_arr,
-    ).opts(
-        color=lsig.cols_blue[-2],
-        linewidth=4,
-    )
-    
-    invitro_max_plot = hv.Overlay(
-        [max_points, mean_max_segs]
-    ).opts(
-        xlabel="Density",
-        xlim=(0.5, 3.5),
-        xticks=[(1, "1x"), (2, "2x"), (3, "4x")],
-        ylabel=opts["ylabel"],
-        ylim=opts["ylim"],
-        yticks=opts["yticks"],
-        aspect=0.9,
-        fontsize=dict(labels=24, ticks=18),
-    )
-
-    if save:
-
-        # Print update and save
-        fpath = prefix + "invitro_max_" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(invitro_max_plot, fpath, fmt=fmt, dpi=dpi)
-    
     ## Read simulated data
     run_dirs    = glob(os.path.join(sim_dir, "[0-9]*"))
     
