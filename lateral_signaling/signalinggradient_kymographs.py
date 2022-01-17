@@ -16,13 +16,13 @@ save_figs = True
 fmt       = "png"
 dpi       = 300
 
+# Paths to read data
 data_dir  = os.path.abspath("../data/imaging/signaling_gradient")
-save_dir  = os.path.abspath("../plots")
+lp_data_path = os.path.join(data_dir, "line_profile_data.json")
 
-# Set paths to data
-lp_data_path  = os.path.join(data_dir, "line_profile_data.json")
-gfp_kymo_path = os.path.join(save_dir, "signaling_gradient_kymograph_gfpnorm." + fmt)
-bfp_kymo_path = os.path.join(save_dir, "signaling_gradient_kymograph_bfpnorm." + fmt)
+# Paths to write data
+save_dir  = os.path.abspath("../plots")
+save_prefix = os.path.join(save_dir, "signaling_gradient_kymograph_")
 
 # Load data from file
 with open(lp_data_path, "r") as f:
@@ -70,13 +70,11 @@ gfp_data = data_samp[5:].T
 bfp_norm = np.array([lsig.normalize(d, min(d), max(d)) for d in bfp_data.T]).T
 gfp_norm = np.array([lsig.normalize(d, min(d), max(d)) for d in gfp_data.T]).T
  
-# Get mean position of the signaling wave (mean of distribution)
+# Get median position of the signaling wave (median of distribution)
 median_position = np.empty((nt,), dtype=position.dtype)
 for i, d in enumerate(gfp_norm.T):
     dist = d[::-1] / d.sum()
     median_position[i] = position[np.searchsorted(np.cumsum(dist), 0.5)]
-
-
 
 # Get wave velocities and mean velocity
 velocities = np.diff(median_position)
@@ -86,9 +84,17 @@ vbar = np.abs(velocities.mean())
 
 # Plot kymographs as images
 bounds = (t_days.min() - 0.5, position.min(), t_days.max() + 0.5, position.max())
-image_opts = dict(
-    colorbar=False,
-    cbar_ticks=[(0, "0"), (1, "1")], 
+gfpimage_opts = dict(
+    colorbar=True,
+#    cbar_ticks=[(0, "0"), (1, "1")], 
+    cbar_ticks=0, 
+    cbar_width=0.07,
+    cbar_padding=-0.099,
+)
+bfpimage_opts = dict(
+    colorbar=True,
+#    cbar_ticks=[(0, "0"), (1, "1")], 
+    cbar_ticks=0, 
     cbar_width=0.1,
 )
 plot_opts = dict(
@@ -99,25 +105,29 @@ plot_opts = dict(
     aspect=0.6,
     fontscale=1.2,
 )
-gfp_kymo = (
+gfp_kymo = hv.Overlay([
     hv.Image(
         gfp_norm,
         bounds=bounds,
     ).opts(
         cmap=lsig.kgy,
-        clabel="GFP (norm.)",
-        **image_opts,
-    ) * hv.Scatter(
+#        clabel="GFP (norm.)",
+        clabel="",
+        **gfpimage_opts,
+    ), 
+    hv.Scatter(
         (t_days, median_position)
     ).opts(
         c="w",
         s=30,
-    ) * hv.Curve(
+    ),
+    hv.Curve(
         (t_days, median_position)
     ).opts(
         c="w",
         linewidth=1,
-    ) * hv.Text(
+    ),
+    hv.Text(
         4.5, 4.25, r"$\bar{\mathit{v}} = " + f"{vbar:.2f}" \
             + r"$" + "\n" + r"$mm\, day^{-1}$" ,
         halign="left",
@@ -125,23 +135,31 @@ gfp_kymo = (
     ).opts(
         c="w"
     )
-).opts(**plot_opts)
+]).opts(**plot_opts)
 
 bfp_kymo = hv.Image(
     bfp_norm,
     bounds=bounds,
 ).opts(
     cmap=cc.kbc,
-    clabel="BFP (norm.)",
-    **image_opts,
+#    clabel="BFP (norm.)",
+    clabel="",
+    **bfpimage_opts,
     **plot_opts,
 )
 
 # Save
 if save_figs:
     
+    gfp_kymo_path = save_prefix + "gfpnorm"
+    bfp_kymo_path = save_prefix + "bfpnorm"
+
+    _path = gfp_kymo_path + "." + fmt
+    print(f"Writing to: {_path}")
     hv.save(gfp_kymo, gfp_kymo_path, dpi=dpi, fmt=fmt)
-    print(f"Figure saved to: {gfp_kymo_path}")
     
+    _path = bfp_kymo_path + "." + fmt
+    print(f"Writing to: {_path}")
     hv.save(bfp_kymo, bfp_kymo_path, dpi=dpi, fmt=fmt)
-    print(f"Figure saved to: {bfp_kymo_path}")
+
+
