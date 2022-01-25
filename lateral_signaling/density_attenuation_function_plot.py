@@ -14,12 +14,14 @@ import matplotlib.pyplot as plt
 import lateral_signaling as lsig
 
 save_dir = os.path.abspath("../plots")
-fname    = "weighted_adjacency_"
+fname    = "signaling_vs_density_curve_"
 
 def main(
     rows=12,
-    boxsize=8,
-    imsize=101,
+    m=1.,
+    rhomin=1,
+    rhomax=7,
+    nrho=101,
     cmap="viridis",
     figsize=(6.2, 6.5),
     save=False,
@@ -27,44 +29,33 @@ def main(
     dpi=300,
 ):
     
-    nrho = 101
-    rho_space = np.linspace(1, 7, nrho)
-    beta_space = lsig.beta_rho_exp(rho_space, 1.)
+    ## Construct data for example
+    # make cell sheet
+    cols = rows
+    X = lsig.hex_grid(rows, cols)
+    center = lsig.get_center_cells(X)
+    X = X - X[center]
 
-
-    # In[ ]:
-
-
-    rhos = np.array([1., 2., 4.])
-    betas = lsig.beta_rho_exp(rhos, 1.)
-    X_rho = [
-        X / np.sqrt(rho)
-        for rho in rhos
-    ]
-
-    _extent = np.min([-X_rho[-1].min(axis=0).max(), X_rho[-1].max(axis=0).min()])
-    xlim = -_extent, _extent
-    ylim = -_extent, _extent
-
-    plot_xlim = 0.5, 7.5
-    plot_ylim = -0.05, 1.05
-
+    # Store cell type
     var = np.zeros(X.shape[0], dtype=np.float32)
     var[center] = 1.
 
-
-    # In[ ]:
-
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-
-    # # Title of plot
-    # plt.suptitle(r"Coefficient $\beta$ encodes density-dependence")
-
-    # Plot curve
-    ax.plot(rho_space, beta_space)
-
-    # Plot lattices as inset plots
+    # Sample beta(rho, m) in the defined space
+    rho_space = np.linspace(rhomin, rhomax, nrho)
+    beta_space = lsig.beta_rho_exp(rho_space, m)
+    
+    # Set which rhos to use as examples
+    rhos = np.array([1., 2., 4.])
+    betas = lsig.beta_rho_exp(rhos, m)
+    X_rho = np.multiply.outer(1/np.sqrt(rhos), X)
+    
+    ## Plotting options
+    # Set axis limits for inset plots
+    _extent = np.min([-X_rho[-1].min(axis=0).max(), X_rho[-1].max(axis=0).min()])
+    xlim = -_extent, _extent
+    ylim = -_extent, _extent
+    
+    # Set locations for insets
     inset_locs = np.array([
         [1.34, 0.72 ],
         [2.59, 0.335],
@@ -72,22 +63,36 @@ def main(
     ])
     ins_width, ins_height = 1.75, 0.275
 
-    for i in range(3):
-        x_ins, y_ins = inset_locs[i]
-        endpoint_x = x_ins + ins_width/6
-        endpoint_y = y_ins + ins_height/2
+    # Set axis limits for larger plot
+    plot_xlim = rhomin - 0.5, rhomax + 0.5
+    plot_ylim = -0.05, 1.05
+    
+    ## Make plot
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    # Plot curve
+    ax.plot(rho_space, beta_space)
+
+    # Plot lattices as inset plots
+    for i, _ in enumerate(rhos):
         
+        # Make inset axis
+        x_ins, y_ins = inset_locs[i] 
         axins = ax.inset_axes(
             [x_ins, y_ins, ins_width, ins_height],
             transform=ax.transData,
         )
         
+        # Draw line from inset to curve
+        endpoint_x = x_ins + ins_width/6
+        endpoint_y = y_ins + ins_height/2
         ax.plot(
             (endpoint_x, rhos[i]), 
             (endpoint_y, betas[i]), 
             c="k",
         )
         
+        # Plot cells
         lsig.plot_hex_sheet(
             ax=axins, 
             X=X_rho[i], 
@@ -100,8 +105,9 @@ def main(
             lw=0.2,
             # axis_off=False,
         )
-        
-
+    
+    # Add titles/labels
+    ax.set_title("Effect of density on signaling", fontsize=18)
     ax.text(
         rho_space.max(), 
         beta_space.max(), 
@@ -110,29 +116,32 @@ def main(
         va="top", 
         fontsize=14,
     )
-
     ax.text(
         rho_space.max(), 
         beta_space.max() - 0.125, 
-        r"$m=1.00$", 
+        f"$m={m:.2f}$", 
         ha="right", 
         va="top", 
         fontsize=14,
     )
+    
+    # Set other options
     ax.set_xlim(plot_xlim)
     ax.set_ylim(plot_ylim)
     ax.set_xlabel(r"$\rho$", fontsize=16)
     ax.set_ylabel("Signaling coefficient", fontsize=16)
     plt.tick_params(labelsize=12)
     # ax.set_aspect(4)
+    
+    plt.tight_layout()
 
     if save:
-        fig_fname = "signaling_dampening_w_density"
-        fig_path = os.path.join(save_dir, fig_fname + "." + fmt)
-        plt.savefig(fig_path, dpi=dpi, format=fmt)
+        fpath = os.path.join(save_dir, fname + "." + fmt)
+        print(f"Writing to: {fpath}")
+        plt.savefig(fpath, dpi=dpi, format=fmt)
 
 
 main(
-    save=False,
+    save=True,
 )
 
