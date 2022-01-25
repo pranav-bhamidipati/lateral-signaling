@@ -47,6 +47,44 @@ ref_cell_diam_um = ref_cell_diam_mm * 1e3  # um
 
 ####### Differential equation right-hand-side functions
 
+def receiver_rhs(
+    R, 
+    R_delay, 
+    Adj, 
+    sender_idx, 
+    beta_func, 
+    beta_args, 
+    alpha, 
+    k, 
+    p, 
+    lambda_, 
+    g, 
+    rho, 
+    S_delay, 
+    gamma_R,
+):
+    
+    # Get signaling as a function of density
+    beta = beta_func(rho, *beta_args)
+    
+    # Get input signal across each interface
+    S_bar = beta * (Adj @ S_delay)
+
+    # Calculate dR/dt
+    dR_dt = (
+        alpha
+        * (S_bar ** p)
+        / (
+            k ** p 
+            + S_bar ** p
+        )
+        - R
+    )
+    dR_dt[sender_idx] = 0
+    
+    return dR_dt
+
+
 def signal_rhs(
     S,
     S_delay,
@@ -126,8 +164,6 @@ def reporter_rhs(
     
     return dR_dt
 
-
-
 ####### General utils
 
 # Vectorized integer ceiling
@@ -171,7 +207,10 @@ def pol2cart(rt):
 ####### Color utils
 
 # Colors for specific uses
-_sender_clr="#e330ff"
+_sender_clr   = "#e330ff"
+_sender_clr2  = "#C43EA8BF"
+_gfp_green    = "#0B7E18"
+_receiver_red = "#C25656E6"
 
 # Color swatches
 
