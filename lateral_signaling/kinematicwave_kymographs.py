@@ -67,11 +67,10 @@ def main(
     bounds = (t_days.min() - 0.5, position.min(), t_days.max() + 0.5, position.max())
     gfpimage_opts = dict(
         colorbar=True,
-    #    cbar_ticks=[(0, "0"), (1, "1")], 
+#        cbar_ticks=[(0, "0"), (1, "1")], 
         cbar_ticks=0, 
         cbar_width=0.05,
         cbar_padding=-0.13,
-        colorbar_opts=dict(shrink=0.1),
     )
     bfpimage_opts = dict(
         colorbar=True,
@@ -144,9 +143,6 @@ def main(
         print(f"Writing to: {_path}")
         hv.save(bfp_kymo, bfp_kymo_path, dpi=dpi, fmt=fmt)
 
-
-
-# Options for saving
 main(
     save = True,
 )
