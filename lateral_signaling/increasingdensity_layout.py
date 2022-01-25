@@ -26,9 +26,11 @@ def main(
     plot_days=[],
     vmax_R_scale=1.,
     pad=0.05,
+    print_updates=False,
     save=False,
     fmt=fmt,
     dpi=dpi,
+    transparent=True,
 ):
 
     # Read in data from experiments
@@ -154,7 +156,10 @@ def main(
         figsize=(1.7 * pcols, 1.5 * prows),
         gridspec_kw=dict(width_ratios=[1] * (pcols - 1) + [1.25]),
     )
-     
+    
+    if print_updates:
+        print("Plotting images")
+
     # Plot sheets
     for i, ax in enumerate(axs.flat):
         
@@ -176,6 +181,9 @@ def main(
             **var_kw,
             **kw,
         )
+        
+        if print_updates:
+            print(f"\t {i+1} / {prows * pcols}")
 
         # Make colorbars in last column
         if col == pcols - 1:
@@ -207,11 +215,12 @@ def main(
         print("Writing to:", _fpath)
 
         # Save
-        plt.savefig(_fpath, dpi=dpi)
+        plt.savefig(_fpath, dpi=dpi, transparent=transparent)
 
 
 main(
+    print_updates=True,
     save=True,
     plot_days=np.arange(1, 8),
-    vmax_R_scale = 0.5,
+    vmax_R_scale = 0.4,
 )
