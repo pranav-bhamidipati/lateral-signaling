@@ -26,7 +26,7 @@ fname    = os.path.join(save_dir, "phase_boundaries_3D_")
 
 def main(
     figsize=(8, 8),
-    xyz=["g", "rho_max", "rho_0"],
+    xyz=["g_inv_days", "rho_max", "rho_0"],
     save=False,
     fmt="png",
     dpi=300,
@@ -84,7 +84,7 @@ def main(
 
     # Concatenate into one dataset
     df = pd.concat(dfs).reset_index(drop=True)
-    nrow = df.shape[0]
+    df["g_inv_days"] = lsig.g_to_units(df["g"].values)
 
     # Assign phases and corresponding plot colors
     df["phase"] = (df.v_init > v_init_thresh).astype(int) * (1 + (df.n_act_fin > 0).astype(int))
@@ -113,21 +113,20 @@ def main(
     mpl.rcParams['axes.labelsize'] = 18
     mpl.rcParams['xtick.labelsize'] = 12
     mpl.rcParams['ytick.labelsize'] = 12
-    text_kw = dict(
-        ha="center",
-        fontsize=18,
-        zorder=1000,
-    )
 
     # axis options
+
+    xticks = lsig.g_to_units(np.array([0.0, 0.5, 1.0, 1.5, 2.0, 2.5]))
+    xtlabs = tuple([f"{v:.1f}" for v in xticks])
     axis_kw = dict(
-        xlim3d = [0,  2.5],
+        xlim3d = [0, lsig.g_to_units(2.5)],
         ylim3d = [0, 6.25],
         zlim3d = [0, 6.25],
-        xlabel = r"$g$",
+        xlabel = r"$g$ ($days^{-1}$)",
         ylabel = r"$\rho_{max}$",
         zlabel = r"$\rho_0$",
-        xticks = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5],
+        xticks = xticks,
+        xtlabs = xtlabs,
         yticks = [0, 2, 4, 6],
         zticks = [0, 2, 4, 6],
     )
@@ -152,10 +151,15 @@ def main(
         **axis_kw
     )
 
-    text_kw.update(dict(transform=ax.transAxes))
-    ax.text2D(0.225 * figsize[0], 0.350 * figsize[1], "Attenuated", c="w", **text_kw)
-    ax.text2D(0.200 * figsize[0], 0.225 * figsize[1],  "Unlimited", c="k", **text_kw)
-    ax.text2D(0.340 * figsize[0], 0.250 * figsize[1],    "Limited", c="w", **text_kw)
+    text_kw = dict(
+        ha="center",
+        fontsize=20,
+        zorder=1000,
+    )
+
+    ax.text(1.5, 4.0, 5.5, "Attenuated", "y", c="k", **text_kw)
+    ax.text(1.5, 2.5, 1.0,  "Unlimited", "y", c="k", **text_kw)
+    ax.text(1.5, 5.3, 1.5,    "Limited", "y", c="w", **text_kw)
 
     if save:
         _fpath = str(fname)
@@ -277,6 +281,8 @@ def plot_phase_boundaries_3D(
     elev=18,
     max_edge_length=0.9,
     zbias=1e-3,
+    xticks=(),
+    xtlabs=(),
     **kw
 ):
     
@@ -307,6 +313,7 @@ def plot_phase_boundaries_3D(
     
     # Set up plot
     ax3d.set(**kw)
+    plt.xticks(xticks, xtlabs)
     ax3d.azim = azim
     ax3d.elev = elev
 
