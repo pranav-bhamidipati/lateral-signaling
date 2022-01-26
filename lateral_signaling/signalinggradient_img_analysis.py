@@ -24,29 +24,29 @@ from matplotlib.collections import PatchCollection
 import holoviews as hv
 hv.extension("matplotlib")
 
-# Paths to read data
-data_dir          = os.path.abspath("../data/imaging/kinematic_wave")
-image_dir         = os.path.join(data_dir, "processed")
-circle_data_path  = os.path.join(data_dir, "roi_circle.json")
-lp_param_path     = os.path.join(data_dir, "line_profile.json")
+# Paths to read
+data_dir           = os.path.abspath("../data/imaging/signaling_gradient")
+image_dir          = os.path.join(data_dir, "processed")
+circle_data_path   = os.path.join(data_dir, "roi_circle_data.csv")
+circle_params_path = os.path.join(data_dir, "roi_circle_params.json")
+lp_params_path     = os.path.join(data_dir, "line_profile.json")
 
-
-# Paths to save data
-save_dir          = os.path.abspath("../plots")
-im_layout_path    = os.path.join(save_dir, "kinematic_wave_images__")
-lp_plot_path      = os.path.join(save_dir, "kinematic_wave_line_profiles__")
-lp_data_path      = os.path.join(data_dir, "__line_profile_data.json")
+# Paths to write data
+save_dir       = os.path.abspath("../plots")
+im_layout_path = os.path.join(save_dir, "signaling_gradient_images__")
+lp_plot_path   = os.path.join(save_dir, "signaling_gradient_line_profiles__")
+lp_data_path   = os.path.join(data_dir, "__line_profile_data.json")
 
 def main(
-    save_data = False,
-    save_figs = False,
-    fmt       = "png",
-    dpi       = 300,
+    save_data=False,
+    save_figs=False,
+    fmt="png",
+    dpi=300,
 ):
 
     # Get image filenames
     files = glob(os.path.join(image_dir, "*.tif*"))
-    files = [os.path.realpath(f) for f in np.sort(files)]
+    files = [os.path.realpath(f) for f in files]
     n_ims = len(files)
 
     # Select blue and green fluorescence images (BFP and GFP)
@@ -55,47 +55,49 @@ def main(
 
     # Get unique name for each image
     im_names = []
-    for f in files:
+    for f in (*files_B, *files_G):
         end = os.path.split(f)[1]
         im_names.append(end[:end.index(".")])
-
+        
     # Get time points as days/hours
     t_hours = [float(imn[-6:-3]) for imn in im_names]
     t_days  = [h / 24 for h in t_hours]
 
-    # Load images
+    # Load images and convert to image collections
     load_B = lambda f: io.imread(f).astype(np.uint8)[:, :, 2]
-    ims_B = io.ImageCollection(files_B, load_func=load_B).concatenate()
+    ims_B = io.ImageCollection(files_B, load_func=load_B)
 
     load_G = lambda f: io.imread(f).astype(np.uint8)[:, :, 1]
-    ims_G = io.ImageCollection(files_G, load_func=load_G).concatenate()
+    ims_G = io.ImageCollection(files_G, load_func=load_G)
 
     # Get images as Numpy array
-    ims = np.concatenate([ims_B, ims_G])
+    ims = list(ims_B) + list(ims_G)
 
     # Save shape of each image
-    imshape = ims.shape[1:]
+    imshapes = (ims_B[0].shape, ims_G[0].shape)
 
-    # Load circular ROI
-    with open(circle_data_path, "r") as f: 
-        circle_data = json.load(f)
-        
-        # Center of circle
-        center = np.array([circle_data["x_center"], circle_data["y_center"]])
-        
-        # Radius of whole well
-        radius = circle_data["radius"]
-        
-        # Diameter of the well
-        well_diameter_mm = circle_data["well_diameter_mm"]
+    # Load circular ROIs
+    circle_verts_df = pd.read_csv(circle_data_path)
+    circle_verts = circle_verts_df.iloc[:, 1:].values
 
+    # Diameter of the well
+    with open(circle_params_path, "r") as f: 
+        circle_params = json.load(f)
+        well_diameter_mm = circle_params["well_diameter_mm"]
 
     # Load parameters for line profile
-    with open(lp_param_path, "r") as f: 
+    with open(lp_params_path, "r") as f: 
         lp_data = json.load(f)
         src = np.array([lp_data["x_src"], lp_data["y_src"]])
         dst = np.array([lp_data["x_dst"], lp_data["y_dst"]])
         lp_width = int(lp_data["width"])
+        
+        # Which image was used to draw line profile
+        im_for_lp = int(lp_data["im_for_lp"])
+
+        # Get center and radius of the well used to draw the line profile
+        center = np.array([circle_verts[im_for_lp, :2]])
+        radius = circle_verts[im_for_lp, 2]
 
     # Calculate corners given the endpoints and width
     lp_corners = lsig.get_lp_corners(src, dst, lp_width)
@@ -107,37 +109,45 @@ def main(
     rows, cols = 2, 5
     cbar_aspect = 10
     gs_kw = dict(width_ratios = [1] * (cols - 1) + [1.25])
-    fig, axs = plt.subplots(rows, cols, figsize=(15, 4.5), gridspec_kw=gs_kw)
+    fig, axs = plt.subplots(rows, cols, figsize=(15, 5.5), gridspec_kw=gs_kw)
 
     for i, ax in enumerate(axs.flat):
         
         # Plot image
-        cmap_ = (cc.cm["kbc"], lsig.kgy)[i // cols]    
+        cmap_ = (cc.cm["kbc"], lsig.kgy)[i // cols]
         ax.imshow(
             ims[i],
             cmap=cmap_,
         )
         ax.axis("off")
         
-        # Plot line-profile in first column
+        # Plot line profile in first column
         if i % cols == 0:
             
-            #ax.plot(*np.array([src, dst]).T, color="w", linewidth=1)
-            ax.arrow(*src, *(0.92 * (dst - src)), color="w", width=1, head_width=50,)
+            # Get line profile for this image
+            *_c, _r = circle_verts[i]
+            _src  = lsig.transform_point(src, center, radius, _c, _r)
+            _dst  = lsig.transform_point(dst, center, radius, _c, _r)
+            _lp_width = lp_width * _r / radius
+            _lp_corners = lsig.get_lp_corners(_src, _dst, _lp_width)
             
-            pc = PatchCollection([Polygon(lp_corners)])
-            pc.set(edgecolor="y", linewidth=1.0, facecolor=(0, 0, 0, 0), )
+            # Plot
+            ax.arrow(*_dst, *(0.95 * (_src - _dst)), color="w", width=1, head_width=50,)
+            pc = PatchCollection([Polygon(_lp_corners)])
+            pc.set(edgecolor="y", linewidth=1.5, facecolor=(0, 0, 0, 0), )
             ax.add_collection(pc)
-        
-        # Add colorbar to last column
+
         if i % cols == cols - 1:
+#            _shrink = (0.9, 0.87)[i // cols]
             plt.colorbar(cm.ScalarMappable(cmap=cmap_), ax=ax, shrink=0.95, ticks=[], aspect=cbar_aspect)
+        
+        # Re-orient
+        ax.invert_yaxis()
+        ax.invert_xaxis()
 
     plt.tight_layout()
 
-    # Save
     if save_figs:
-
         _path = im_layout_path + "." + fmt
         print("Writing to:", _path)
         plt.savefig(_path, format=fmt, dpi=dpi)
@@ -150,15 +160,22 @@ def main(
         _im = im.copy()
         _im = lsig.rescale_img(_im)
         
-        # Get profile
+        # Get line profile in image-specific coordinates
+        *_c, _r = circle_verts[i]
+        _src  = lsig.transform_point(src, center, radius, _c, _r)
+        _dst  = lsig.transform_point(dst, center, radius, _c, _r)
+        _lp_width = int(lp_width * _r / radius)
+        
+        # Measure fluorescence along profile
         prof = msr.profile_line(
             image=_im.T, 
-            src=src, 
-            dst=dst, 
-            linewidth=lp_width,
+            src=_src, 
+            dst=_dst, 
+            linewidth=_lp_width,
             mode="constant", 
             cval=-200, 
         )
+        
         line_profiles.append(prof)
 
     # Get positions along profile
@@ -195,7 +212,7 @@ def main(
         _path = lp_plot_path + "." + fmt
         print("Writing to:", _path)
         hv.save(curves_layout, lp_plot_path, fmt=fmt, dpi=dpi)
-
+    
     # Store line profile data
     lp_data_dict = {
         "lp_length": lp_length_mm, 
@@ -212,7 +229,7 @@ def main(
 
 
 main(
-    save_data = True,
-    save_figs = True,
+    save_figs=True, 
+    save_data=True,
 )
 
