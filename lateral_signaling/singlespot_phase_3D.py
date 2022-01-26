@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[1]:
-
-
 import os
 from glob import glob
 import json
@@ -18,184 +12,160 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
-
-
-# In[3]:
-
-
-# %load_ext blackcellmagic
-# %matplotlib inline
-
-
-# <hr>
-
-# In[4]:
-
-
-data_dir     = os.path.abspath("../data/simulations/20211201_singlespotphase/sacred")
-save_dir     = os.path.abspath("../plots")
-thresh_fpath = os.path.abspath("../data/simulations/phase_threshold.json")
-
-save_figs = True
-fig_fmt   = "png"
-dpi       = 300
-
-
-# ---
-
-# __Get threshold for $\mathit{v}_{\text{init}}$__
-
-# In[5]:
-
-
-with open(thresh_fpath, "r") as f:
-    threshs = json.load(f)
-    v_init_thresh = float(threshs["v_init_thresh"])
-
-
-# __Read in phase metric data__
-
-# In[6]:
-
-
-# Get directory for each run
-run_dirs = glob(os.path.join(data_dir, "[0-9]*"))
-
-# Store each run's data in a DataFrame
-dfs = []
-for rd_idx, rd in enumerate(tqdm(run_dirs)):    
-    
-    _config_file = os.path.join(rd, "config.json")
-    _results_file = os.path.join(rd, "results.hdf5")
-    
-    if (not os.path.exists(_config_file)) or (not os.path.exists(_results_file)):
-        continue
-    
-    # Get some info from the run configuration
-    with open(_config_file, "r") as c:
-        config = json.load(c)
-        
-        # Initial density, carrying capacity
-        rho_0  = config["rho_0"]
-        rho_max  = config["rho_max"]
-        
-    # Get remaining info from run's data dump
-    with h5py.File(_results_file, "r") as f:
-        
-        # Phase metrics
-        v_init    = np.asarray(f["v_init_g"])
-        n_act_fin = np.asarray(f["n_act_fin_g"])
-        
-        # Proliferation rates and time-points
-        if rd_idx == 0:
-            g = list(f["g_space"])
-            t = np.asarray(f["t"])
-    
-    # Assemble dataframe
-    _df = pd.DataFrame(dict(
-        v_init=v_init,
-        n_act_fin=n_act_fin,
-        g=g,
-        rho_0=rho_0,
-        rho_max=rho_max,
-    ))
-    dfs.append(_df)
-
-
-# In[7]:
-
-
-# Concatenate into one dataset
-df = pd.concat(dfs).reset_index(drop=True)
-nrow = df.shape[0]
-
-# Assign phases and corresponding plot colors
-df["phase"] = (df.v_init > v_init_thresh).astype(int) * (1 + (df.n_act_fin > 0).astype(int))
-df["color"] = np.array(lsig.cols_blue)[df.phase]
-
-
-# ---
-
-# __View distributions of phase metrics__
-
-# In[8]:
-
-
-# hv.Histogram(df.v_init.values)
-fig, ax = plt.subplots()
-
-# Histogram
-plt.hist(df.v_init, bins=50, color="k", density=True);
-
-# Threshold used
-plt.vlines(v_init_thresh, *plt.gca().get_ylim(), color="k", linestyles="dashed")
-
-plt.xlabel(r"$v_{init}$", fontsize=16)
-plt.ylabel("Frequency", fontsize=16)
-plt.tick_params(labelsize=12)
-
-plt.tight_layout()
-
-if save_figs:
-    fname = "v_init_histogram"
-    fpath = os.path.join(save_dir, fname + "." + fig_fmt)
-    plt.savefig(fpath, dpi=dpi)
-
-
-# In[9]:
-
-
-# hv.Histogram(df.v_init.values)
-fig = plt.figure()
-gs  = fig.add_gridspec(1, 3)
-
-# ax0 = fig.add_subplot(gs[0, 0])
-# plt.axis("off")
-
-ax1 = fig.add_subplot(gs[0, 0])
-
-pct_off = (df.n_act_fin == 0).sum() / df.shape[0]
-
-plt.fill([-1, -1, 1, 1], [0,       1,       1, 0], lsig.col_gray)
-plt.fill([-1, -1, 1, 1], [0, pct_off, pct_off, 0], "k"          )
-plt.title(r"  $n_{\mathrm{act, fin}}$ = 0", loc="left",   fontsize=16, y=-0.075)
-plt.title(f"{pct_off:.1%}\n",               loc="center", fontsize=14, y=pct_off-0.05)
-plt.xlim(-2, 2)
-plt.axis("off")
-
-ax2 = fig.add_subplot(gs[:, 1:])
-
-n_act_fin = df.n_act_fin[df.n_act_fin > 0].values
-
-nbins = 50
-bins = np.geomspace(1, 6400, nbins + 1)
-
-# Histogram
-# plt.hist(logn_act_fin, bins=500, color="k", density=True);
-plt.hist(df.n_act_fin, bins=bins, color="k", density=True, log=True);
-
-plt.xlabel(r"$n_{\mathrm{act, fin}}$", fontsize=16)
-ax2.semilogx()
-plt.ylabel("Frequency", fontsize=16)
-plt.tick_params(labelsize=12)
-
-plt.tight_layout()
-
-if save_figs:
-    fname = "n_act_fin_histogram"
-    fpath = os.path.join(save_dir, fname + "." + fig_fmt)
-    plt.savefig(fpath, dpi=dpi)
-
-
-# ---
-
-# __Plot phase boundaries in 3D__
-
-# In[78]:
-
-
 from itertools import islice
 
+
+# Reading
+data_dir     = os.path.abspath("../data/simulations")
+sacred_dir   = os.path.join(data_dir, "20211201_singlespotphase/sacred")
+thresh_fpath = os.path.join(data_dir, "phase_threshold.json")
+
+# Writing
+save_dir = os.path.abspath("../plots")
+fname    = os.path.join(save_dir, "phase_boundaries_3D_")
+
+def main(
+    figsize=(8, 8),
+    xyz=["g", "rho_max", "rho_0"],
+    save=False,
+    fmt="png",
+    dpi=300,
+):
+
+    ## Read in and assemble data
+    # Get threshold for v_init
+    with open(thresh_fpath, "r") as f:
+        threshs = json.load(f)
+        v_init_thresh = float(threshs["v_init_thresh"])
+
+
+    # Read in phase metric data
+    run_dirs = glob(os.path.join(sacred_dir, "[0-9]*"))
+
+    # Store each run's data in a DataFrame
+    dfs = []
+    for rd_idx, rd in enumerate(tqdm(run_dirs)):    
+        
+        _config_file = os.path.join(rd, "config.json")
+        _results_file = os.path.join(rd, "results.hdf5")
+        
+        if (not os.path.exists(_config_file)) or (not os.path.exists(_results_file)):
+            continue
+        
+        # Get some info from the run configuration
+        with open(_config_file, "r") as c:
+            config = json.load(c)
+            
+            # Initial density, carrying capacity
+            rho_0  = config["rho_0"]
+            rho_max  = config["rho_max"]
+            
+        # Get remaining info from run's data dump
+        with h5py.File(_results_file, "r") as f:
+            
+            # Phase metrics
+            v_init    = np.asarray(f["v_init_g"])
+            n_act_fin = np.asarray(f["n_act_fin_g"])
+            
+            # Proliferation rates and time-points
+            if rd_idx == 0:
+                g = list(f["g_space"])
+                t = np.asarray(f["t"])
+        
+        # Assemble dataframe
+        _df = pd.DataFrame(dict(
+            v_init=v_init,
+            n_act_fin=n_act_fin,
+            g=g,
+            rho_0=rho_0,
+            rho_max=rho_max,
+        ))
+        dfs.append(_df)
+
+    # Concatenate into one dataset
+    df = pd.concat(dfs).reset_index(drop=True)
+    nrow = df.shape[0]
+
+    # Assign phases and corresponding plot colors
+    df["phase"] = (df.v_init > v_init_thresh).astype(int) * (1 + (df.n_act_fin > 0).astype(int))
+    df["color"] = np.array(lsig.cols_blue)[df.phase]
+
+    ## Plot phase boundaries in 3D
+    # Phase pairs to plot - (X, Y, Z) correspond to (0,1,2) 
+    phase_pairs  = [
+        (0, 1), 
+        (1, 2), 
+        (0, 2),
+    ]
+
+    # Colors for phase regions
+    phase_colors = lsig.cols_blue[::-1]
+
+    # Rotation vectors - optionally used for better triangulation
+    #   when a part of the phase boundary is orthogonal to XY plane
+    rot_idx  = (1,) 
+    rot_vecs = ([ 1.3, -0.5,  0.2],)
+
+    # Maximum allowed edge length in a triangulation
+    max_edge_length = 0.9
+
+    # Text options
+    mpl.rcParams['axes.labelsize'] = 18
+    mpl.rcParams['xtick.labelsize'] = 12
+    mpl.rcParams['ytick.labelsize'] = 12
+    text_kw = dict(
+        ha="center",
+        fontsize=18,
+        zorder=1000,
+    )
+
+    # axis options
+    axis_kw = dict(
+        xlim3d = [0,  2.5],
+        ylim3d = [0, 6.25],
+        zlim3d = [0, 6.25],
+        xlabel = r"$g$",
+        ylabel = r"$\rho_{max}$",
+        zlabel = r"$\rho_0$",
+        xticks = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5],
+        yticks = [0, 2, 4, 6],
+        zticks = [0, 2, 4, 6],
+    )
+
+    # Set up plot
+    fig, ax = plt.subplots(
+        figsize=figsize,
+        subplot_kw=dict(projection="3d")
+    )
+    ax.zaxis.set_rotate_label(False)
+
+    # Plot phase boundaries as surfaces
+    plot_phase_boundaries_3D(
+        ax3d=ax,
+        data=df,
+        xyz=xyz,
+        rot_idx=rot_idx,
+        rot_vecs=rot_vecs,
+        phase_colors=phase_colors,
+        phase_pairs=phase_pairs,
+        max_edge_length=max_edge_length,
+        **axis_kw
+    )
+
+    text_kw.update(dict(transform=ax.transAxes))
+    ax.text2D(0.225 * figsize[0], 0.350 * figsize[1], "Attenuated", c="w", **text_kw)
+    ax.text2D(0.200 * figsize[0], 0.225 * figsize[1],  "Unlimited", c="k", **text_kw)
+    ax.text2D(0.340 * figsize[0], 0.250 * figsize[1],    "Limited", c="w", **text_kw)
+
+    if save:
+        _fpath = str(fname)
+        if not _fpath.endswith(fmt):
+            _fpath += "." + fmt
+        print("Writing to:", _fpath)
+        plt.savefig(_fpath, dpi=dpi)
+
+## Define functions to draw phase boundaries
+##   Using a rudimentary ray tracing technique
 def window(seq, n):
     "Returns a sliding window (of width n) over data from the iterable"
     "   s -> (s0,s1,...s[n-1]), (s1,s2,...,sn), ...                   "
@@ -297,7 +267,10 @@ def plot_phase_boundaries_3D(
     ax3d,
     data,
     xyz,
+    rot_idx,
+    rot_vecs, 
     phase_pairs,
+    phase_colors,
     phase_col="phase",
     alpha = 0.9,
     azim=15,
@@ -312,9 +285,9 @@ def plot_phase_boundaries_3D(
     
     # Get which coordinates were sampled along each axis
     grid_axes = (
-        np.unique(df[x]),
-        np.unique(df[y]),
-        np.unique(df[z]),
+        np.unique(data[x]),
+        np.unique(data[y]),
+        np.unique(data[z]),
     )
 
     # Get phase values in terms of x/y/z axes
@@ -398,91 +371,6 @@ def plot_phase_boundaries_3D(
         )
 
 
-# In[117]:
-
-
-# The XYZ axes of the phase diagram
-xyz = ["g", "rho_max", "rho_0"]
-
-# Phase pairs to plot
-phase_pairs  = [
-    (0, 1), 
-    (1, 2), 
-    (0, 2),
-]
-
-# Colors for phase regions
-phase_colors = lsig.cols_blue[::-1]
-
-# Rotation vectors - optionally used for better triangulation
-#   when a part of the phase boundary is orthogonal to XY plane
-rot_idx  = (1,) 
-rot_vecs = ([ 1.3, -0.5,  0.2],)
-
-# Maximum allowed edge length in a triangulation
-max_edge_length = 0.9
-
-# Additional axis options
-axis_kw = dict(
-    xlim3d = [0,  2.5],
-    ylim3d = [0, 6.25],
-    zlim3d = [0, 6.25],
-    xlabel = r"$g$",
-    ylabel = r"$\rho_{max}$",
-    zlabel = r"$\rho_0$",
-    xticks = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5],
-    yticks = [0, 2, 4, 6],
-    zticks = [0, 2, 4, 6],
+main(
+    save=True,
 )
-
-text_kw = dict(
-    transform=ax.transAxes, 
-    ha="center",
-    fontsize=18,
-    zorder=1000,
-)
-
-
-# In[128]:
-
-# %matplotlib inline
-# %matplotlib widget
-
-# Adjust font sizes
-mpl.rcParams['axes.labelsize'] = 18
-mpl.rcParams['xtick.labelsize'] = 12
-mpl.rcParams['ytick.labelsize'] = 12
-
-# Set up plot
-figsize = (8, 8)
-fig, ax = plt.subplots(
-    figsize=figsize,
-    subplot_kw=dict(projection="3d")
-)
-ax.zaxis.set_rotate_label(False)
-
-# Plot phase boundaries as surfaces
-plot_phase_boundaries_3D(
-    ax3d=ax,
-    data=df,
-    xyz=xyz,
-    phase_pairs=phase_pairs,
-    max_edge_length=max_edge_length,
-    **axis_kw
-)
-
-ax.text2D(0.225 * figsize[0], 0.350 * figsize[1], "Attenuated", c="w", **text_kw)
-ax.text2D(0.200 * figsize[0], 0.225 * figsize[1],  "Unlimited", c="k", **text_kw)
-ax.text2D(0.340 * figsize[0], 0.250 * figsize[1],    "Limited", c="w", **text_kw)
-
-if save_figs:
-    fname = "phase_boundaries_3D"
-    fpath = os.path.join(save_dir, fname + "." + fig_fmt)
-    plt.savefig(fpath, dpi=dpi)
-
-
-# In[ ]:
-
-
-
-
