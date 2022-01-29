@@ -18,18 +18,31 @@ import matplotlib.pyplot as plt
 import lateral_signaling as lsig
 
 
-# Reading
-data_dir       = os.path.abspath("../data/simulations/")
-sacred_dir     = os.path.join(data_dir, "20211209_phase_2D/sacred")
-thresh_fpath   = os.path.join(data_dir, "phase_threshold.json")
-examples_fpath = os.path.join(data_dir, "phase_examples.json")
+# Reading simulated data
+data_dir      = os.path.abspath("../data/simulations/")
+sacred_dir    = os.path.join(data_dir, "20211209_phase_2D/sacred")
+thresh_fpath  = os.path.join(data_dir, "phase_threshold.json")
+examples_json = os.path.join(data_dir, "phase_examples.json")
+examples_dir  = os.path.join(data_dir, "20211209_phase_examples/sacred")
+
+# Reading growth parameter estimation data
+mle_dir       = os.path.abspath("../data/MLE")
+mle_fpath     = os.path.join(mle_dir, "growth_parameters_MLE.csv")
+pert_clr_json = os.path.join(mle_dir, "perturbation_colors.json")
 
 # Writing
-save_dir = os.path.abspath("../plots")
+save_dir  = os.path.abspath("../plots")
 fpath_pfx = os.path.join(save_dir, "phase_diagram_2D_")
 
 def main(
     pad=0.05,
+    area_ceiling=1e5,
+    bg_alpha=0.8,
+    marker_dim="max_area_um2",
+    marker_scale=130,
+    legend_bgcol="#bebebe",
+    legend_width=0.8,
+    legend_pt_ypos=0.5,
     save=False,
     prefix=fpath_pfx,
     suffix="_",
@@ -39,13 +52,14 @@ def main(
 
     ## Read in and assemble data
     # Get phase example values
-    with open(examples_fpath, "r") as f:
+    with open(examples_json, "r") as f:
         ex_dict  = json.load(f)
         ex_name   = ex_dict["name"]
         ex_xval   = ex_dict["g"]
         ex_yval   = ex_dict["rho_0"]
         ex_xlabel = ex_dict["label_x"]
         ex_ylabel = ex_dict["label_y"]
+        ex_params = np.array([ex_xval, ex_yval]).T
 
     # Get threshold for v_init
     with open(thresh_fpath, "r") as f:
@@ -55,8 +69,8 @@ def main(
     # Read in phase metric data
     run_dirs = glob(os.path.join(sacred_dir, "[0-9]*"))
 
-    # Store each run's data in a DataFrame
-    dfs = []
+    # Store each run's data and in a DataFrame
+    dfs     = []
     for rd_idx, rd in enumerate(tqdm(run_dirs)):    
         
         _config_file = os.path.join(rd, "config.json")
@@ -69,13 +83,21 @@ def main(
         with open(_config_file, "r") as c:
             config = json.load(c)
             
-            # Initial density, carrying capacity
+            # Intrinsic growth rate, initial density, carrying capacity
+            g       = config["g"]
             rho_0   = config["rho_0"]
             rho_max = config["rho_max"]
             
         # Get remaining info from run's data dump
         with h5py.File(_results_file, "r") as f:
             
+            # Number of activated cells and density vs. time
+            ncells_t_g = np.asarray(f["S_t_g_actnum"])
+            rho_t_g    = np.asarray(f["rho_t_g"])
+            
+            # Calculate maximum area for each param set in batch
+            maxArea_g = lsig.ncells_to_area(ncells_t_g, rho_t_g).max(axis=1)
+
             # Phase metrics
             v_init    = np.asarray(f["v_init_g"])
             n_act_fin = np.asarray(f["n_act_fin_g"])
@@ -87,11 +109,12 @@ def main(
         
         # Assemble dataframe
         _df = pd.DataFrame(dict(
-            v_init=v_init,
-            n_act_fin=n_act_fin,
             g=g_space,
             rho_0=rho_0,
             rho_max=rho_max,
+            v_init=v_init,
+            n_act_fin=n_act_fin,
+            max_area_mm2=maxArea_g,
         ))
         dfs.append(_df)
 
@@ -123,10 +146,12 @@ def main(
         lsig.g_to_units(g_space[0]  - pad * g_range),
         lsig.g_to_units(g_space[-1] + pad * g_range),
     ])
+    x_range = xlim[1] - xlim[0]
     ylim = tuple([
         rho_0_space[0]  - pad * rho_0_range,
         rho_0_space[-1] + pad * rho_0_range,
     ])
+    y_range = ylim[1] - ylim[0]
 
     # Restrict to cases where rho_0 <= rho_max (net growth)
     df = df.loc[df["rho_0"] <= df["rho_max"], :]
@@ -225,619 +250,319 @@ def main(
         print(f"Writing to: {_fpath}")
         hv.save(phasediagram_labeled, fpath, fmt=fmt, dpi=dpi)
 
+    # Isolate aggregate data for examples
+    ex_df = df.loc[df["example"].str.len() > 0]
 
-main(
-    save=True,
-    suffix="_",
-)
-0/0
+    # Read data for phase examples
+    ex_dirs = glob(os.path.join(examples_dir, "[0-9]*"))
+    ex_dfs = []
+    for rd_idx, rd in enumerate(ex_dirs):    
+        _config_file = os.path.join(rd, "config.json")
+        _results_file = os.path.join(rd, "results.hdf5")
 
+        # Get some info from the run configuration
+        with open(_config_file, "r") as c:
+            config = json.load(c)
+            
+            # Expression threshold
+            k       = config["k"]
 
-# ## Plot time-series of examples
+            # Intrinsic growth rate, initial density, carrying capacity
+            g       = config["g"]
+            rho_0   = config["rho_0"]
 
-# <hr>
+        # Get remaining info from run's data dump
+        with h5py.File(_results_file, "r") as f:
+            
+            # Time-course and density
+            t      = np.asarray(f["t"])
+            t_days = lsig.t_to_units(t)
+            rho_t  = np.asarray(f["rho_t"])
 
-# In[70]:
+            # Expression
+            S_t   = np.asarray(f["S_t"])
+        
+        # Get phase
+        phase, label = ex_df.loc[
+            np.isclose(ex_df["g"].values, g) 
+            & np.isclose(ex_df["rho_0"].values, rho_0)
+        ][["phase", "example"]].values.flat
+        
+        # Calculate sqrt(Area) over time
+        n_act_t    = (S_t > k).sum(axis=1) - 1
+        sqrtA_mm_t = np.sqrt(lsig.ncells_to_area(n_act_t, rho_t))
 
+        # Store data for this example
+        _df = pd.DataFrame(dict(
+            g=g,
+            rho_0=rho_0,
+            phase=phase,
+            label=label,
+            t_days=t_days,
+            sqrtA_mm_t=sqrtA_mm_t,
+        ))
+        ex_dfs.append(_df)
 
-# Make data
-example_data_list = [
-    dict(
-        t=t_sample,
-        example=[i] * t_sample.size,
-        actnum=actnum_example_sample[i],
-        actrad=actrad_example_sample[i],
-        actarea=actarea_example_sample[i],
-    )
-    for i, _ in enumerate(examples_idx)
-]
-
-
-# In[34]:
-
-
-# Plot
-example_plots = [
-    hv.Curve(
-        example_data_list[i],
-        kdims=["t"],
-        vdims=["actarea"],
-    ).opts(
-        xlabel=("", "", "time")[i],
-        xticks=0,
-#         ylabel=("", "radius (cell diameters)", "")[i],
-#         yticks=[0, 25],
-#         ylim=(-1, 28),
+    # Assemble data
+    example_data = pd.concat(ex_dfs).reset_index(drop=True)
+    
+    ## Make plot
+    # Plotting options
+    ex_plot_kw = lambda i: dict(
         linewidth=10,
-        fontscale=3,
-        color=phase_colors[examples_idx][i],
-    )
-    for i, _ in enumerate(examples_idx)
-]
-
-
-# In[71]:
-
-
-examples_overlay = hv.Layout(example_plots).opts(vspace=0.4, sublabel_size=0).cols(1)
-examples_overlay
-
-
-# In[62]:
-
-
-nt_t = np.searchsorted(lsig.t_to_units(t), [1.])[0]
-
-
-# In[67]:
-
-
-examples_max_idx = S_actnum_mean[examples_idx].argmax(axis=1)
-examples_max_idx[0] = int(nt_t * 1.5)
-
-examples_max_idx
-
-
-# In[68]:
-
-
-lsig.t_to_units(t)[examples_max_idx], S_actnum_mean[examples_max_idx]
-
-
-# In[36]:
-
-
-example_max_points = hv.Scatter(
-    (lsig.t_to_units(t)[examples_max_idx], S_actnum_mean[examples_max_idx]),
-).opts(
-)
-
-example_plots_horizontal = [
-    hv.Curve(
-        example_data_list[i],
-        kdims=["t"],
-        vdims=["actrad"],
-    ).opts(
+        color=phase_colors[i],
         xlabel=("", "days", "")[i],
         xlim=(0, 8),
         xticks=(0, 8),
-        ylabel=("radius (cell diam.)", "", "")[i],
-        yticks=[0, 25],
-        ylim=(-1, 28),
-        linewidth=10,
+        ylabel=(r"$\sqrt{Area}$ ($mm$)", "", "")[i],
+        yticks=([0, 0.2, 0.4, 0.6], 0, 0)[i],
+        ylim=(-0.05, 0.75),
         fontscale=3,
-        color=phase_colors[examples_idx][i],
     )
-    for i, _ in enumerate(examples_idx)
-]
-
-examples_overlay_horizontal = hv.Layout(example_plots_horizontal).opts(hspace=0.25, sublabel_size=0).cols(3)
-
-
-# In[37]:
-
-
-examples_overlay_horizontal
-
-
-# ## Save
-
-# In[38]:
-
-
-fname = "phasediagram_examples_radius_timeseries_horizontal"
-
-fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-
-if save_figs:
-    hv.save(examples_overlay_horizontal, fpath, dpi=dpi)
-
-
-# <hr>
-
-# # Plot stimulated area
-
-# In[134]:
-
-
-area_ceiling = 1e5
-S_A_max_trunc = np.minimum(S_A_max, area_ceiling)
-
-
-# In[135]:
-
-
-stim_mask = np.logical_and(S_A_max > 0.1 * area_ceiling, S_A_max < area_ceiling)
-
-# stimulated_points_outline3 = hv.Scatter(
-#     (
-#         lsig.g_to_units(param_space_agg[stim_mask, 0]), 
-#         param_space_agg[stim_mask, 1],
-#     ),
-# ).opts(
-#     marker = "s",
-#     edgecolor = "k",
-#     linewidth=2,
-#     s=70,
-# )
-
-# stimulated_plot = hv.Scatter(
-#     (
-#         lsig.g_to_units(param_space_agg[stim_mask, 0]), 
-#         param_space_agg[stim_mask, 1],
-#     ),
-# ).opts(
-#     xlim = xlim,
-#     ylim = (ylim[0] * 18/25, ylim[1] * 18/25),
-#     aspect = 25/18,
-#     xlabel = r"proliferation rate ($days^{-1}$)",
-#     xticks = (0.5, 1.0, 1.5),
-#     ylabel = r"init. density (x 100% confl.)",
-#     yticks = (0, 1, 2, 3, 4, 5),
-#     marker = "s",
-# #     edgecolor = "w",
-#     s=65,
-# #     c="w",
-#     c="#e5e5e5",
-# #     c=stimulated_pct[mask],
-# #     cmap=cmo.algae,
-#     colorbar=True,
-# #     logx=True, 
-#     fontscale=1.,
-# )
-
-stimulated_points_bg = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[mask, 0]), 
-        param_space_agg[mask, 1],
-    ),
-).opts(
-    marker = "s",
-    edgecolor = (0,0,0,0),
-    c=lsig.hexa2hex(phase_colors[mask], alpha=0.8),
-    linewidth=0,
-    s=65,
-)
-
-stimulated_var_points = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[mask, 0]), 
-        param_space_agg[mask, 1],
-    ),
-).opts(
-    marker=".",
-#     s=130 * (R_actnum_mean.max(axis=1) > 0)[mask],
-    s=130 * S_A_max_trunc[mask] / area_ceiling,
-#     c="k",
-    c="w",
-#     c=phase_colors[mask], 
-)
-
-# stimulated_sat_points = hv.Scatter(
-#     (
-#         lsig.g_to_units(param_space_agg[phase==0, 0]), 
-#         param_space_agg[phase==0, 1],
-#     ),
-# ).opts(
-#     marker="s",
-#     s=70,
-#     c="k",
-# )
-
-points_scale_bg_xvals = np.array([
-    [*(1.9 * np.ones(21)), *(1.95 * np.ones(21))],
-    [*np.linspace(0.25, 5.0, 21), *np.linspace(0.25, 5.0, 21)]
-])
-
-var_points_scale_bg = hv.Scatter(
-    points_scale_bg_xvals.T
-).opts(
-    marker = "s",
-    edgecolor = (0,0,0,0),
-    c=lsig.col_gray,
-    linewidth=0,
-    s=65,
-)
-
-
-var_points_scale = hv.Scatter(
-    (1.925 * np.ones(11), np.linspace(0.375, 4.875, 11))
-).opts(
-    marker=".",
-    s=130 * np.arange(1, -0.01, -0.1),
-    c="w",
-#     aspect=0.1
-)
-
-x_stretch = (2 - xlim[0]) / (xlim[1] - xlim[0])
-
-stimulated_overlay = (
-#     stimulated_points_outline * stimulated_plot * stimulated_var_points
-    stimulated_points_bg * stimulated_var_points * var_points_scale_bg * var_points_scale
-).opts(
-#     xlim = (xlim[0], 2),
-#     ylim = (ylim[0] * 18/25, ylim[1] * 18/25),
-#     aspect = 25/18 * x_stretch,
-    xlim = (xlim[0], 2),
-    ylim = ylim,
-    aspect = x_stretch,
-#     xlim = xlim,
-#     ylim = ylim,
-    xlabel = r"proliferation rate ($days^{-1}$)",
-    xticks = (0.5, 1.0, 1.5),
-    ylabel = r"init. density (x 100% confl.)",
-    yticks = (0, 1, 2, 3, 4, 5, 6),
-)
-
-
-# In[136]:
-
-
-hv.output(stimulated_overlay, dpi=dpi//2)
-
-
-# ## Save
-
-# In[137]:
-
-
-if save_figs:
-    fname = "phasediagram_stimulated_area"
+    layout_kw = dict(
+        hspace=0.25, 
+        sublabel_size=0,
+    )
     
-    fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-    hv.save(stimulated_overlay, fpath, dpi=dpi)
+    # Plot
+    example_plots = [
+        hv.Curve(
+            data=example_data.loc[example_data.phase==i],
+            kdims=["t_days"],
+            vdims=["sqrtA_mm_t"],
+        ).opts(**ex_plot_kw(i))
+        for i in np.sort(example_data.phase.unique())
+    ]
+    examples_layout = hv.Layout(
+        example_plots
+    ).opts(
+        **layout_kw
+    ).cols(3)
 
-
-# <hr>
-
-# In[76]:
-
-
-np.array([
-    [S_A_max_trunc[phase == 0].min(), S_A_max_trunc[phase == 0].max()], # OFF
-    [S_A_max_trunc[phase == 1].min(), S_A_max_trunc[phase == 1].max()], # ON-OFF
-    [S_A_max_trunc[phase == 2].min(), S_A_max_trunc[phase == 2].max()], # ON
-]) / 1e4
-
-
-# In[77]:
-
-
-x_stretch = (2 - xlim[0]) / (xlim[1] - xlim[0])
-
-stimulated_plot2 = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[phase == 1, 0]), 
-        param_space_agg[phase == 1, 1],
-    ),
-).opts(
-    xlim = (xlim[0], 2),
-    ylim = (ylim[0] * 18/25, ylim[1] * 18/25),
-    aspect = 25/18 * x_stretch,
-    xlabel = r"proliferation rate ($days^{-1}$)",
-    xticks = (0.5, 1.0, 1.5),
-    ylabel = r"init. density (x 100% confl.)",
-    yticks = (0, 1, 2, 3, 4, 5),
-    marker = "s",
-#     edgecolor = "w",
-    s=70,
-    c="w",
-#     c=stimulated_pct[mask],
-#     cmap=cmo.algae,
-#     colorbar=True,
-#     logx=True, 
-    fontscale=1.,
-)
-
-stimulated_points_outline2 = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[phase == 1, 0]), 
-        param_space_agg[phase == 1, 1],
-    ),
-).opts(
-    marker = "s",
-    edgecolor = "k",
-    linewidth=2,
-    s=70,
-)
-
-stimulated_var_points2 = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[phase == 1, 0]), 
-        param_space_agg[phase == 1, 1],
-    ),
-).opts(
-    marker=".",
-    s=130 * S_A_max_trunc[phase == 1] / area_ceiling,
-    c="k",
-)
-
-var_points_scale = hv.Scatter(
-    (1.95 * np.ones(11), np.linspace(0.25, 4.25, 11))
-).opts(
-    marker=".",
-    s=130 * np.arange(1, -0.01, -0.1),
-    c="k",
-#     aspect=0.1
-)
-
-stimulated_overlay2 = stimulated_points_outline2 * stimulated_plot2 * stimulated_var_points2 * var_points_scale
-
-
-# In[78]:
-
-
-hv.output(stimulated_overlay2, dpi=dpi//2)
-
-
-# ## Save
-
-# In[79]:
-
-
-fname = "phasediagram_stimulated_area_v2"
-
-fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-
-if save_figs:
-    hv.save(stimulated_overlay2, fpath, dpi=dpi)
-
-
-# __Make version just based on percent stimulation__
-
-# In[80]:
-
-
-x_stretch = (2 - xlim[0]) / (xlim[1] - xlim[0])
-
-stim_mask = np.logical_and((S_A_max_trunc / area_ceiling) > 0.025, (S_A_max_trunc / area_ceiling) < 0.975)
-
-stimulated_plot3 = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[stim_mask, 0]), 
-        param_space_agg[stim_mask, 1],
-    ),
-).opts(
-    xlim = (xlim[0], 2),
-    ylim = (ylim[0] * 18/25, ylim[1] * 18/25),
-    aspect = 25/18 * x_stretch,
-    xlabel = r"proliferation rate ($days^{-1}$)",
-    xticks = (0.5, 1.0, 1.5),
-    ylabel = r"init. density (x 100% confl.)",
-    yticks = (0, 1, 2, 3, 4, 5),
-    marker = "s",
-#     edgecolor = "w",
-    s=70,
-    c="w",
-#     c=stimulated_pct[mask],
-#     cmap=cmo.algae,
-#     colorbar=True,
-#     logx=True, 
-    fontscale=1.,
-)
-
-stimulated_points_outline3 = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[stim_mask, 0]), 
-        param_space_agg[stim_mask, 1],
-    ),
-).opts(
-    marker = "s",
-    edgecolor = "k",
-    linewidth=2,
-    s=70,
-)
-
-stimulated_var_points3 = hv.Scatter(
-    (
-        lsig.g_to_units(param_space_agg[stim_mask, 0]), 
-        param_space_agg[stim_mask, 1],
-    ),
-).opts(
-    marker=".",
-    s=130 * (np.minimum(S_A_max, 2e5) / 2e5)[stim_mask],
-    c="k",
-)
-
-
-stimulated_overlay3 = stimulated_points_outline3 * stimulated_plot3 * stimulated_var_points3 * var_points_scale
-
-
-# In[81]:
-
-
-hv.output(stimulated_overlay3, dpi=dpi//2)
-
-
-# ## Save
-
-# In[82]:
-
-
-if save_figs:
-    fname = "phasediagram_percent_stimulated_version3"
+    if save:
+        
+        fpath = prefix + "example_curves" + suffix
+        _fpath = fpath + "." + fmt
+        print(f"Writing to: {_fpath}")
+        hv.save(examples_layout, fpath, fmt=fmt, dpi=dpi)
     
-    fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-    hv.save(stimulated_overlay3, fpath, dpi=dpi)
+    ## Make phase diagram with perturbations
+    with open(pert_clr_json, "r") as f:
+        ks, vs = json.load(f)
+        
+        # Get colors of perturbations from file
+        ks = [tuple(_k) for _k in ks]
+        color_dict = dict(zip(ks, vs)) 
+        
+        # Get densities
+        rhos = np.sort([k[1] for k in ks])
 
+    # Get dataframe with growth parameters from file
+    pdf = pd.read_csv(mle_fpath, index_col=0)
 
-# <hr>
-
-# ## Add perturbed conditions to phase diagram
-
-# In[83]:
-
-
-phasediagram_bare = phasediagram.options(dict(
-    Points=dict(edgecolor=None, s=65)
-)).opts(
-    xaxis=None,
-    yaxis=None,
-)
-
-
-# In[84]:
-
-
-hv.output(phasediagram_bare * hv.HLine(2.75), dpi=dpi//2)
-
-
-# ## Save
-
-# In[62]:
-
-
-if save_figs:
-    fname = "phasediagram_bare"
+    # Calculate difference between CI bounds and mean
+    pdf["g_inv_days_90CIdiff_lo"] = pdf["g_inv_days"] - pdf["g_inv_days_90CI_lo"]
+    pdf["g_inv_days_90CIdiff_hi"] = pdf["g_inv_days_90CI_hi"] - pdf["g_inv_days"]
     
-    fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-    hv.save(phasediagram_bare, fpath, dpi=dpi)
+    # Add rows for different density conditions
+    pdf["rho_0"] = rhos[0]
+    untreated_row = pdf.loc[pdf.condition=="untreated", :]
+    untreated_df = pd.concat([untreated_row] * len(rhos))
+    untreated_df["rho_0"] = rhos
+    pdf = pd.concat([pdf, untreated_df])
+    pdf = pdf.drop_duplicates().reset_index(drop=True)
 
-
-# In[57]:
-
-
-dens_points = hv.Points(
-    [
-        (mle_params_df.g_inv_days.values[2], 1.),
-        (mle_params_df.g_inv_days.values[2], 2.),
-        (mle_params_df.g_inv_days.values[2], 4.),
-#         (mle_params_df.g_inv_days.values[0], 1.),
-#         (mle_params_df.g_inv_days.values[1], 1.),
+    # Select data for plotting
+    pert_columns = [
+        "condition",
+        "rho_0",
+        "g_inv_days", 
+        "g_inv_days_90CIdiff_lo",
+        "g_inv_days_90CIdiff_hi",
     ]
-).opts(
-    marker="^",
-    c=[
-        *lsig.yob[1:], 
-#         lsig.purple, 
-#         lsig.greens[3]
-    ],
-    s=250,
-    ec=lsig.col_black,
+    pdf = pdf.loc[:, pert_columns]
+    
+    # Assign colors
+    pdf["color"] = [
+        color_dict[(c, d)] 
+        for c, d in pdf.loc[:, ["condition", "rho_0"]].values
+    ]
+
+    # Remove axis labels and phase examples
+#    phasediagram_bare = phasediagram_bare.options(
+#    )
+    
+    # Set plotting options
+#    axis_off_args = (
+#        hv.opts.Scatter(
+#            edgecolor=None,
+#        ),
+#        hv.opts.Overlay(
+#            xaxis=None,
+#            yaxis=None,
+#        ),
+#    )
+    pert_kw = dict(
+        marker="^",
+        color="color",
+        s=250,
+        ec=lsig.col_black,
+    )
+    err_kw = dict(
+#        linewidth=3,
+        capsize=4,
+        color="k",
+    )
+    
+    # Plot growth and density perturbations
+    g_pts = hv.Points(
+        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
+        kdims=["g_inv_days", "rho_0"],
+        vdims=["color"],
+    ).opts(**pert_kw)
+    g_err = hv.ErrorBars(
+        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
+        kdims=["g_inv_days"],
+        vdims=["rho_0", "g_inv_days_90CIdiff_lo", "g_inv_days_90CIdiff_hi"],
+        horizontal=True,
+    ).opts(**err_kw)
+    rho0_pts = hv.Points(
+        data=pdf.loc[pdf["condition"]=="untreated", :],
+        kdims=["g_inv_days", "rho_0"],
+        vdims=["color"],
+    ).opts(**pert_kw)
+
+    drug_overlay      = (phasediagram_bare * g_pts * g_err).opts(xaxis=None, yaxis=None)
+    dens_overlay      = (phasediagram_bare * rho0_pts).opts(xaxis=None, yaxis=None)
+    drug_dens_overlay = (phasediagram_bare * g_pts * rho0_pts).opts(xaxis=None, yaxis=None)
+
+#    drug_overlay      = (phasediagram_bare * g_pts * g_err).opts(*axis_off_args)
+#    dens_overlay      = (phasediagram_bare * rho0_pts).opts(*axis_off_args)
+#    drug_dens_overlay = (phasediagram_bare * g_pts * rho0_pts).opts(*axis_off_args)
+    
+    if save:
+
+        fpath = prefix + "growth_perturbations" + suffix
+        _fpath = fpath + "." + fmt
+        print(f"Writing to: {_fpath}")
+        hv.save(drug_overlay, fpath, fmt=fmt, dpi=dpi)
+
+        fpath = prefix + "initdensity_perturbations" + suffix
+        _fpath = fpath + "." + fmt
+        print(f"Writing to: {_fpath}")
+        hv.save(dens_overlay, fpath, fmt=fmt, dpi=dpi)
+
+        fpath = prefix + "both_perturbations" + suffix
+        _fpath = fpath + "." + fmt
+        print(f"Writing to: {_fpath}")
+        hv.save(drug_dens_overlay, fpath, fmt=fmt, dpi=dpi)
+
+    ## Plot maximum area of a signaling spot
+    
+    # Convert to square microns
+    df["max_area_um2"] = df["max_area_mm2"] * 1e6
+
+    # Convert to length units
+    df["max_sqrtarea_um"] = np.sqrt(df["max_area_um2"])
+    df["max_sqrtarea_mm"] = np.sqrt(df["max_area_mm2"])
+
+    ## Plotting options
+    
+    # Truncate areas above a ceiling value
+    df[marker_dim + "_trunc"] = np.minimum(df[marker_dim], area_ceiling)
+    
+    # Get size of marker for each point (scales with truncated area)
+    df["marker_size"] = marker_scale * df[marker_dim + "_trunc"] / area_ceiling
+
+    # Make background versions of phase colors
+    phase_bgcolors = lsig.hexa2hex(phase_colors, bg_alpha).tolist()
+    bare_kw["color"] = hv.Cycle(phase_bgcolors)
+    
+    # Set options for plotting
+    marker_kw = dict(
+        marker=".",
+        c="w",
+        edgecolor="k",
+        linewidth=0.25,
+    )
+    
+    ## Set vertices for a custom legend box
+    legend_xmin = xlim[0] + x_range * (1 - legend_width) / 2
+    legend_xmax = xlim[1] - x_range * (1 - legend_width) / 2
+    legend_ymin = ylim[1] - y_range * 0.20
+    legend_ymax = ylim[1] - y_range * 0.01
+    legend_verts = np.array([
+        (legend_xmin, legend_ymin),
+        (legend_xmin, legend_ymax), 
+        (legend_xmax, legend_ymax), 
+        (legend_xmax, legend_ymin), 
+    ])
+
+    ## Make plot
+    phasediagram_bg = hv.Scatter(
+        data=df,
+        kdims=["g_inv_days"],
+        vdims=["rho_0", "phase"],
+    ).groupby(
+        "phase"
+    ).opts(
+        **bare_kw,
+    ).overlay()
+    
+    stim_pts = hv.Scatter(
+        data=df,
+        kdims=["g_inv_days"],
+        vdims=["rho_0", "marker_size"],
+    ).opts(
+        s="marker_size",
+        **marker_kw
+    )
+    
+    legend_bg = hv.Polygons(
+        legend_verts,
+    ).opts(
+        edgecolor="k",
+        linewidth=1,
+        facecolor=legend_bgcol,
+    )
+
+    legend_pt_verts = np.array([
+        np.linspace(legend_xmin, legend_xmax, 13)[1:-1], 
+        np.repeat(
+            (1 - legend_pt_ypos) * legend_ymin  
+            + legend_pt_ypos * legend_ymax, 
+            11
+        ),
+    ]).T
+    legend_pts = hv.Scatter(
+        legend_pt_verts 
+    ).opts(
+        s=np.linspace(0, marker_scale, 11),
+        **marker_kw
+    )
+    
+    spot_size_plot = hv.Overlay([
+        phasediagram_bg,
+        stim_pts,
+        legend_bg, 
+        legend_pts,
+    ]).opts(
+        **plot_kw,
+    )
+
+    if save:
+
+        fpath = prefix + "spot_size" + suffix
+        _fpath = fpath + "." + fmt
+        print(f"Writing to: {_fpath}")
+        hv.save(spot_size_plot, fpath, fmt=fmt, dpi=dpi)
+
+
+main(
+    area_ceiling=0.5,
+    marker_dim="max_sqrtarea_mm",
+    save=True,
+    suffix="_",
 )
 
-dens_bare_overlay = phasediagram_bare * dens_points
-
-
-# In[58]:
-
-
-hv.output(dens_bare_overlay, dpi=dpi//2)
-
-
-# ## Save
-
-# In[98]:
-
-
-fname = "phasediagram_with_densities"
-
-fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-
-if save_figs:
-    hv.save(dens_bare_overlay, fpath, dpi=dpi)
-
-
-# In[60]:
-
-
-drug_points = hv.Points(
-    [
-        (mle_params_df.g_inv_days.values[2], 1.),
-#         (mle_params_df.g_inv_days.values[2], 2.),
-#         (mle_params_df.g_inv_days.values[2], 4.),
-        (mle_params_df.g_inv_days.values[0], 1.),
-        (mle_params_df.g_inv_days.values[1], 1.),
-    ]
-).opts(
-    marker="^",
-    c=[
-        lsig.yob[1],
-        lsig.purple, 
-        lsig.greens[3]
-    ],
-    s=250,
-    ec=lsig.col_black,
-)
-
-drug_bare_overlay = phasediagram_bare * drug_points
-
-
-# In[61]:
-
-
-hv.output(drug_bare_overlay, dpi=dpi//2)
-
-
-# ## Save
-
-# In[99]:
-
-
-fname = "phasediagram_with_drugs"
-
-fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-
-if save_figs:
-    hv.save(drug_bare_overlay, fpath, dpi=dpi)
-
-
-# In[63]:
-
-
-dens_drug_points = hv.Points(
-    [
-        (mle_params_df.g_inv_days.values[2], 1.),
-        (mle_params_df.g_inv_days.values[2], 2.),
-        (mle_params_df.g_inv_days.values[2], 4.),
-        (mle_params_df.g_inv_days.values[0], 1.),
-        (mle_params_df.g_inv_days.values[1], 1.),
-    ]
-).opts(
-    marker="^",
-    c=[*lsig.yob[1:], lsig.purple, lsig.greens[3]],
-    s=250,
-    ec=lsig.col_black,
-)
-
-dens_drug_bare_overlay = phasediagram_bare * dens_drug_points
-
-
-# In[64]:
-
-
-hv.output(dens_drug_bare_overlay, dpi=dpi//2)
-
-
-# ## Save
-
-# In[100]:
-
-
-fname = "phasediagram_with_densities_and_drugs"
-
-fpath = os.path.abspath(os.path.join(save_dir, fname + "." + fig_fmt))
-
-if save_figs:
-    hv.save(dens_drug_bare_overlay, fpath, dpi=dpi)
 
