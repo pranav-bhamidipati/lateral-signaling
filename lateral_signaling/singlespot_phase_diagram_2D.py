@@ -346,6 +346,106 @@ def main(
         print(f"Writing to: {_fpath}")
         hv.save(examples_layout, fpath, fmt=fmt, dpi=dpi)
     
+    ## Plot maximum area of a signaling spot
+    
+    # Convert to square microns
+    df["max_area_um2"] = df["max_area_mm2"] * 1e6
+
+    # Convert to length units
+    df["max_sqrtarea_um"] = np.sqrt(df["max_area_um2"])
+    df["max_sqrtarea_mm"] = np.sqrt(df["max_area_mm2"])
+
+    # Truncate areas above a ceiling value
+    df[marker_dim + "_trunc"] = np.minimum(df[marker_dim], area_ceiling)
+    
+    ## Plotting options
+    
+    # Get size of marker for each point (scales with truncated area)
+    df["marker_size"] = marker_scale * df[marker_dim + "_trunc"] / area_ceiling
+
+    # Make background versions of phase colors
+    phase_bgcolors = lsig.hexa2hex(phase_colors, bg_alpha).tolist()
+    bare_kw["color"] = hv.Cycle(phase_bgcolors)
+    
+    # Set options for plotting
+    marker_kw = dict(
+        marker=".",
+        c="w",
+        edgecolor="k",
+        linewidth=0.25,
+    )
+    
+    ## Set vertices for a custom legend box
+    legend_xmin = xlim[0] + x_range * (1 - legend_width) / 2
+    legend_xmax = xlim[1] - x_range * (1 - legend_width) / 2
+    legend_ymin = ylim[1] - y_range * 0.20
+    legend_ymax = ylim[1] - y_range * 0.01
+    legend_verts = np.array([
+        (legend_xmin, legend_ymin),
+        (legend_xmin, legend_ymax), 
+        (legend_xmax, legend_ymax), 
+        (legend_xmax, legend_ymin), 
+    ])
+
+    ## Make plot
+    phasediagram_bg = hv.Scatter(
+        data=df,
+        kdims=["g_inv_days"],
+        vdims=["rho_0", "phase"],
+    ).groupby(
+        "phase"
+    ).opts(
+        **bare_kw,
+    ).overlay()
+    
+    stim_pts = hv.Scatter(
+        data=df,
+        kdims=["g_inv_days"],
+        vdims=["rho_0", "marker_size"],
+    ).opts(
+        s="marker_size",
+        **marker_kw
+    )
+    
+    legend_bg = hv.Polygons(
+        legend_verts,
+    ).opts(
+        edgecolor="k",
+        linewidth=1,
+        facecolor=legend_bgcol,
+    )
+
+    legend_pt_verts = np.array([
+        np.linspace(legend_xmin, legend_xmax, 13)[1:-1], 
+        np.repeat(
+            (1 - legend_pt_ypos) * legend_ymin  
+            + legend_pt_ypos * legend_ymax, 
+            11
+        ),
+    ]).T
+    legend_pts = hv.Scatter(
+        legend_pt_verts 
+    ).opts(
+        s=np.linspace(0, marker_scale, 11),
+        **marker_kw
+    )
+    
+    spot_size_plot = hv.Overlay([
+        phasediagram_bg,
+        stim_pts,
+        legend_bg, 
+        legend_pts,
+    ]).opts(
+        **plot_kw,
+    )
+
+    if save:
+
+        fpath = prefix + "spot_size" + suffix
+        _fpath = fpath + "." + fmt
+        print(f"Writing to: {_fpath}")
+        hv.save(spot_size_plot, fpath, fmt=fmt, dpi=dpi)
+    
     ## Make phase diagram with perturbations
     with open(pert_clr_json, "r") as f:
         ks, vs = json.load(f)
@@ -457,109 +557,10 @@ def main(
         print(f"Writing to: {_fpath}")
         hv.save(drug_dens_overlay, fpath, fmt=fmt, dpi=dpi)
 
-    ## Plot maximum area of a signaling spot
-    
-    # Convert to square microns
-    df["max_area_um2"] = df["max_area_mm2"] * 1e6
-
-    # Convert to length units
-    df["max_sqrtarea_um"] = np.sqrt(df["max_area_um2"])
-    df["max_sqrtarea_mm"] = np.sqrt(df["max_area_mm2"])
-
-    ## Plotting options
-    
-    # Truncate areas above a ceiling value
-    df[marker_dim + "_trunc"] = np.minimum(df[marker_dim], area_ceiling)
-    
-    # Get size of marker for each point (scales with truncated area)
-    df["marker_size"] = marker_scale * df[marker_dim + "_trunc"] / area_ceiling
-
-    # Make background versions of phase colors
-    phase_bgcolors = lsig.hexa2hex(phase_colors, bg_alpha).tolist()
-    bare_kw["color"] = hv.Cycle(phase_bgcolors)
-    
-    # Set options for plotting
-    marker_kw = dict(
-        marker=".",
-        c="w",
-        edgecolor="k",
-        linewidth=0.25,
-    )
-    
-    ## Set vertices for a custom legend box
-    legend_xmin = xlim[0] + x_range * (1 - legend_width) / 2
-    legend_xmax = xlim[1] - x_range * (1 - legend_width) / 2
-    legend_ymin = ylim[1] - y_range * 0.20
-    legend_ymax = ylim[1] - y_range * 0.01
-    legend_verts = np.array([
-        (legend_xmin, legend_ymin),
-        (legend_xmin, legend_ymax), 
-        (legend_xmax, legend_ymax), 
-        (legend_xmax, legend_ymin), 
-    ])
-
-    ## Make plot
-    phasediagram_bg = hv.Scatter(
-        data=df,
-        kdims=["g_inv_days"],
-        vdims=["rho_0", "phase"],
-    ).groupby(
-        "phase"
-    ).opts(
-        **bare_kw,
-    ).overlay()
-    
-    stim_pts = hv.Scatter(
-        data=df,
-        kdims=["g_inv_days"],
-        vdims=["rho_0", "marker_size"],
-    ).opts(
-        s="marker_size",
-        **marker_kw
-    )
-    
-    legend_bg = hv.Polygons(
-        legend_verts,
-    ).opts(
-        edgecolor="k",
-        linewidth=1,
-        facecolor=legend_bgcol,
-    )
-
-    legend_pt_verts = np.array([
-        np.linspace(legend_xmin, legend_xmax, 13)[1:-1], 
-        np.repeat(
-            (1 - legend_pt_ypos) * legend_ymin  
-            + legend_pt_ypos * legend_ymax, 
-            11
-        ),
-    ]).T
-    legend_pts = hv.Scatter(
-        legend_pt_verts 
-    ).opts(
-        s=np.linspace(0, marker_scale, 11),
-        **marker_kw
-    )
-    
-    spot_size_plot = hv.Overlay([
-        phasediagram_bg,
-        stim_pts,
-        legend_bg, 
-        legend_pts,
-    ]).opts(
-        **plot_kw,
-    )
-
-    if save:
-
-        fpath = prefix + "spot_size" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(spot_size_plot, fpath, fmt=fmt, dpi=dpi)
 
 
 main(
-    area_ceiling=0.5,
+    area_ceiling=1,
     marker_dim="max_sqrtarea_mm",
     save=True,
     suffix="_",
