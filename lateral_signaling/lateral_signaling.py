@@ -3607,6 +3607,15 @@ def shoelace_area(points):
     )
     return np.abs(area) / 2
 
+# @numba.njit
+def perimeter(points):
+    """Returns the perimeter of a polygon with vertices given by `points`."""
+    return np.linalg.norm(points - np.roll(points, shift=1, axis=0), axis=1).sum()
+
+
+def circularity(points):
+    """Returns the circularity of a polygon"""
+    return 4 * np.pi * shoelace_area(points) / (perimeter(points) ** 2)
 
 def voronoi_areas(vor):
     """Given the Voronoi tesselation of a set of points, returns the area of each 
