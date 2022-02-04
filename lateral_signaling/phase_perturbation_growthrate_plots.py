@@ -16,13 +16,11 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-sim_dir    = os.path.abspath("../data/simulations/20220114_phase_perturbations/sacred")
+sim_dir    = os.path.abspath("../data/simulations/20220204_phase_perturbations_growthrate/sacred")
 data_fname = os.path.abspath("../data/whole_wells/drug_conditions_propagation_and_cellcount.csv")
 
 save_dir   = os.path.abspath("../plots")
-save_pfx   = os.path.join(save_dir, "growthrate_perturbation_normarea_")
-fmt        = "png"
-dpi        = 300
+save_pfx   = os.path.join(save_dir, "growthrate_perturbation_pctarea_")
 
 def main(
     sim_dir=sim_dir,
@@ -32,8 +30,8 @@ def main(
     save=False,
     prefix=save_pfx,
     suffix="",
-    fmt=fmt,
-    dpi=dpi,
+    fmt="png",
+    dpi=300,
 ):
     
     ## Read invitro data from file
@@ -58,8 +56,6 @@ def main(
     xmax = tmax_days
     ymin = 0.0
     ymax = 1.0
-    xlim = xmin - pad * (xmax - xmin), xmax + pad * (xmax - xmin)
-    ylim = ymin - pad * (ymax - ymin), ymax + pad * (ymax - ymin)
     
     # axis ticks
     yticks = (0, 0.2, 0.4, 0.6, 0.8, 1.0)
@@ -71,10 +67,10 @@ def main(
     # Other options
     opts = dict(
         xlabel="Days",
-        xlim=xlim,
+        xlim = (xmin - pad * (xmax - xmin), xmax + pad * (xmax - xmin)),
         xticks=xticks,
-        ylabel="Area (norm.)",
-        ylim=ylim,
+        ylabel="% of area",
+        ylim = (ymin - pad * (ymax - ymin), ymax + pad * (ymax - ymin)),
         yticks=yticks,
         aspect=1.3,
         fontscale=1.3,
@@ -117,16 +113,15 @@ def main(
         print(f"Writing to: {_fpath}")
         hv.save(invitro_plot, fpath, fmt=fmt, dpi=dpi)
     
-    return
-    0/0
-
     ## Read simulated data
     run_dirs    = glob(os.path.join(sim_dir, "[0-9]*"))
     
     # Initialize lists to store data
-    rho_0s = []
-    rho_ts = []
-    S_ts   = []
+    gs              = []
+    dconds          = []
+    rho_ts          = []
+    S_t_reps        = []
+    sender_idx_reps = []
 
     for i, run_dir in enumerate(run_dirs):
         config_file  = os.path.join(run_dir, "config.json")
@@ -134,16 +129,15 @@ def main(
         
         with open(config_file, "r") as c:
             config = json.load(c)
-
-            # Check if run matches conditions
-            if config["drug_condition"] != "untreated":
-                continue
+            
+            # Drug condition
+            dcond = config["drug_condition"]
 
             # Expression threshold
             k = config["k"]
 
-            # Initial density
-            rho_0 = config["rho_0"]
+            # Intrinsic prolif rate
+            g = config["g"]
          
         with h5py.File(results_file, "r") as f:
             
@@ -155,56 +149,73 @@ def main(
             t_days = t_days[tmask]
             nt     = t.size
 
+            # Re-scale time axis
+            opts["xlim"] = t_days[0], opts["xlim"][1]
+            opts["xticks"] = tuple([0] + list(opts["xticks"]))
+
             # Index of sender cell
-            sender_idx = np.asarray(f["sender_idx"])
+            n_senders = int(np.asarray(f["n_senders"]))
 
             # Density vs. time
             rho_t = np.asarray(f["rho_t"])[tmask]
 
             # Signal and reporter expression vs. time
-            S_t = np.asarray(f["S_t"])[tmask]
+            S_t_rep = np.asarray(f["S_t_rep"])[:, tmask]
+            n = S_t_rep.shape[-1]
             
+            # Get senders
+            sender_idx_rep = np.asarray(f["sender_idx_rep"])
+
             # Store data
-            rho_0s.append(rho_0)
+            gs.append(g)
+            dconds.append(dcond)
             rho_ts.append(rho_t)
-            S_ts.append(S_t)
+            S_t_reps.append(S_t_rep)
+            sender_idx_reps.append(sender_idx_rep) 
     
     # Convert to arrays
-    rho_ts = np.asarray(rho_ts)
-    S_ts   = np.asarray(S_ts)
+    rho_ts          = np.asarray(rho_ts)
+    S_t_reps        = np.asarray(S_t_reps)
+    sender_idx_reps = np.asarray(sender_idx_reps)
     
-    # Get initial densities as strings
-    n_runs = len(rho_0s)
-    rho_0_strs = [f"{int(r)}x" for r in rho_0s]
+    # Get number of conditions
+    n_runs = len(dconds)
     
-    # Calculate the number of activated transceivers
-    n_act_ts = (S_ts > k).sum(axis=-1) - 1
+    # Calculate the avg number of activated transceivers across replicates
+    n_act_t_reps = (S_t_reps > k).sum(axis=-1) - n_senders
+    n_act_ts = n_act_t_reps.mean(axis=1)
 
-    # Area and sqrt(Area) of activation
+    # Percent activated transceivers
+    pctArea_ts = n_act_ts / (n - n_senders)
+    
+    # (Normalized) Area and sqrt(Area) of activation
     A_ts = np.array([lsig.ncells_to_area(nc, rt) for nc, rt in zip(n_act_ts, rho_ts)])
+    normA_ts = A_ts / A_ts.max()
     sqrtA_ts = np.sqrt(A_ts)
     
     ## Make plot
     # Make dataframe for plotting
     insilico_data = {
-        "density"  : np.repeat(rho_0_strs, t_days[::sample_every].size), 
-        "days"     : np.tile(t_days[::sample_every], n_runs),
-        "Area_mm"  : A_ts[:, ::sample_every].flatten(),
-        "sqrtA_mm" : sqrtA_ts[:, ::sample_every].flatten(),
+        "condition" : np.repeat(dconds, t_days[::sample_every].size), 
+        "days"      : np.tile(t_days[::sample_every], n_runs),
+        "pctArea"   : pctArea_ts[:, ::sample_every].flatten(),
+        "Area_norm" : normA_ts[:, ::sample_every].flatten(),
+        "Area_mm"   : A_ts[:, ::sample_every].flatten(),
+        "sqrtA_mm"  : sqrtA_ts[:, ::sample_every].flatten(),
     } 
 
     # Plot curves
     insilico_plot = hv.Curve(
         insilico_data,
         kdims=["days"],
-        vdims=["sqrtA_mm", "density"],
+        vdims=["pctArea", "condition"],
     ).groupby(
-        "density",
+        "condition",
     ).opts(
         linewidth=3,
         color=ccycle,
     ).overlay(
-        "density"
+        "condition"
     ).opts(**opts)
     
     if save:
