@@ -3,6 +3,7 @@ import lateral_signaling as lsig
 import os
 from glob import glob
 import json
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
+from matplotlib_scalebar.scalebar import ScaleBar
 
 import holoviews as hv
 hv.extension("matplotlib")
@@ -105,6 +107,15 @@ def main(
     # Calculate length of line profile in mm
     lp_length_mm = np.linalg.norm(src - dst) / (2 * radius) * well_diameter_mm
 
+    # Set scalebar parameters (modify from defaults)
+    sbar_kw = deepcopy(lsig.sbar_kwargs)
+    sbar_kw.update(dict(
+        units="mm",
+        fixed_value=2.,
+        fixed_units="mm",
+        font_properties=dict(weight=0, size=0),
+    ))
+
     # Plot layouts of images
     rows, cols = 2, 5
     cbar_aspect = 10
@@ -121,13 +132,22 @@ def main(
         )
         ax.axis("off")
         
+        # Get line profile for this image
+        *_c, _r = circle_verts[i]
+        _src  = lsig.transform_point(src, center, radius, _c, _r)
+        _dst  = lsig.transform_point(dst, center, radius, _c, _r)
+        
+        # Get width of each pixel in image
+        _dx = lp_length_mm / np.linalg.norm(_src - _dst) 
+
+        # Plot scalebar
+        sbar_kw["dx"] = _dx
+        _scalebar = ScaleBar(**sbar_kw)
+        ax.add_artist(_scalebar)
+
         # Plot line profile in first column
         if i % cols == 0:
             
-            # Get line profile for this image
-            *_c, _r = circle_verts[i]
-            _src  = lsig.transform_point(src, center, radius, _c, _r)
-            _dst  = lsig.transform_point(dst, center, radius, _c, _r)
             _lp_width = lp_width * _r / radius
             _lp_corners = lsig.get_lp_corners(_src, _dst, _lp_width)
             
@@ -144,7 +164,7 @@ def main(
         # Re-orient
         ax.invert_yaxis()
         ax.invert_xaxis()
-
+        
     plt.tight_layout()
 
     if save_figs:

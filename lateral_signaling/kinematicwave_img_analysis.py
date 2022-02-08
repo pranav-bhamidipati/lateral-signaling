@@ -3,6 +3,7 @@ import lateral_signaling as lsig
 import os
 from glob import glob
 import json
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
+from matplotlib_scalebar.scalebar import ScaleBar
 
 import holoviews as hv
 hv.extension("matplotlib")
@@ -103,6 +105,17 @@ def main(
     # Calculate length of line profile in mm
     lp_length_mm = np.linalg.norm(src - dst) / (2 * radius) * well_diameter_mm
 
+    # Set scalebar parameters (modify from defaults)
+    sbar_kw = deepcopy(lsig.sbar_kwargs)
+    dx = lp_length_mm / np.linalg.norm(src - dst)   # width of each pixel
+    sbar_kw.update(dict(
+        dx=dx,
+        units="mm",
+        fixed_value=2.,
+        fixed_units="mm",
+        font_properties=dict(weight=0, size=0),
+    ))
+
     # Plot layouts of images
     rows, cols = 2, 5
     cbar_aspect = 10
@@ -118,6 +131,10 @@ def main(
             cmap=cmap_,
         )
         ax.axis("off")
+        
+        # Plot scalebar
+        _scalebar = ScaleBar(**sbar_kw)
+        ax.add_artist(_scalebar)
         
         # Plot line-profile in first column
         if i % cols == 0:
