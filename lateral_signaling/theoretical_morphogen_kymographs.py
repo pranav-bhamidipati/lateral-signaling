@@ -59,14 +59,14 @@ def y_t_fixedrho(t, fixedrho, psi, rho_bar, rho_max):
 
 
 def signaling_activity(rho, rho_opt, scale):
-    """Activity of a hypothetical TF in response to morphogen"""
+    """Activity of a hypothetical effector in response to morphogen"""
     return stats.norm.pdf(rho, rho_opt, scale) / stats.norm.pdf(rho_opt, rho_opt, scale)
 
 
 ## The default parameters below were chosen for demonstration purposes.
 ##   They are not meant to estimate the experiments shown in
 ##   Figure 6, but were rather chosen to show how realistic patterning
-##   behaviors can arise from simple non-monotonic morphogen-TF 
+##   behaviors can arise from simple non-monotonic morphogen-effector 
 ##   relationships.
 
 def main(
@@ -78,7 +78,7 @@ def main(
     rho_bar_hi = 4.0,
     gradient_steepness = 20,
     clevels_M=15,
-    clevels_TF=10,
+    clevels_E=10,
     scale = 1.,
     act_thresh = 0.25,
 #    rho_opt = 2.6,
@@ -173,7 +173,7 @@ def main(
         **kymo_opts
     )
 
-    # Make curve of TF activity vs morphogen (density)
+    # Make curve of effector activity vs morphogen (density)
     rho_space = np.linspace(0, rho_max, 100)
     activity_curve_data = signaling_activity(rho_space, rho_opt, scale)
     
@@ -193,7 +193,7 @@ def main(
     signaling_plot_opts = dict(
         xlabel=r"$\mathrm{[Morphogen]}$",
         xticks=0,
-        ylabel=r"$[\mathrm{TF}]_{eq}$",
+        ylabel=r"$[\mathrm{Eff}]_{eq}$",
         ylim=(0, None),
 #        yticks=(0,1),
         yticks=0,
@@ -298,7 +298,7 @@ def main(
 
 
 main(
-    save=True,
+    save=False,
     suffix="__",
 )
 

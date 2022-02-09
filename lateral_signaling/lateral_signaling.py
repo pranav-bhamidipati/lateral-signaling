@@ -1211,6 +1211,18 @@ def remove_RT_spines(plot, element):
     plot.state.axes[0].spines["top"].set_visible(False)
 
 
+def xaxis_label_left(plot, element):
+    """Hook to move the x-axis label to location 'left' in a Holoviews plot"""
+    _cax = plot.state.axes[0]
+    _cax.set_xlabel(_cax.get_xlabel(), loc="left")
+
+
+def yaxis_label_bottom(plot, element):
+    """Hook to move the y-axis label to location 'bottom' in a Holoviews plot"""
+    _cax = plot.state.axes[0]
+    _cax.set_ylabel(_cax.get_ylabel(), loc="bottom")
+
+
 def voronoi_finite_polygons_2d(vor, radius=None):
     """
     Reconstruct infinite voronoi regions in a 2D diagram to finite
