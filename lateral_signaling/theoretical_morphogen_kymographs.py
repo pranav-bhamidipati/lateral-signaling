@@ -21,47 +21,45 @@ save_pfx = os.path.join(save_dir, "theoretical_patterning_")
 ###   See supplemental text for derivation and exposition on the below functions
 
 @numba.njit
-def rho_y_0(y, psi, rho_bar):
+def M_y_t(y, t, psi, M_bar, M_max):
     """
-    Density of a deforming lattice over time.
-    Initial condition is an exponential gradient, and growth
+    Concentration of self-activating morphogen over time.
+    Initial condition is an exponential gradient, and self-activation
     follows the logistic equation.
+    Diffusion and advection are assumed to be negligible.
     """
-    return np.log(psi) / (psi - 1) * rho_bar * psi ** y
+    M_y_0 = np.log(psi) / (psi - 1) * M_bar * psi ** y
+    return M_max * M_y_0 * np.exp(t) / (M_max + M_y_0 * (np.exp(t) - 1))
 
 
 @numba.njit
-def rho_y_t(y, t, psi, rho_bar, rho_max):
+def y_t_fixedM(t, fixedM, psi, M_bar, M_max):
     """
-    Density of a deforming lattice over time.
+    Returns the y-position with a particular M value (fixedM) over time.
     Initial condition is an exponential gradient, and growth
     follows the logistic equation.
     """
-    rho_y_0 = np.log(psi) / (psi - 1) * rho_bar * psi ** y
-    return rho_max * rho_y_0 * np.exp(t) / (rho_max + rho_y_0 * (np.exp(t) - 1))
-
-
-@numba.njit
-def y_t_fixedrho(t, fixedrho, psi, rho_bar, rho_max):
-    """
-    Returns the y-position with a particular rho value (fixedrho) over time.
-    Initial condition is an exponential gradient, and growth
-    follows the logistic equation.
-    """
-    rho_0 = np.log(psi) / (psi - 1) * rho_bar
+    M_0 = np.log(psi) / (psi - 1) * M_bar
     return np.log(
-        fixedrho
-        * rho_max
+        fixedM
+        * M_max
         * np.exp(-t)
-        / (rho_max - fixedrho * (1 - np.exp(-t)))
-        / rho_0
+        / (M_max - fixedM * (1 - np.exp(-t)))
+        / M_0
     ) / np.log(psi)
 
 
-def signaling_activity(rho, rho_opt, scale):
-    """Activity of a hypothetical effector in response to morphogen"""
-    return stats.norm.pdf(rho, rho_opt, scale) / stats.norm.pdf(rho_opt, rho_opt, scale)
-
+def effector_response(M, M_opt, scale, width):
+    """Equilibrium concentration of a hypothetical effector in response to morphogen"""
+#    E = stats.norm.pdf(M, M_opt, scale)
+#    E = stats.cauchy.pdf(M, M_opt, scale)
+    E = 1 - np.abs(M_opt - M) / M_opt
+#    E = 1 / (1 + scale * (M_opt - M) ** 2)
+#    Ea = M ** scale / ((M_opt - width/2) ** scale + M ** scale)
+#    Ei = (M_opt + width/2) ** scale / ((M_opt + width/2) ** scale + M ** scale)
+#    E = Ea * Ei
+    
+    return E / E.max()
 
 ## The default parameters below were chosen for demonstration purposes.
 ##   They are not meant to estimate the experiments shown in
@@ -70,18 +68,17 @@ def signaling_activity(rho, rho_opt, scale):
 ##   relationships.
 
 def main(
-    tmax = 5,
+    tmax = 6.5,
     ny = 101,
-    nt = 101,
-    rho_max = 6,
-    rho_bar_lo = 0.7,
-    rho_bar_hi = 4.0,
+    nt = 201,
+    M_max = 6,
+    M_bar = 1.,
     gradient_steepness = 20,
     clevels_M=15,
     clevels_E=10,
     scale = 1.,
-    act_thresh = 0.25,
-#    rho_opt = 2.6,
+    width = 1.,
+    act_thresh = 0.5,
     prefix=save_pfx,
     suffix="",
     save=False,
@@ -90,8 +87,8 @@ def main(
 ):
     
     # Set optimal morphogen range
-    #rho_opt_lo, rho_opt_hi = 1.4, 3.8
-    rho_opt = rho_max / 2
+    #M_opt_lo, M_opt_hi = 1.4, 3.8
+    M_opt = M_max / 2
 
     ## Spatiotemporal parameters
     # Sample along y-direction
@@ -105,27 +102,16 @@ def main(
     psi_flat = 1 - 1e-10            # Uniform density profile
     psi_grad = 1/gradient_steepness # Steep gradient
 
-    # Calculate density dynamics and normalize 
-    rho_yt_grad = rho_y_t(
+    # Calculate morphogen dynamics and normalize 
+    M_yt = M_y_t(
         np.tile(y_space, nt), 
         np.repeat(t_space, ny), 
         psi_grad, 
-        rho_bar_lo,
-        rho_max,
+        M_bar,
+        M_max,
     ).reshape(nt, ny).T
-    rho_yt_grad = rho_yt_grad[::-1]
-    rho_yt_grad_norm = rho_yt_grad / rho_yt_grad.max(axis=0)
-    
-    # Repeat for higher initial denisty
-    rho_yt_grad2 = rho_y_t(
-        np.tile(y_space, nt), 
-        np.repeat(t_space, ny), 
-        psi_grad, 
-        rho_bar_hi,
-        rho_max,
-    ).reshape(nt, ny).T
-    rho_yt_grad2 = rho_yt_grad2[::-1]
-    rho_yt_grad2_norm = rho_yt_grad2 / rho_yt_grad2.max(axis=0)
+    M_yt = M_yt[::-1]
+    M_yt_norm = M_yt / M_yt.max(axis=0)
 
     ## Plotting options
     # Bounds for plotting kymograph as an image
@@ -143,44 +129,35 @@ def main(
         ylim=(1, 0),
         yticks=0,
         colorbar=True,
-        aspect=1,
-        fontscale=2.0,
+        aspect=2,
+        fontscale=1.5,
+        hooks=[lsig.xaxis_label_left, lsig.yaxis_label_bottom]
 #        colorbar_opts=dict(shrink=0.5, aspect=3, pad=0.2),
     )
 
     ## Plot kymograph as image
-    rho_kymo_grad = hv.Image(
-        rho_yt_grad,
+    M_kymo = hv.Image(
+        M_yt,
         bounds=bounds,
     ).opts(
         cmap=cmap_M,
         clabel=r"$\mathrm{[Morphogen]}$",
-        clim=(0, rho_max),
-#        cbar_ticks=[(0, "0"), (rho_max, r"$\mathrm{[Morphogen]}_\mathrm{max}$")],
+        clim=(0, M_max),
         cbar_ticks=0,
         **kymo_opts
     )
-
-    rho_kymo_grad2 = hv.Image(
-        rho_yt_grad2,
-        bounds=bounds,
-    ).opts(
-        cmap=cmap_M,
-        clabel=r"$\mathrm{[Morphogen]}$",
-        clim=(0, rho_max),
-#        cbar_ticks=[(0, "0"), (rho_max, r"$\mathrm{[Morphogen]}_\mathrm{max}$")],
-        cbar_ticks=0,
-        **kymo_opts
-    )
-
-    # Make curve of effector activity vs morphogen (density)
-    rho_space = np.linspace(0, rho_max, 100)
-    activity_curve_data = signaling_activity(rho_space, rho_opt, scale)
     
-    opt_bounds_idx = np.diff(activity_curve_data > act_thresh).nonzero()
-    opt_bounds = rho_space[opt_bounds_idx]
-#    opt_range_lo =  np.log(act_thresh) + rho_opt
-#    opt_range_hi = -np.log(act_thresh) + rho_opt
+    # Make curve of morphogen self-activation
+    M_t = lsig.logistic(t_space, 1., M_bar, M_max)
+
+    # Make curve of effector vs morphogen
+    M_space = np.linspace(0, M_max, 100)
+    effector_curve_data = effector_response(M_space, M_opt, scale, width)
+    
+    opt_bounds_idx = np.diff(effector_curve_data > act_thresh).nonzero()
+    opt_bounds = M_space[opt_bounds_idx]
+#    opt_range_lo =  np.log(act_thresh) + M_opt
+#    opt_range_hi = -np.log(act_thresh) + M_opt
 
     curve_opts = dict(
         linewidth=4,
@@ -190,105 +167,104 @@ def main(
         linewidth=2,
         c="gray",
     )
-    signaling_plot_opts = dict(
+    effector_plot_opts = dict(
         xlabel=r"$\mathrm{[Morphogen]}$",
         xticks=0,
-        ylabel=r"$[\mathrm{Eff}]_{eq}$",
+        ylabel=r"$[\mathrm{Effector}]$",
         ylim=(0, None),
 #        yticks=(0,1),
         yticks=0,
         fontscale=2.0,
         padding=0.05,
-        aspect=1.5,
+        aspect=1.3,
+    )
+    hline_opts = dict(
+        linewidth=2,
+        linestyle="dashed",
+        c="gray",
+    )
+    morphogen_plot_opts = dict(
+        xlabel="Time",
+        xticks=0,
+        ylabel=r"$[\mathrm{Morphogen}]$",
+        ylim=(0, None),
+#        yticks=(0,1),
+        yticks=0,
+        fontscale=2.0,
+        padding=0.05,
+        aspect=1.3,
     )
 
-    activity_curve = hv.Overlay([
-        *[hv.VLine(b) for b in opt_bounds],
+    effector_curve = hv.Overlay([
+#        *[hv.VLine(b) for b in opt_bounds],
 #        hv.VLine(opt_range_lo),
 #        hv.VLine(opt_range_hi),
         hv.Curve(
-            {"x": rho_space, "y":activity_curve_data}
+            {"x": M_space, "y":effector_curve_data}
         ),
     ]).opts(
         hv.opts.Curve(**curve_opts),
         hv.opts.VLine(**vline_opts),
-        hv.opts.Overlay(**signaling_plot_opts),
+        hv.opts.Overlay(**effector_plot_opts),
     )
 
-    Act_yt_grad = signaling_activity(rho_yt_grad, rho_opt, scale)
-    Act_yt_grad_norm = Act_yt_grad / Act_yt_grad.max(axis=0)
+    morphogen_curve = hv.Overlay([
+        hv.HLine(M_max),
+        hv.Curve(
+            {"x": t_space, "y": M_t}
+        ),
+    ]).opts(
+        hv.opts.HLine(**hline_opts),
+        hv.opts.Curve(**curve_opts),
+        hv.opts.Overlay(**morphogen_plot_opts),
+    )
 
-    Act_yt_grad2 = signaling_activity(rho_yt_grad2, rho_opt, scale)
-    Act_yt_grad2_norm = Act_yt_grad2 / Act_yt_grad2.max(axis=0)
-    
+    E_yt = effector_response(M_yt, M_opt, scale, width)
+    E_yt_norm = E_yt / E_yt.max(axis=0)
+
     # Plot kymograph as image
     kgy_list = [lsig.rgba2hex(c) for c in lsig.kgy.colors]
-    cmap_TF = lsig.sample_cycle(kgy_list, clevels_TF).values
+    cmap_E = lsig.sample_cycle(kgy_list, clevels_E).values
 
-    act_kymo_grad = hv.Image(
-        Act_yt_grad,
+    E_kymo = hv.Image(
+        E_yt,
         bounds=bounds,
     ).opts(
-        cmap=cmap_TF,
-        clabel=r"$[\mathrm{TF}]_{eq}$",
+        cmap=cmap_E,
+        clabel=r"$[\mathrm{Effector}]$",
 #        clim=(0, 1),
 #        cbar_ticks=[0, 1],
         cbar_ticks=0,
         **kymo_opts
     )
 
-    act_kymo_grad_norm = hv.Image(
-        Act_yt_grad_norm,
+    E_kymo_norm = hv.Image(
+        E_yt_norm,
         bounds=bounds,
     ).opts(
-        cmap=cmap_TF,
-        clabel=r"norm. $[\mathrm{TF}]_{eq}$",
+        cmap=cmap_E,
+        clabel=r"norm. $[\mathrm{Eff}]$",
 #        clim=(0, 1),
 #        cbar_ticks=[0, 1],
         cbar_ticks=0,
         **kymo_opts
     )
     
-    act_kymo_grad2 = hv.Image(
-        Act_yt_grad2,
-        bounds=bounds,
-    ).opts(
-        cmap=cmap_TF,
-        clabel=r"$[\mathrm{TF}]_{eq}$",
-#        clim=(0, 1),
-#        cbar_ticks=[0, 1],
-        cbar_ticks=0,
-        **kymo_opts
-    )
-
-    act_kymo_grad2_norm = hv.Image(
-        Act_yt_grad2_norm,
-        bounds=bounds,
-    ).opts(
-        cmap=cmap_TF,
-        clabel=r"norm. $[\mathrm{TF}]_{eq}$",
-#        clim=(0, 1),
-#        cbar_ticks=[0, 1],
-        cbar_ticks=0,
-        **kymo_opts
-    )
-
-
     if save:
         
         plots = [
-            activity_curve, 
-            rho_kymo_grad, 
-            act_kymo_grad_norm,
-            rho_kymo_grad2, 
-            act_kymo_grad2_norm,
+            morphogen_curve, 
+            effector_curve, 
+            M_kymo, 
+            E_kymo,
+            E_kymo_norm,
         ]
         names = [
-            "TF_activation_vs_morphogen",
-            "morphogen_kymograph",
-            "TF_kymograph",
-            "morphogen_kymograph2",
-            "TF_kymograph2",
+            "morphogen_vs_time",
+            "effector_vs_morphogen",
+            "morphogen_kymograph_long",
+            "effector_kymograph_long",
+            "effector_kymograph_long_norm",
         ]
         for plot, name in zip(plots, names):
             fpath = prefix + name + suffix
@@ -298,7 +274,10 @@ def main(
 
 
 main(
-    save=False,
+    scale=1,
+#    scale=8,
+    width=1.,
+    save=True,
     suffix="__",
 )
 
