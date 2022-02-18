@@ -3,25 +3,25 @@ import lateral_signaling as lsig
 import os
 from glob import glob
 import json
-import h5py
 
 import numpy as np
 import pandas as pd
 
-import colorcet as cc
 import holoviews as hv
 hv.extension("matplotlib")
 
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
+import seaborn as sns
 
 # Reading 
-data_dir = os.path.abspath("../data/imaging/FACS_brightfield/")
+data_dir   = os.path.abspath("../data/imaging/FACS_brightfield/")
+metadata_fname   = os.path.join(data_dir, "metadata.json")
 rois_fname = os.path.join(data_dir, "cell_boundary_vertices.csv")
 
 # Writing
-save_dir = os.path.abspath("../plots")
-plot_fpath = os.path.join(save_dir, "cell_morphology_metrics")
+save_dir     = os.path.abspath("../plots")
+plot_fpath   = os.path.join(save_dir, "cell_morphology_metrics")
+violin_fpath = lambda metric: os.path.join(save_dir, f"{metric}_violin_plots")
 
 def main(
 #    figsize=(8, 3),
@@ -32,6 +32,11 @@ def main(
     fmt="png",
     dpi=300,
 ):
+    
+    # Get inter-pixel distance in microns
+    with open(metadata_fname, "r") as f:
+        m = json.load(f)
+        ipd_um = m["interpixel_distance_um"]
 
     # Read cell boundary data
     df = pd.read_csv(rois_fname, index_col=0)
@@ -43,10 +48,12 @@ def main(
         # Extract density condition
         dens = d.density.unique()
 
-        # GEt metrics from ROI polygon vertices
+        # Get ROI polygon vertices
         verts = d[["x", "y"]].values
-        area = lsig.shoelace_area(verts)
-        perimeter = lsig.perimeter(verts)
+
+        # Calculate metrics, using real units when necessary
+        area = lsig.shoelace_area(verts) * (ipd_um ** 2)
+        perimeter = lsig.perimeter(verts) * ipd_um
         circularity = lsig.circularity(verts)
 
         # Filter out ROIs that are too small (erroneous ROI)
@@ -169,9 +176,13 @@ def main(
 
     ## Plot area
     # Edit plotting options
-    ecdf_kw["xlabel"] = hist_kw["xlabel"] = r"Cell area ($\mathrm{px}^2$)"
-    ecdf_kw["xlim"] = hist_kw["xlim"] = (0, 6000)
-    ecdf_kw["xticks"] = hist_kw["xticks"] = (0, 2000, 4000, 6000)
+#    ecdf_kw["xlabel"] = hist_kw["xlabel"] = r"Cell area ($\mathrm{mm}^2$)"
+#    ecdf_kw["xlim"] = hist_kw["xlim"] = (0,850)
+#    ecdf_kw["xticks"] = hist_kw["xticks"] = (0, 200, 400, 600)
+    del ecdf_kw["xlim"]
+    del hist_kw["xlim"]
+    del ecdf_kw["xticks"]
+    del hist_kw["xticks"]
 
     hist_bins = n_bins
 
@@ -198,18 +209,6 @@ def main(
 
 
     ## Plot perimeter
-    # Edit plotting options
-    ecdf_kw["xlabel"] = hist_kw["xlabel"] = r"Cell perimeter ($\mathrm{px}$)"
-    # ecdf_kw["xlim"] = hist_kw["xlim"] = (0, 6000)
-    # ecdf_kw["xticks"] = hist_kw["xticks"] = (0, 2000, 4000, 6000)
-    del ecdf_kw["xlim"]
-    del hist_kw["xlim"]
-    del ecdf_kw["xticks"]
-    del hist_kw["xticks"]
-
-    # fig = plt.figure(figsize=figsize)
-
-    # ax0 = fig.add_subplot(1, 2, 1)
     ax0 = fig.add_subplot(prows, pcols, 5)
     ax0.set(**hist_kw)
 
@@ -235,9 +234,122 @@ def main(
         print("Writing to:", _fpath)
         plt.savefig(_fpath, dpi=dpi)
 
+    ## Plot area and circularity as violins
+    # Set options for each plot
+    metrics = ("area", "circularity")
+    labels  = (r"Area ($mm^2$)", "Circularity")
+    xlims   = ((0, 850), (-0.05, 1.05))
+    
+    # Set colors 
+#    colors  = plt.get_cmap("gray")(np.linspace(0.5, 0.9, 4))[::-1]
+#    colors  = [plt.get_cmap("gray")(0.9)]
+    colors  = ["w"]
+    for metric, label, xlim in zip(metrics, labels, xlims):
+
+        # Set up figure
+        fig = plt.figure(
+            figsize = (5, 3)
+        )
+        plt.cla()
+        
+#        # Plot box plot
+#        ax = sns.boxplot(
+#            x="density", 
+#            y=metric, 
+#            data=aggdf, 
+##            scale="width", 
+#            palette=colors,
+##            size=4,
+##            jitter=0.2,
+#        )
+# 
+#        # Plot strip plot
+#        ax = sns.stripplot(
+#            x="density", 
+#            y=metric, 
+#            data=aggdf, 
+##            scale="width", 
+#            size=4,
+#            jitter=0.2,
+#        )
+        
+        # Plot violin plot
+        ax = sns.violinplot(
+            x="density", 
+            y=metric, 
+            data=aggdf, 
+            bw="silverman",
+            scale="area", 
+            palette=colors,
+#            inner="point",
+            inner="point",
+            cut=0.5,
+            linewidth=1,
+            edgecolor="k",
+            s=3,
+        )
+        
+        # Post-hoc plotting params
+        for i, c in enumerate(ax.collections):
+            if i % 2 == 0:
+                c.set_edgecolor("k")
+            else:
+                offsets = np.asarray(c.get_offsets())
+                jitter = np.random.normal(0, 0.03, size=offsets.shape[0])
+                offsets[:, 0] += jitter
+                c.set_color("k")
+                c.set_sizes([2])
+                c.set_offsets(offsets)
+
+        # Axis options
+        plt.ylabel(label)
+        plt.ylim(xlim)
+        plt.xlabel("Density")
+        
+#        # Plot median as a point
+#        sns.scatterplot(
+#            ax=ax,
+#            x="Condition",
+#            y="Median",
+#            data=violin_median_df,
+#            color=lsig.black,
+#            s=50,
+#            edgecolor="k",
+#            linewidth=1,
+#        )
+#    
+#        # Plot cell-wise activation cutoff
+#        ax.hlines(cutoff, *ax.get_xlim(), lw=2, linestyle="dashed", ec="gray")
+#        
+#        # Set axis limits
+#        plt.xlim((-0.75, n_data_idx - 0.25))
+#        plt.ylim((0, 1100))
+#        plt.yticks([0, 250, 500, 750, 1000])
+#        
+#        # Keep ticks but remove labels
+#        plt.xlabel("")
+#        ax.tick_params(labelbottom=False)
+#        
+#        # Set font sizes
+#        for label in (ax.get_xticklabels() + ax.get_yticklabels()):
+#            label.set_fontsize(14)
+        
+        # Remove spines
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        
+        plt.tight_layout()
+        
+        # Save
+        if save:
+
+            _fpath = violin_fpath(metric) + "." + fmt
+            print("Writing to:", _fpath)
+            plt.savefig(_fpath, dpi=dpi)
+
 
 main(
-    save = True,
+    save=True,
 )
 
 
