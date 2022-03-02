@@ -266,9 +266,12 @@ col_light_gray = "#eeeeee"
 col_gray       = "#aeaeae"
 col_black      = "#060605"
 
-# Make a custom version of the "KGY" colormap
+# Custom version of the "KGY" colormap
 kgy_original = cc.cm["kgy"]
 kgy = ListedColormap(kgy_original(np.linspace(0, 0.92, 256)))
+
+# Custom categorical color list(s)
+growthrate_colors = [purple, greens[3], yob[1]]
 
 
 def rgb_as_int(rgb):
@@ -1198,7 +1201,101 @@ def ecdf(d, *args, **kwargs):
     y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
     return hv.Scatter(np.array([x, y]).T, *args, **kwargs)
 
+#### The following code is based on the `bebi103` package
 
+def predictive_regression(
+    samples,
+    samples_x,
+    data=None,
+    percentiles=[68, 90],
+    colors=cc.cm["gray"](np.linspace(0.2, 0.85, 7))[::-1],
+    ax=None,
+    figsize=(8, 8),
+    median_lw=2,
+    data_kwargs=dict(),
+):
+    """
+    Plot a predictive regression plot from samples.
+    
+    Heavily inspired by the `beb103` package by Justin Bois. The
+    main difference is using matplotlib instead of Bokeh.
+    
+    See `bebi103.viz.predictive_regression` for documentation. 
+    """
+    
+    if type(samples) != np.ndarray:
+        if type(samples) == xarray.core.dataarray.DataArray:
+            samples = samples.squeeze().values
+        else:
+            raise RuntimeError("Samples can only be Numpy arrays and xarrays.")
+
+    if type(samples_x) != np.ndarray:
+        if type(samples_x) == xarray.core.dataarray.DataArray:
+            samples_x = samples_x.squeeze().values
+        else:
+            raise RuntimeError("`samples_x` can only be Numpy array or xarray.")
+
+    if len(percentiles) > 4:
+        raise RuntimeError("Can specify maximally four percentiles.")
+
+    if samples.shape[1] != len(samples_x):
+        raise ValueError(
+            "`samples_x must have the same number of entries as `samples` does columns."
+        )
+
+    # Build ptiles
+    percentiles = np.sort(percentiles)[::-1]
+    ptiles = [pt for pt in percentiles if pt > 0]
+    ptiles = (
+        [50 - pt / 2 for pt in percentiles]
+        + [50]
+        + [50 + pt / 2 for pt in percentiles[::-1]]
+    )
+    ptiles_str = [str(pt) for pt in ptiles]
+    
+    df_pred = pd.DataFrame(
+        data=np.percentile(samples, ptiles, axis=0).transpose(),
+        columns=ptiles_str,
+    )
+    df_pred["__x"] = samples_x
+    df_pred = df_pred.sort_values(by="__x")
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    plt.sca(ax)
+
+    # Confidence regions 
+    n = len(percentiles)
+    for i in range(n):
+        plt.fill_between("__x", ptiles_str[i], ptiles_str[2 * n - i], data=df_pred, color=colors[i])
+    
+    # Median as a line
+    plt.plot("__x", ptiles_str[n], data=df_pred, linewidth=median_lw, color=colors[-1])
+    
+    # It's useful to have data as a data frame
+    if data is not None:
+        if type(data) == tuple and len(data) == 2 and len(data[0]) == len(data[1]):
+            data = np.vstack(data).transpose()
+        df_data = pd.DataFrame(data=data, columns=["__data_x", "__data_y"])
+        df_data = df_data.sort_values(by="__data_x")
+    
+        # Plot data points
+        data_color  = data_kwargs.pop("c", "k")
+        data_size   = data_kwargs.pop("s", 15)
+        data_marker = data_kwargs.pop("marker", "o")
+        data_alpha  = data_kwargs.pop("alpha", 1.0)
+        plt.scatter(
+            "__data_x", 
+            "__data_y", 
+            data=df_data, 
+            c=data_color,
+            s=data_size,
+            marker=data_marker,
+            alpha=data_alpha,
+            **data_kwargs
+        )
+    
+    return plt.gca()
 def remove_RB_spines(plot, element):
     """Hook to remove right and bottom spines from Holoviews plot"""
     plot.state.axes[0].spines["right"].set_visible(False)
