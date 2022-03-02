@@ -1206,16 +1206,11 @@ def ecdf(d, *args, **kwargs):
 def predictive_regression(
     samples,
     samples_x,
-    data=None,
     percentiles=[68, 90],
-    colors=cc.cm["gray"](np.linspace(0.2, 0.85, 7))[::-1],
-    ax=None,
-    figsize=(8, 8),
-    median_lw=2,
-    data_kwargs=dict(),
+    key_dim="__x",
 ):
     """
-    Plot a predictive regression plot from samples.
+    Compute a predictive regression plot from samples.
     
     Heavily inspired by the `beb103` package by Justin Bois. The
     main difference is using matplotlib instead of Bokeh.
@@ -1257,20 +1252,44 @@ def predictive_regression(
         data=np.percentile(samples, ptiles, axis=0).transpose(),
         columns=ptiles_str,
     )
-    df_pred["__x"] = samples_x
-    df_pred = df_pred.sort_values(by="__x")
+    df_pred[key_dim] = samples_x
+    df_pred = df_pred.sort_values(by=key_dim)
+    
+    return df_pred
+
+
+def plot_predictive_regression(
+    df_pred=None,
+    data=None,
+    key_dim="__x",
+    ax=None,
+    figsize=(8, 8),
+    colors=cc.cm["gray"](np.linspace(0.2, 0.85, 7))[::-1],
+    median_lw=2,
+    data_kwargs=dict(),
+):
+    """
+    Compute a predictive regression plot from samples.
+    
+    Heavily inspired by the `beb103` package by Justin Bois. The
+    main difference is using matplotlib instead of Bokeh.
+    
+    See `bebi103.viz.predictive_regression` for documentation. 
+    """
 
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     plt.sca(ax)
 
     # Confidence regions 
-    n = len(percentiles)
+    ptiles_str = df_pred.columns.tolist()
+    ptiles_str.remove(key_dim)
+    n = (len(ptiles_str) - 1) // 2
     for i in range(n):
-        plt.fill_between("__x", ptiles_str[i], ptiles_str[2 * n - i], data=df_pred, color=colors[i])
+        plt.fill_between(key_dim, ptiles_str[i], ptiles_str[2 * n - i], data=df_pred, color=colors[i], edgecolor=(0, 0, 0, 0))
     
     # Median as a line
-    plt.plot("__x", ptiles_str[n], data=df_pred, linewidth=median_lw, color=colors[-1])
+    plt.plot(key_dim, ptiles_str[n], data=df_pred, linewidth=median_lw, color=colors[-1])
     
     # It's useful to have data as a data frame
     if data is not None:
@@ -1296,6 +1315,8 @@ def predictive_regression(
         )
     
     return plt.gca()
+
+
 def remove_RB_spines(plot, element):
     """Hook to remove right and bottom spines from Holoviews plot"""
     plot.state.axes[0].spines["right"].set_visible(False)
