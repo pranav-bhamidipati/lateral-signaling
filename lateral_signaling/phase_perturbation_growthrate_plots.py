@@ -25,6 +25,7 @@ save_pfx   = os.path.join(save_dir, "growthrate_perturbation_pctarea_")
 def main(
     sim_dir=sim_dir,
     data_fname=data_fname,
+    colors=lsig.growthrate_colors,
     pad=0.05,
     sample_every=1,
     save=False,
@@ -62,7 +63,7 @@ def main(
     xticks = (1, 2, 3, 4, 5, 6, 7, 8)
     
     # Set colors/linestyles/markers
-    ccycle = hv.Cycle([lsig.purple, lsig.greens[3], lsig.yob[1]])
+    ccycle = hv.Cycle(colors)
     
     # Other options
     opts = dict(
