@@ -1,2 +1,1 @@
-# evomorph
-Computational Design of Self-Organizing Tissues Using SynNotch
+# `lateral_signaling`
