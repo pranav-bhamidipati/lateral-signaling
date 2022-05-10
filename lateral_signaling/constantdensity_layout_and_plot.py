@@ -20,8 +20,13 @@ data_dir     = os.path.abspath("../data/simulations/20220111_constantdensity/sac
 save_dir     = os.path.abspath("../plots")
 layout_fpath = os.path.join(save_dir, "constant_density_imlayout_")
 curves_fpath = os.path.join(save_dir, "constant_density_sqrtarea_")
-fmt          = "png"
-dpi          = 300
+
+savedata_dir     = os.path.abspath("../data/simulations")
+curve_data_fpath = os.path.join(savedata_dir, "constantdensity_curve_data.csv")
+
+fmt = "png"
+dpi = 300
+
 
 def main(
     layout_fpath=layout_fpath,
@@ -31,6 +36,7 @@ def main(
     pad=0.05,
     save_layout=False,
     save_curves=False,
+    save_curve_data=False,
     fmt=fmt,
     dpi=dpi,
 ):
@@ -109,26 +115,13 @@ def main(
     # Get cell positions based on density
     Xs = np.multiply.outer(1 / np.sqrt(rhos), X)
 
-    ## Some manual plotting options
-    # Font sizes
-    SMALL_SIZE  = 12
-    MEDIUM_SIZE = 14
-    BIGGER_SIZE = 16
-    
     # Zoom in to a factor of `zoom` (to emphasize ROI)
     zoom = 0.7
 
     if save_layout:
         
-        # Set font sizes
-        plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-        plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-        plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-        plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-        plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-        plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-        plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-        
+        lsig.default_rcParams()
+
         # Get default kwargs for plotting
         plot_kwargs = deepcopy(lsig.plot_kwargs)
         plot_kwargs["sender_idx"] = sender_idx
@@ -215,20 +208,19 @@ def main(
         # Save
         plt.savefig(_fpath, dpi=dpi)
 
-    if save_curves:
+   
+    ## Data for dynamics
+    # Get early time-range 
+    if curves_tmax is not None:
+        tmax_idx = np.searchsorted(t, delay * curves_tmax)
+        tslice   = slice(tmax_idx)
+    else:
+        tslice   = slice(None)
+    
+    nt = t[tslice].size
 
-        ## Plot timeseries of expression
-        # Get early time-range 
-        if curves_tmax is not None:
-            tmax_idx = np.searchsorted(t, delay * curves_tmax)
-            tslice   = slice(tmax_idx)
-        else:
-            tslice   = slice(None)
-        
-        nt = t[tslice].size
-
-        # Calculate the number of activated transceivers
-        n_act_ts = (S_ts[:, tslice] > k).sum(axis=2) - 1
+    # Calculate the number of activated transceivers
+    n_act_ts = (S_ts[:, tslice] > k).sum(axis=2) - 1
 
 #        # Percent of activated transceivers
 #        pct_act_t = n_act_t / n * 100
@@ -236,14 +228,32 @@ def main(
 #        # Optionally normalize percentage
 #        pct_act_t = lsig.normalize(pct_act_t, 0, pct_act_t.max()) * 100
 
-        # Area and sqrt(Area) of activation
-        A_ts = np.array([lsig.ncells_to_area(n, rho) for n, rho in zip(n_act_ts, rhos)])
-        sqrtA_ts = np.sqrt(A_ts)
+    # Area and sqrt(Area) of activation
+    A_ts = np.array([lsig.ncells_to_area(n, rho) for n, rho in zip(n_act_ts, rhos)])
+    sqrtA_ts = np.sqrt(A_ts)
 
-        # Normalize area and sqrt(area)
-        A_ts_norm = lsig.normalize(A_ts, 0, A_ts.max())
-        sqrtA_ts_norm = lsig.normalize(sqrtA_ts, 0, sqrtA_ts.max())
+    # Normalize area and sqrt(area)
+    A_ts_norm = lsig.normalize(A_ts, 0, A_ts.max())
+    sqrtA_ts_norm = lsig.normalize(sqrtA_ts, 0, sqrtA_ts.max())
 
+    # Make data
+    curve_data = {
+        "t"            : np.tile(t[tslice], len(rhos)),
+        "A_t"          : A_ts.ravel(),
+        "sqrtA_t"      : sqrtA_ts.ravel(), 
+        "sqrtA_t_norm" : sqrtA_ts_norm.ravel(),
+        "A_t_norm"     : A_ts_norm.ravel(),
+        "density"      : np.repeat([fr"$\rho =$ {int(r)}" for r in rhos], nt),
+    }
+        
+    if save_curve_data:
+
+        print("Writing to:", curve_data_fpath)
+        pd.DataFrame(curve_data).to_csv(curve_data_fpath, index=False)
+
+    if save_curves:
+
+        ## Plot timeseries of expression
         # Axis limits with padding
         xmin = 0.0
         xmax = t[tslice][-1]
@@ -257,16 +267,6 @@ def main(
 #        ccycle = hv.Cycle(lsig.cols_blue)
         lcycle = hv.Cycle(["solid", "dashed", "dotted"])
 
-        # Make data
-        curve_data = {
-            "t"            : np.tile(t[tslice], len(rhos)),
-            "A_t"          : A_ts.ravel(),
-            "sqrtA_t"      : sqrtA_ts.ravel(), 
-            "sqrtA_t_norm" : sqrtA_ts_norm.ravel(),
-            "A_t_norm"     : A_ts_norm.ravel(),
-            "density"      : np.repeat([fr"$\rho =$ {int(r)}" for r in rhos], nt),
-        }
-        
         # Tick labels
         xticks = [
             (0 * delay, "0"), 
@@ -308,11 +308,11 @@ def main(
         _fpath = curves_fpath + "." + fmt
         print("Writing to:", _fpath)
         hv.save(curve_plot, curves_fpath, fmt=fmt, dpi=dpi)
-
-
+    
 main(
-    save_layout=True,
-    save_curves=True,
+#    save_layout=True,
+#    save_curves=True,
+    save_curve_data=True,
 #    plot_frames=(100, 200, 300),
     delays_to_plot=[2, 4, 6],
     curves_tmax=4,
