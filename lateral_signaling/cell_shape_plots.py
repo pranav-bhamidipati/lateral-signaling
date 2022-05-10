@@ -26,57 +26,14 @@ violin_fpath = lambda metric: os.path.join(save_dir, f"{metric}_violin_plots")
 
 def main(
 #    figsize=(8, 3),
-    figsize=(9, 9),
+    figsize=(9, 5),
     n_bins=5,
     save=False,
     fmt="png",
     dpi=300,
 ):
     
-#    # Get inter-pixel distance in microns
-#    with open(metadata_fname, "r") as f:
-#        m = json.load(f)
-#        ipd_um = m["interpixel_distance_um"]
-#
-#    # Read cell boundary data
-#    df = pd.read_csv(rois_fname, index_col=0)
-#
-#    # Calculate metrics on data
-#    aggdfs = []
-#    for (r, w), d in df.groupby(["roi", "window"]):
-#
-#        # Extract density condition
-#        dens = d.density.unique()
-#
-#        # Get ROI polygon vertices
-#        verts = d[["x", "y"]].values
-#
-#        # Calculate metrics, using real units when necessary
-#        area = lsig.shoelace_area(verts) * (ipd_um ** 2)
-#        perimeter = lsig.perimeter(verts) * ipd_um
-#        circularity = lsig.circularity(verts)
-#
-#        # Filter out ROIs that are too small (erroneous ROI)
-#        if area < area_cutoff:
-#            continue
-#        else:
-#            aggdfs.append(
-#                pd.DataFrame(
-#                    dict(
-#                        roi=r,
-#                        window=w,
-#                        density=dens,
-#                        area=area,
-#                        perimeter=perimeter,
-#                        circularity=circularity,
-#                    )
-#                )
-#            )
-#
-#    aggdf = pd.concat(aggdfs)
-
     aggdf = pd.read_csv(data_fname)
-    print(aggdf.head())
 
     # # Set options for scatterplot
     # points_kw = dict(
@@ -116,27 +73,34 @@ def main(
     linestyles = np.tile(["solid", "dotted", "dashed", "dashdot"], 2)
 
     # Package plotting options
-    ecdf_kw = dict(
-        xlabel="Circularity index",
+    ecdf_ax_kw = dict(
         xlim=(0, 1),
         xticks=(0, 0.25, 0.5, 0.75, 1.0),
         ylabel="Cumulative distrib.",
         ylim=(-0.05, 1.05),
         yticks=(0, 0.25, 0.5, 0.75, 1.0),
     )
-    hist_kw = dict(
-        xlabel="Circularity index",
+    hist_ax_kw = dict(
         xlim=(0, 1),
         xticks=np.linspace(0, 1, 6),
         ylabel="Frequency",
         # ylim=(-0.05, 1.05),
         # yticks=(0, 0.25, 0.5, 0.75, 1.0),
     )
+    hist_kw = dict(
+        histtype="bar", 
+        color=colors, 
+        density=False,
+    )
+    ecdf_kw = dict(
+        color="k",
+        linewidth=1.5,
+    )
 
     ## Plot circularity
     # Make figure
-    prows = 3
-    pcols = 2
+    prows = 2
+    pcols = 3
     fig = plt.figure(figsize=figsize)
 
     # Get histogram bins
@@ -145,19 +109,19 @@ def main(
     # Plot histograms
     # ax0 = fig.add_subplot(1, 2, 1)
     ax0 = fig.add_subplot(prows, pcols, 1)
-    ax0.set(**hist_kw)
-
-    plt.hist(circ_data, bins=hist_bins, histtype="bar", color=colors, density=False)
+    ax0.set(xlabel="Circularity index", **hist_ax_kw)
+        
+    plt.hist(circ_data, bins=hist_bins, **hist_kw)
 
     plt.legend(densities, title="Density", loc="upper left")
 
     # Plot ECDFs
     # ax1 = fig.add_subplot(1, 2, 2)
-    ax1 = fig.add_subplot(prows, pcols, 2)
-    ax1.set(**ecdf_kw)
+    ax1 = fig.add_subplot(prows, pcols, 4)
+    ax1.set(xlabel="Circularity index", **ecdf_ax_kw)
 
     for i, _d in enumerate(circ_data):
-        ax1.step(*lsig.ecdf_vals(_d), color="k", linestyle=linestyles[i], linewidth=1.5)
+        ax1.step(*lsig.ecdf_vals(_d), linestyle=linestyles[i], **ecdf_kw)
 
     plt.legend(densities, title="Density")
 
@@ -166,32 +130,32 @@ def main(
 
     ## Plot area
     # Edit plotting options
-#    ecdf_kw["xlabel"] = hist_kw["xlabel"] = r"Cell area ($\mathrm{mm}^2$)"
+#    ecdf_kw["xlabel"] = hist_kw["xlabel"] = r"Cell area ($\mathrm{\mu m}^2$)"
 #    ecdf_kw["xlim"] = hist_kw["xlim"] = (0,850)
 #    ecdf_kw["xticks"] = hist_kw["xticks"] = (0, 200, 400, 600)
-    del ecdf_kw["xlim"]
-    del hist_kw["xlim"]
-    del ecdf_kw["xticks"]
-    del hist_kw["xticks"]
+    del ecdf_ax_kw["xlim"]
+    del hist_ax_kw["xlim"]
+    del ecdf_ax_kw["xticks"]
+    del hist_ax_kw["xticks"]
 
     hist_bins = n_bins
 
     # fig = plt.figure(figsize=figsize)
 
     # ax0 = fig.add_subplot(1, 2, 1)
-    ax0 = fig.add_subplot(prows, pcols, 3)
-    ax0.set(**hist_kw)
+    ax0 = fig.add_subplot(prows, pcols, 2)
+    ax0.set(xlabel=r"Area ($\mu m^2$)", **hist_ax_kw)
 
-    plt.hist(area_data, bins=hist_bins, histtype="bar", color=colors, density=False)
+    plt.hist(area_data, bins=hist_bins, **hist_kw) 
 
     plt.legend(densities, title="Density", loc="upper right")
 
     # ax1 = fig.add_subplot(1, 2, 2)
-    ax1 = fig.add_subplot(prows, pcols, 4)
-    ax1.set(**ecdf_kw)
+    ax1 = fig.add_subplot(prows, pcols, 5)
+    ax1.set(xlabel=r"Area ($\mu m^2$)", **ecdf_ax_kw)
 
     for i, _d in enumerate(area_data):
-        ax1.step(*lsig.ecdf_vals(_d), color="k", linestyle=linestyles[i], linewidth=1.5)
+        ax1.step(*lsig.ecdf_vals(_d), linestyle=linestyles[i], **ecdf_kw)
 
     plt.legend(densities, title="Density")
 
@@ -199,19 +163,19 @@ def main(
 
 
     ## Plot perimeter
-    ax0 = fig.add_subplot(prows, pcols, 5)
-    ax0.set(**hist_kw)
+    ax0 = fig.add_subplot(prows, pcols, 3)
+    ax0.set(xlabel=r"Perimeter ($\mu m$)", **hist_ax_kw)
 
-    plt.hist(perim_data, bins=hist_bins, histtype="bar", color=colors, density=False)
+    plt.hist(perim_data, bins=hist_bins, **hist_kw)
 
     plt.legend(densities, title="Density", loc="upper right")
 
     # ax1 = fig.add_subplot(1, 2, 2)
     ax1 = fig.add_subplot(prows, pcols, 6)
-    ax1.set(**ecdf_kw)
+    ax1.set(xlabel=r"Perimeter ($\mu m$)", **ecdf_ax_kw)
 
     for i, _d in enumerate(perim_data):
-        ax1.step(*lsig.ecdf_vals(_d), color="k", linestyle=linestyles[i], linewidth=1.5)
+        ax1.step(*lsig.ecdf_vals(_d), linestyle=linestyles[i], **ecdf_kw)
 
     plt.legend(densities, title="Density")
 
@@ -227,7 +191,7 @@ def main(
     ## Plot area and circularity as violins
     # Set options for each plot
     metrics = ("area", "circularity")
-    labels  = (r"Area ($mm^2$)", "Circularity")
+    labels  = (r"Area ($\mu m^2$)", "Circularity")
     xlims   = ((0, 850), (-0.05, 1.05))
     
     # Set colors 
