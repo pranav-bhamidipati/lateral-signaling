@@ -422,25 +422,28 @@ def hex_grid_square(n, **kwargs):
     return hex_grid(rows, **kwargs)[:n]
 
 
-def hex_grid_circle(radius, sigma=0.0, r=1):
-    """Returns XY coordinates of all points on a regular 2D hexagonal grid of edge length r within 
-    distance radius of the origin, passed through a Gaussian filter with std. dev. = sigma * r."""
+def hex_grid_circle(radius, sigma=0.0):
+    """Returns XY coordinates of all points on a regular 2D hexagonal grid of edge length `1` within 
+    distance radius of the origin, passed through a Gaussian filter with std. dev. = `sigma`."""
     
     # Get side length for a square grid
     rad = ceil(radius)
     num_rows = rad * 2 + 1;
     
     # Populate square grid with points
-    X = []
-    for i, x in enumerate(np.linspace(-r * (num_rows - 1) / 2, r * (num_rows - 1) / 2, num_rows)):
-        for j, y in enumerate(
-            np.linspace(-np.sqrt(3) * r * (num_rows - 1) / 4, np.sqrt(3) * r * (num_rows - 1) / 4, num_rows)
-        ):
-            X.append(np.array([x + ((rad - j) % 2) * r / 2, y]))
+    X = hex_grid(num_rows)
+    # X = []
+    # for i, x in enumerate(np.linspace(-r * (num_rows - 1) / 2, r * (num_rows - 1) / 2, num_rows)):
+    #     for j, y in enumerate(
+    #         np.linspace(-np.sqrt(3) * r * (num_rows - 1) / 4, np.sqrt(3) * r * (num_rows - 1) / 4, num_rows)
+    #     ):
+    #         X.append(np.array([x + ((rad - j) % 2) * r / 2, y]))
     
     # Pass each point through a Gaussian filter
     if (sigma > 0):
-        X = np.array([np.random.normal(loc=x, scale=sigma*r) for x in X])
+        # X = np.array([np.random.normal(loc=x, scale=sigma) for x in X])
+        cov = np.eye(X.shape[1]) * sigma
+        X += np.array([np.random.multivariate_normal(x, cov) for x in X])
     
     # Select points within radius and return
     dists = [np.linalg.norm(x) for x in X]
@@ -1200,6 +1203,25 @@ def ecdf(d, *args, **kwargs):
     x = np.sort(d)
     y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
     return hv.Scatter(np.array([x, y]).T, *args, **kwargs)
+
+
+def default_rcParams():
+    """Set default parameters for Matplotlib"""
+
+    # Font sizes
+    SMALL_SIZE  = 12
+    MEDIUM_SIZE = 14
+    BIGGER_SIZE = 16
+
+    # Set font sizes
+    plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
 
 #### The following code is based on the `bebi103` package
 
