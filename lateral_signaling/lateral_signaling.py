@@ -1205,13 +1205,12 @@ def ecdf(d, *args, **kwargs):
     return hv.Scatter(np.array([x, y]).T, *args, **kwargs)
 
 
-def default_rcParams():
+def default_rcParams(
+    SMALL_SIZE =12,
+    MEDIUM_SIZE=14,
+    BIGGER_SIZE=16,
+):
     """Set default parameters for Matplotlib"""
-
-    # Font sizes
-    SMALL_SIZE  = 12
-    MEDIUM_SIZE = 14
-    BIGGER_SIZE = 16
 
     # Set font sizes
     plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
