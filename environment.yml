@@ -38,6 +38,7 @@ dependencies:
     - bebi103==0.1.8
       #    - chromedriver-binary-auto
     - matplotlib-scalebar==0.*
+    - statannotations
     - corner
     - cmocean
     - ipywidgets
