@@ -39,6 +39,7 @@ dependencies:
       #    - chromedriver-binary-auto
     - matplotlib-scalebar==0.*
     - statannotations
+    - statsmodels
     - corner
     - cmocean
     - ipywidgets
