@@ -141,6 +141,8 @@ def main(
     )
     table.set_fontsize(MEDIUM_SIZE)
     
+    plt.tight_layout()
+
     if save:
         _fpath = boxplots_fpath + "." + fmt
         print("Writing to:", _fpath)
