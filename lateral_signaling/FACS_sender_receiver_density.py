@@ -14,7 +14,7 @@ import seaborn as sns
 lsig.default_rcParams()
 
 # I/O
-data_dir      = os.path.abspath("../data/tmp")
+data_dir      = os.path.abspath("../data/FACS")
 sender_data   = glob(os.path.join(data_dir, "senders", "*.csv"))
 receiver_data = glob(os.path.join(data_dir, "receivers", "*.csv"))
 
