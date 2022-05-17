@@ -21,14 +21,16 @@ save_dir     = os.path.abspath("../plots")
 layout_fpath = os.path.join(save_dir, "constant_density_imlayout_")
 curves_fpath = os.path.join(save_dir, "constant_density_sqrtarea_")
 
-savedata_dir     = os.path.abspath("../data/simulations")
-curve_data_fpath = os.path.join(savedata_dir, "constantdensity_curve_data.csv")
+#savedata_dir     = os.path.abspath("../data/simulations")
+savedata_dir     = os.path.split(data_dir)[0]
+curve_data_fpath = os.path.join(savedata_dir, "shorttimescale_curve_data.csv")
 
 fmt = "png"
 dpi = 300
 
 
 def main(
+    data_dir=data_dir,
     layout_fpath=layout_fpath,
     curves_fpath=curves_fpath,
     delays_to_plot=[],
@@ -237,19 +239,20 @@ def main(
     sqrtA_ts_norm = lsig.normalize(sqrtA_ts, 0, sqrtA_ts.max())
 
     # Make data
-    curve_data = {
+    curve_data = pd.DataFrame({
         "t"            : np.tile(t[tslice], len(rhos)),
         "A_t"          : A_ts.ravel(),
         "sqrtA_t"      : sqrtA_ts.ravel(), 
         "sqrtA_t_norm" : sqrtA_ts_norm.ravel(),
         "A_t_norm"     : A_ts_norm.ravel(),
         "density"      : np.repeat([fr"$\rho =$ {int(r)}" for r in rhos], nt),
-    }
-        
+        "ConditionLabel" : np.repeat([f"{int(r)}x" for r in rhos], nt),
+    })
+    
     if save_curve_data:
 
         print("Writing to:", curve_data_fpath)
-        pd.DataFrame(curve_data).to_csv(curve_data_fpath, index=False)
+        curve_data.to_csv(curve_data_fpath, index=False)
 
     if save_curves:
 
@@ -293,8 +296,8 @@ def main(
             yticks=[0.0, 0.1, 0.2, 0.3, 0.4],
             linewidth=2,
             linestyle=lcycle,
-            color=ccycle,
-#            color="k",
+#            color=ccycle,
+            color="k",
             aspect=1,
         ).overlay(
             "density"

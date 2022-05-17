@@ -1,4 +1,6 @@
 import os
+from glob import glob
+import json
 
 import numpy as np
 import pandas as pd
@@ -18,9 +20,13 @@ import lateral_signaling as lsig
 data_dir   = os.path.abspath("../data/single_spots")
 data_fname = os.path.join(data_dir, "singlespot_timeseries.csv")
 
-save_dir       = os.path.abspath("../plots")
-boxplots_fpath = os.path.join(save_dir, "shorttimecourse_velocity_boxplots_")
-curves_fpath   = os.path.join(save_dir, "shorttimecourse_curves_")
+simdata_dir   = os.path.abspath("../data/simulations/20220111_constantdensity")
+simdata_fname = os.path.join(simdata_dir, "shorttimescale_curve_data.csv")
+
+save_dir     = os.path.abspath("../plots")
+strip_fpath  = os.path.join(save_dir, "shorttimecourse_velocity_stripplot_")
+table_fpath  = os.path.join(save_dir, "shorttimecourse_velocity_table_")
+curves_fpath = os.path.join(save_dir, "shorttimecourse_curves_")
 
 fmt = "png"
 dpi = 300
@@ -31,7 +37,9 @@ save=False
 
 def main(
     data_fname=data_fname,
-    figsize=(6, 4),
+    simdata_dir=simdata_dir, 
+    simdata_fname=simdata_fname,
+    figsize=(4, 4),
     SMALL_SIZE=14, 
     MEDIUM_SIZE=16, 
     BIGGER_SIZE=20,
@@ -41,7 +49,20 @@ def main(
     dpi=300,
 ):
 
-    # Read DataFrame from file
+    sim_config_file = glob(os.path.join(simdata_dir, "sacred", "[0-9]*", "config.json"))[0]
+    with open(sim_config_file, "r") as f:
+        config = json.load(f)
+        delay = config["delay"]
+    
+    simdata = pd.read_csv(simdata_fname)
+    simdata = simdata.loc[
+        simdata["t"] == simdata["t"].max(), 
+        ["t", "sqrtA_t", "ConditionLabel"],
+    ]
+    simdata["t_delay"] = simdata["t"] / delay
+    simdata["velocity_mmptau"] = simdata["sqrtA_t"] / simdata["t_delay"]
+    simdata["ConditionX"] = simdata["ConditionLabel"].astype("category").cat.codes + 0.3
+
     data = pd.read_csv(data_fname)
 
     # Select relevant conditions
@@ -92,45 +113,79 @@ def main(
     summary = vel_df.groupby(["ConditionNum"])["velocity_mmpd"].agg([np.mean, np.std]).round(3).values
     summary_df = pd.DataFrame(
         data=dict(mean_vel_mmpd=summary[:, 0], std_vel_mmpd=summary[:, 1]), 
-        index=vel_df["ConditionLabel"].unique(),
+        index=pd.Index(vel_df["ConditionLabel"].unique(), name="ConditionLabel"),
     )
     summary_df["mean_pm_std"] = [fr"{m:.3f} $\pm$ {s:.3f}" for d, m, s in zip(densities, *summary_df.values.T)]
-    summary_df.index = [s + ":" for s in summary_df.index]
+    summary_df = summary_df.reset_index()
+    summary_df.index = [s + ":" for s in summary_df["ConditionLabel"]]
 
     # Pairs for significance testing
     pairs = [("1x", "2x"), ("2x", "4x"), ("1x", "4x")]
 
-    plotting_data = dict(
+    data_kw = dict(
         data=vel_df, 
         x="ConditionLabel", 
         y="velocity_mmpd", 
         order=densities, 
         # palette=cmap.colors, 
     )
+    summary_kw = dict(
+        data=summary_df,
+        x="ConditionLabel",
+        y="mean_vel_mmpd",
+    )
+    sim_kw = dict(
+        data=simdata,
+        x="ConditionX",
+        y="velocity_mmptau",
+    )
     
     lsig.default_rcParams(SMALL_SIZE=SMALL_SIZE, MEDIUM_SIZE=MEDIUM_SIZE, BIGGER_SIZE=BIGGER_SIZE)
     
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize, gridspec_kw=dict(width_ratios=[1.1, 1.]))
+    fig1 = plt.figure(1, figsize=figsize)
+    ax1 = plt.gca()
 
-    sns.boxplot(ax=ax1, palette=["w"], width=0.5, linewidth=2.5, **plotting_data)
-    sns.stripplot(ax=ax1, palette=["k"], facecolors="w", **plotting_data)
+#    sns.boxplot(ax=ax1, palette=["w"], width=0.5, linewidth=2.5, **data_kw)
+    sns.scatterplot(ax=ax1, c=["k"], s=600, alpha=0.5, marker="_", **summary_kw)
+    sns.stripplot(ax=ax1, palette=["k"], facecolors="w", **data_kw)
 
     ax1.set(
         xlabel="Density",
         ylabel="Velocity (mm/day)",
+        ylim=(0, None)
     )
 
-    annotator = Annotator(ax=ax1, pairs=pairs, **plotting_data)
+    annotator = Annotator(ax=ax1, pairs=pairs, **data_kw)
     annotator.configure(
         test='Mann-Whitney', 
         text_format='star', 
     )
     annotator.apply_and_annotate()
 
-    plt.sca(ax2)
+    twinax1=ax1.twinx() 
+    twin_ylim = (
+        0, 
+        ax1.get_ylim()[1] * simdata["velocity_mmptau"].mean() / summary_df["mean_vel_mmpd"].mean() 
+    )
+    twinax1.set(
+        ylabel=r"Velocity (mm/$\tau$)",
+        ylim=twin_ylim,
+        yticks=(0, 0.05, 0.1, 0.15),
+    )
+    sns.scatterplot(ax=twinax1, palette=[cc.palette.glasbey_cool[1]], lw=0., marker="d", s=125, alpha=0.8, **sim_kw)
+
+    plt.tight_layout()
+    ax1.set(xlim=(-0.5, 2.5))
+    
+    if save:
+        _fpath = strip_fpath + "." + fmt
+        print("Writing to:", _fpath)
+        plt.savefig(_fpath, dpi=dpi, format=fmt)
+    
+    fig2 = plt.figure(2, figsize=(2.5, 2.5))
     plt.axis("off")
     table = plt.table(
-        cellText=summary_df.values[:, 2:],
+        cellText=summary_df.loc[:, ["mean_pm_std"]].values,
         rowLabels=summary_df.index,
         colLabels=["Mean velocity\n(mm/day)"],
         cellLoc = 'center', 
@@ -142,9 +197,9 @@ def main(
     table.set_fontsize(MEDIUM_SIZE)
     
     plt.tight_layout()
-
+    
     if save:
-        _fpath = boxplots_fpath + "." + fmt
+        _fpath = table_fpath + "." + fmt
         print("Writing to:", _fpath)
         plt.savefig(_fpath, dpi=dpi, format=fmt)
 
