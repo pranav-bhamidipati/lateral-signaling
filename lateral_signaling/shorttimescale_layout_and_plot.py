@@ -315,7 +315,7 @@ def main(
 main(
 #    save_layout=True,
 #    save_curves=True,
-    save_curve_data=True,
+#    save_curve_data=True,
 #    plot_frames=(100, 200, 300),
     delays_to_plot=[2, 4, 6],
     curves_tmax=4,

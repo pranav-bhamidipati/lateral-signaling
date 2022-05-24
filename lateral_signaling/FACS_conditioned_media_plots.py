@@ -42,13 +42,13 @@ def main(
         f = glob(os.path.join(data_dir, f"*{cols[0]}*.csv"))[0]
         _dat = {mc: c for mc, c in zip(mdata_cols, cols)}
         _dat["GFP"] = pd.read_csv(f)["FITC-A"]
-        _dat["TexasRed"] = pd.read_csv(f)["PE-Texas Red-A"]
+        _dat["mCherry"] = pd.read_csv(f)["PE-Texas Red-A"]
         dfs.append(pd.DataFrame(_dat))
 
     data = pd.concat(dfs)
     
-    median_data = data.groupby("id")["TexasRed"].agg(np.median).reset_index()
-    median_data.columns = ["id", "MedianTexasRed"]
+    median_data = data.groupby("id")["mCherry"].agg(np.median).reset_index()
+    median_data.columns = ["id", "MedianmCherry"]
 
     # Pairs for significance testing
     pairs = [
@@ -63,13 +63,13 @@ def main(
     violin_data = dict(
         data=data, 
         x="id", 
-        y="TexasRed", 
+        y="mCherry", 
         order=metadata.id.values, 
     )
     scatter_data = dict(
         data=median_data, 
         x="id", 
-        y="MedianTexasRed", 
+        y="MedianmCherry", 
         edgecolor="k", 
         facecolor="w",
         linewidth=1.5,
@@ -88,8 +88,11 @@ def main(
     ylim = ax1.get_ylim()
 
     sns.scatterplot(ax=ax1, **scatter_data)
-    ax1.set_xlim(xlim)
-    ax1.set_ylim(ylim)
+    ax1.set( xlabel="",
+        xlim=xlim,
+        ylabel="mCherry (AU)",
+        ylim=ylim,
+    )
 
 #    sns.boxplot(ax=ax1, palette=["w"], **plotting_data)
 
@@ -100,10 +103,12 @@ def main(
     )
 #    annotator.apply_and_annotate()
 
-    ax1.set(
-        xlabel="",
-        ylabel="TexasRed (AU)",
-    )
+    ax1.set_xticks([-1, 0, 1, 2, 3])
+    ax1.set_xticklabels(["Cells:\nMedia:", "1x\n1x", "1x\n4x", "4x\n1x", "4x\n4x"])
+
+    plt.title("Cells w/ conditioned media")
+
+#    ax1.text()
 
 #    plt.sca(ax2)
 #    plt.axis("off")
