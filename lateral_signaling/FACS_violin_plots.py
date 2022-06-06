@@ -90,7 +90,7 @@ def main(
     # Output filenames
     violin_fpath = lambda char: f"{violin_prefix}{char}_.{fmt}"
 
-    for char in "bcaf":
+    for char in "bcas":
         
         # Get indices of FACS samples to use in this plot
         data_idx = ref_idx + (

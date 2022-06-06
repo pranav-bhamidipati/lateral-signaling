@@ -29,6 +29,7 @@ receiver_cols = ["FITC-A", "PE-Texas Red-A", "FSC-A"]
 
 def main(
     kde_densities,
+    kde_colors=cc.palette.glasbey_category10,
     sender_data=sender_data,
     receiver_data=receiver_data,
     densities=densities,
@@ -36,7 +37,6 @@ def main(
     receiver_cols=receiver_cols,
     data_dir=data_dir,
     save_dir=save_dir,
-    cmap=cc.palette.glasbey_category10,
     save=False,
     save_violin=False,
     save_kde=False,
@@ -45,7 +45,6 @@ def main(
 ):
 
     sender_colnames = ["GFP (AU)", "FRFP (AU)", "FSC (AU)"]
-    sender_transformed_colnames = [r"Log_10(GFP)", r"Log_10(FRFP)", r"Log_10(FSC^3)"]
     sender_transformed_colnames = [r"Log_10(GFP)", r"Log_10(FRFP)", r"Log_10(FSC^3)"]
     receiver_colnames = ["GFP (AU)", "mCherry (AU)", "FSC (AU)"]
     receiver_transformed_colnames = [r"Log_10(GFP)", r"Log_10(mCherry)", r"Log_10(FSC^3)"]
@@ -110,7 +109,12 @@ def main(
     sender_df = sender_df.loc[(sender_df[sender_colnames] < sender_fluor_cutoffs).all(axis=1), :]
     receiver_df = receiver_df.loc[(receiver_df[receiver_colnames] < receiver_fluor_cutoffs).all(axis=1), :]
 
-    # Transformations for plotting
+    ## Transformations for plotting
+    # Use cubed forward scattering (FSC scales with diameter, so FSC^3 scales with volume)
+    sender_df["FSC^3"]   = sender_df["FSC (AU)"] ** 3
+    receiver_df["FSC^3"] = receiver_df["FSC (AU)"] ** 3
+    
+    # Do other transformations
     def _tfunc(i):
         if i == (len(sender_transformed_colnames) - 1):
             return lambda x: np.log10(np.power(x, 3)) 
@@ -149,7 +153,7 @@ def main(
     )
     scatter_opts = dict(
         color=lsig.black,
-        s=50,
+        s=35,
         edgecolor="k",
         linewidth=1,
     )
@@ -173,9 +177,9 @@ def main(
             receiver_colnames[2],
         )[i]
 
-        sns.violinplot(ax=ax, x="density", y=_y, data=_data, cmap=cmap, **violin_opts)
+        sns.violinplot(ax=ax, x="density", y=_y, data=_data, palette=["w"], **violin_opts)
         ax.set(ylim=ylims[i], xlabel="")
-        sns.scatterplot(ax=ax, x="density", y="Median"+_y, data=_Mdata, cmap=cmap, **scatter_opts)
+        sns.scatterplot(ax=ax, x="density", y="Median"+_y, data=_Mdata, **scatter_opts)
 
         ax.set_ylabel(_y)
         ax.set_xlim(-0.5, len(densities) - 0.5)
@@ -187,57 +191,99 @@ def main(
         _fname = violin_fname + "." + fmt
         print("Writing to:", _fname)
         plt.savefig(_fname, dpi=dpi, format=fmt)
+   
+    nrows = 2
+    ncols = 2
+#    fig, axs = plt.subplots(nrows, ncols, figsize=(5, 5), sharex=False, sharey=False)
+    fig = plt.figure(figsize=(8, 8))
     
-    fig, axs = plt.subplots(2, 2, figsize=(5, 5), sharex=False, sharey=False)
-    
-    plot_dens = [densities[i] for i in kde_densities]
-    colors    = [cmap[i] for i in kde_densities]
-    palette   = {d: c for d, c in zip(plot_dens, colors)}
-
-    for i, ax in enumerate(axs.flat):
-        
-        row = i // 2
-        col = i % 2
-        _data = (sender_df, receiver_df)[row]
-        samples_mask = np.isin(_data["density"], plot_dens)
-        _data = _data.loc[samples_mask, :]
-
-        trf_cols = (sender_transformed_colnames, receiver_transformed_colnames)[row]
-        
-        for dens, _clr in zip(plot_dens[::-1], colors[::-1]):
-
-            dens_data = _data.loc[_data["density"] == dens]
-            sns.kdeplot(
-                ax=ax,
-                data=dens_data.copy(),
-                x=trf_cols[2],
-                y=trf_cols[col],
-                hue="density",
-                # palette={dens: _clr},
-                palette=palette,
-                levels=20,
-                fill=True,
-                alpha=0.4,
-                thresh=0.2,
-                legend=False,
-            )
-            sns.kdeplot(
-                ax=ax,
-                data=dens_data.copy(),
-                x=trf_cols[2],
-                y=trf_cols[col],
-                hue="density",
-                # palette={dens: _clr},
-                palette=palette,
-                levels=5,
-                legend=False,
-            )
-        
-        ax.set_title(titles[3 * row])
-    
-    plt.tight_layout()
+    kde_xlim = (1e14, None)
+    kde_ylims = 10 ** np.array([
+        (2.0,  4.2),
+        (2.5,  3.5),
+        (1.25, 3.2),
+        (1.75, 4.8),
+    ])
 
     if save or save_kde:
+    
+        plot_dens = [densities[i] for i in kde_densities]
+        palette   = {d: c for d, c in zip(plot_dens, kde_colors[:len(kde_densities)])}
+
+        for i in range(nrows * ncols):
+            ax = fig.add_subplot(nrows,ncols,i+1)
+
+            row = i // ncols 
+            col = i % ncols
+            _data = (sender_df, receiver_df)[row]
+            samples_mask = np.isin(_data["density"], plot_dens)
+            _data = _data.loc[samples_mask, :]
+
+            trf_cols = (sender_transformed_colnames, receiver_transformed_colnames)[row]
+            _cols =    (sender_colnames, receiver_colnames)[row]
+            
+            sns.kdeplot(
+                ax=ax,
+                data=_data,
+                x="FSC^3",
+                y=_cols[col],
+                hue="density",
+                palette=palette,
+                levels=10,
+                linewidths=0.5,
+                log_scale=True,
+            )
+            sns.kdeplot(
+                ax=ax,
+                data=_data,
+                x="FSC^3",
+                y=_cols[col],
+                hue="density",
+                palette=palette,
+                levels=10,
+                alpha=0.7,
+                fill=True,
+                log_scale=True,
+            )
+            
+#            for dens, _clr in zip(plot_dens[::-1], colors[::-1]):
+#
+#                dens_data = _data.loc[_data["density"] == dens]
+#                sns.kdeplot(
+#                    ax=ax,
+#                    data=dens_data.copy(),
+#                    x=trf_cols[2],
+#                    y=trf_cols[col],
+#                    hue="density",
+#                    # palette={dens: _clr},
+#                    palette=palette,
+#                    levels=5,
+#                )
+#                sns.kdeplot(
+#                    ax=ax,
+#                    data=dens_data.copy(),
+#                    x=trf_cols[2],
+#                    y=trf_cols[col],
+#                    hue="density",
+#                    # palette={dens: _clr},
+#                    palette=palette,
+#                    levels=10,
+#                    fill=True,
+#                    alpha=0.4,
+#                    thresh=0.2,
+#                    label=dens,
+#                )
+
+            ax.legend_.set_title("Density")
+            sns.move_legend(ax, "lower left")
+
+            ax.set_title(titles[3 * row])
+            ax.set_xlim(kde_xlim)
+            ax.set_ylim(kde_ylims[col + 2 * row])
+
+        plt.tight_layout()
+
+        # Save
         _fname = contour_fname + "." + fmt
         print("Writing to:", _fname)
         plt.savefig(_fname, dpi=dpi, format=fmt)
@@ -245,5 +291,11 @@ def main(
 
 main(
     kde_densities = [2, 5],
+    kde_colors=sns.color_palette("colorblind"),
+#    kde_colors = [
+#       cc.palette.glasbey_category10[], 
+#       cc.palette.glasbey_category10[4]
+#    ],
+#    save_violin=True,
     save_kde=True,
 )
