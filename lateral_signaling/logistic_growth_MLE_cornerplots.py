@@ -23,6 +23,7 @@ corner_fname = lambda t: os.path.join(save_dir, f"MLE_bootstrap_cornerplot_{t}")
 
 
 def main(
+    figsize=(5, 5),
     treatment_names=None,
     save=False,
     dpi=300,
@@ -53,7 +54,10 @@ def main(
         # pg.map_lower(sns.histplot)
         # pg.map_diag(sns.kdeplot)
 
+        pg.fig.set_size_inches(*figsize)
+        
         plt.suptitle(t)
+        plt.tight_layout()
 
         if save:
 

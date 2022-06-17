@@ -1287,6 +1287,8 @@ def plot_predictive_regression(
     figsize=(8, 8),
     colors=cc.cm["gray"](np.linspace(0.2, 0.85, 7))[::-1],
     median_lw=2,
+    ci_kwargs=dict(),
+    median_kwargs=dict(),
     data_kwargs=dict(),
 ):
     """
@@ -1307,10 +1309,10 @@ def plot_predictive_regression(
     ptiles_str.remove(key_dim)
     n = (len(ptiles_str) - 1) // 2
     for i in range(n):
-        plt.fill_between(key_dim, ptiles_str[i], ptiles_str[2 * n - i], data=df_pred, color=colors[i], edgecolor=(0, 0, 0, 0))
+        plt.fill_between(key_dim, ptiles_str[i], ptiles_str[2 * n - i], data=df_pred, color=colors[i], edgecolor=(0, 0, 0, 0), **ci_kwargs)
     
     # Median as a line
-    plt.plot(key_dim, ptiles_str[n], data=df_pred, linewidth=median_lw, color=colors[-1])
+    plt.plot(key_dim, ptiles_str[n], data=df_pred, linewidth=median_lw, color=colors[-1], **median_kwargs)
     
     # It's useful to have data as a data frame
     if data is not None:

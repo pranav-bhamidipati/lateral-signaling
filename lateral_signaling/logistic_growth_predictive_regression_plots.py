@@ -8,6 +8,7 @@ from tqdm import tqdm
 import lateral_signaling as lsig
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # To read
 data_dir           = os.path.abspath("../data/growth_curves_MLE")
@@ -20,16 +21,23 @@ save_dir = os.path.abspath("../plots/tmp")
 pred_reg_fname = lambda t, r0: os.path.join(
     save_dir, f"growth_regression_{t}_rho0_{r0/1250:.1f}"
 )
-overlay_reg_fname = lambda r0: os.path.join(
-    save_dir, f"growth_regression_overlay_rho0_{r0/1250:.1f}"
+overlay_reg_fname = lambda t: os.path.join(
+    save_dir, f"growth_regression_overlay_{t}"
 )
+#overlay_reg_fname = lambda r0: os.path.join(
+#    save_dir, f"growth_regression_overlay_rho0_{r0/1250:.1f}"
+#)
+
+#colors = list(lsig.growthrate_colors)
+colors = [lsig.rgb2hex(rgb) for rgb in sns.color_palette()[:3]]
 
 def main(
     param_names=["untreated", "FGF2", "RI"],
     rho_0s=[1250., 2500., 5000.],  #cells / mm^2
+    rho_0_labels=["1x", "2x", "4x"],
     percentiles=[68, 90],
     overlay_ptile=80,
-    overlay_colors=list(lsig.growthrate_colors),
+    overlay_colors=colors,
     overlay_markers=["o", "^", "s"],
     figsize=(5, 3),
     seed=2021,
@@ -66,14 +74,16 @@ def main(
     )
 
     ## Plot predictive regression for all samples
-    regression_dfs = []
-    for r0 in rho_0s:
+    for i, t in enumerate(treatments):
         
         growth_curve_data_list = []
         bs_dens_t_list         = []
         t_data_list            = []
 
-        for i, t in enumerate(treatments):
+        bs_mle = bs_reps_list[i]
+        _gs, _rms, _sigma  = bs_mle.T
+        
+        for r0 in rho_0s:
 
             # Experimental data
             growth_curve_data = data_df.loc[
@@ -86,8 +96,6 @@ def main(
             t_data_list.append(t_data)
 
             # Generate predictions using bootstrap MLEs of growth parameters
-            bs_mle = bs_reps_list[i]
-            _gs, _rms, _sigma  = bs_mle.T
             bs_dens_t = np.array([
                 lsig.logistic(_t, _gs, r0, _rms) + rg.normal(scale=_sigma)
                 for _t in t_data
@@ -118,7 +126,7 @@ def main(
             
             plt.close(fig)
 
-        # Overlay all treatments
+        # Overlay all densities
         fig, ax = plt.subplots(figsize=figsize)
         ax.set(**plot_kw)
         for i, (gc, bs, td) in enumerate(zip(
@@ -133,10 +141,11 @@ def main(
             _color_lite = np.hstack([_color, [[0.2]]])
             lsig.plot_predictive_regression(
                 df_pred=df_pred, 
-                data=gc, 
+#                data=gc, 
                 ax=ax,
                 colors=[_color_lite, _color],
                 median_lw=1,
+                median_kwargs=dict(label='_nolegend_'),
             )
             
         for i, (gc, bs, td) in enumerate(zip(
@@ -151,22 +160,29 @@ def main(
                 "__data_y", 
                 data=df_data, 
                 c=_color,
-                s=5,
+                s=15,
                 marker=overlay_markers[i],
+                label=rho_0_labels[i],
             )
             
-        plt.title(f"$\\rho_0={{{int(r0)}}}$")
+        plt.title(t)
+        plt.legend(
+            title="Plating density", bbox_to_anchor=(1, 0.5), loc="center left"
+        )
+#        plt.title(f"$\\rho_0={{{int(r0)}}}$")
         plt.tight_layout()
 
         if save:
-            fname = overlay_reg_fname(r0) + "." + fmt
+            fname = overlay_reg_fname(t) + "." + fmt
             print("Writing to:", fname)
             plt.savefig(fname, dpi=dpi)
         
         plt.close(fig)
 
+
 main(
     save=True,
+    overlay_markers=["o","o","o"],
 )
 
 
