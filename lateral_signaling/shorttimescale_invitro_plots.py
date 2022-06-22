@@ -28,12 +28,6 @@ strip_fpath  = os.path.join(save_dir, "shorttimecourse_velocity_stripplot_")
 table_fpath  = os.path.join(save_dir, "shorttimecourse_velocity_table_")
 curves_fpath = os.path.join(save_dir, "shorttimecourse_curves_")
 
-fmt = "png"
-dpi = 300
-
-tmax_days=2
-save=False
-
 
 def main(
     data_fname=data_fname,
@@ -304,5 +298,5 @@ def main(
 
 
 main(
-    save=True,
+    save=False,
 )
