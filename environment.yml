@@ -35,6 +35,7 @@ dependencies:
   - pip
   - pip:
     - sacred
+    - psutil
     - bebi103==0.1.8
       #    - chromedriver-binary-auto
     - matplotlib-scalebar==0.*
