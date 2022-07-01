@@ -964,8 +964,11 @@ def rho_to_units(rho, ref_density=1250):
     return rho * ref_density
 
 
-@numba.njit
-def _ncells_to_area(ncells, rho, ref_density=1250):
+@numba.vectorize
+def _nc2a_ufunc(ncells, rho, ref_density):
+    return ncells / (rho * ref_density)
+
+def ncells_to_area(ncells, rho, ref_density=1250):
     """Return theoretical area taken up by `ncells` cells.
     
     Returns
@@ -986,9 +989,7 @@ def _ncells_to_area(ncells, rho, ref_density=1250):
         The cell density at a dimensionless density of `rho = 1`
         in units of inverse area. Defaults to 1250 (mm^-2).
     """
-    return ncells / (rho * ref_density)
-
-ncells_to_area = np.vectorize(_ncells_to_area)
+    return _nc2a_ufunc(ncells, rho, ref_density)
 
 
 ####### Delay diff eq integration
@@ -2885,210 +2886,6 @@ def inspect_grid_interp_mesh(
 ####################################################################
 
 
-####### Functions for calculating cell-cell contacts 
-
-@numba.njit
-def get_L_vals(xs, vs, vertices):
-    """
-    Returns the cell-cell indices and the lengths of cell-cell 
-    contacts given information about the Voronoi tesselation.
-    
-    xs is an (n x 2) array containing the indices of `n` pairs of 
-        adjacent cells. For a Scipy Voronoi object `vor`, this is 
-        equivalent to `vor.ridge_points`. Order should be preserved 
-        with vs.
-       
-    vs is an (n x 2) array containing the indices of vertices for each
-        cell-cell interface (`n` in total). Order should be preserved 
-        with xs.
-        
-    vertices is an (m x 2) array containing the `m` vertices in the 
-        Voronoi tesselation in 2D Cartesian coordinates.
-    """
-    
-    # Count number of non-infinite Voronoi ridges
-    n_l = 0
-    for v1, v2 in vs:
-        if (v1 >= 0) & (v2 >= 0):
-            n_l += 1
-    
-    Lij = np.zeros((n_l, 2), dtype=np.int_)
-    L_vals = np.empty(n_l, dtype=np.float32)
-    
-    k = 0
-    for i, x12 in enumerate(xs):
-        v1, v2 = vs[i]
-        
-        # Infinite Voronoi edges have zero length
-        if (v1 < 0) | (v2 < 0):
-            continue
-        
-        # Get length of cell-cell ridge
-        ell = np.linalg.norm(vertices[v1] - vertices[v2])
-        Lij[k] = x12
-        L_vals[k] = ell
-        
-        k += 1
-        
-    return Lij, L_vals
-
-
-@numba.njit
-def get_L_vals_gaps(xs, vs, pts, vertices, cr):
-    """
-    Returns the cell-cell indices and the lengths of cell-cell 
-    contacts given information about the Voronoi tesselation and
-    a uniform cell radius `cr`.
-    """
-    
-    # Make matrix cell-cell contact lengths
-    n_l = 0
-    for v1, v2 in vs:
-        if (v1 >= 0) & (v2 >= 0):
-            n_l += 1
-    
-    Lij = np.zeros((n_l, 2), dtype=np.int_)
-    L_vals = np.empty(n_l, dtype=np.float32)
-    
-    k = 0
-    for i, x_pair in enumerate(xs):
-        v1, v2 = vs[i]
-        # Infinite Voronoi edges have zero length
-        if (v1 < 0) | (v2 < 0):
-            continue
-        
-        # Get length of Voronoi ridge
-        ell_vor = np.linalg.norm(vertices[v1] - vertices[v2])
-        
-        # Get length of circles intersection
-        ell_cir = circle_intersect_length(pts[x_pair[0]], pts[x_pair[1]], cr)
-        
-        # Store the lower value of interface length
-        L_vals[k] = np.minimum(ell_vor, ell_cir)
-        
-        # Store point indices
-        Lij[k] = x_pair
-
-        k += 1
-        
-    return Lij, L_vals
-
-
-def make_L_gaps(vor, cr):
-    """
-    """
-    n = vor.npoints
-    xs = vor.ridge_points
-    vs = np.array(vor.ridge_vertices)
-    pts = vor.points
-    vertices = vor.vertices
-    
-    Lij, L_vals = get_L_vals_gaps(xs, vs, pts, vertices, cr=cr)
-    L = csr_matrix((L_vals, (*Lij.T,)), shape=(n, n))
-
-    return L + L.T
-
-
-def make_L(vor):
-    """
-    Return a Scipy CSRMatrix object (sparse matrix) encoding 
-    the length of cell-cell contacts given a Scipy Voronoi object 
-    `vor` describing the Voronoi tesselation of a set of cell centroids.
-    """
-    
-    n = vor.npoints
-    xs = vor.ridge_points
-    vs = np.array(vor.ridge_vertices)
-    vertices = vor.vertices
-    
-    Lij, L_vals = get_L_vals(n, xs, vs, vertices)
-    L = csr_matrix((L_vals, (*Lij.T,)), shape=(n, n))
-    
-    return L + L.T
-
-
-
-@numba.njit
-def get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr):
-    """
-    Returns the cell-cell indices and the phenomenological beta-function 
-    values given information about the Voronoi tesselation and
-    a uniform cell radius `cr`.
-    """
-    
-    # Make matrix cell-cell contact lengths
-    n_b = 0
-    for v1, v2 in vs:
-        if (v1 >= 0) & (v2 >= 0):
-            n_b += 1
-    
-    Bij = np.zeros((n_b, 2), dtype=np.int_)
-    B_vals = np.zeros(n_b, dtype=np.float32)
-    
-    k = 0
-    for i, x_pair in enumerate(xs):
-        
-        # Infinite Voronoi edges have zero length
-        v1, v2 = vs[i]
-        if (v1 < 0) | (v2 < 0):
-            continue
-        
-        # Check if cell-cell distance is too large to interact
-        x1, x2 = x_pair
-        bij_bool = np.linalg.norm(pts[x1] - pts[x2]) < (cr * 2)
-        
-        if bij_bool:
-            # Get average beta(rho) and store 
-            val = (betarho_func(rhos[x1]) + betarho_func(rhos[x2])) / 2
-            B_vals[k] = val
-        
-        # Store indices
-        Bij[k] = x_pair
-        k += 1
-        
-    return Bij, B_vals
-
-
-def make_B_gaps(vor, cr, betarho_func, rhos):
-    """
-    """
-    n = vor.npoints
-    xs = vor.ridge_points
-    vs = np.array(vor.ridge_vertices)
-    pts = vor.points
-    
-    Bij, B_vals = get_B_vals_gaps(betarho_func, rhos, xs, vs, pts, cr)
-    B = csr_matrix((B_vals, (*Bij.T,)), shape=(n, n))
-
-    return B + B.T
-
-
-@numba.njit
-def circle_intersect_length(c1, c2, r):
-    """Length of the intersection between two circles of equal radius `r`."""
-    
-    # Get distance between circle centers
-    d = np.linalg.norm(c1 - c2)
-    
-    # Get length of interface, catching the case where circles do not intersect
-    ell2 = np.maximum(r**2 - (d**2)/4, 0)
-    return 2 * np.sqrt(ell2)
-    
-@numba.njit
-def circle_intersect_length2(c1, c2, r1, r2):
-    """Length of the intersection between two circles of radii `r1` and `r2`."""
-    
-    # Get distance between circle centers
-    d = np.linalg.norm(c1 - c2)
-    
-    # Check if circles do not intersect
-    if d >= (r1 + r2):
-        return 0
-    
-    # Else, calculate intersection length
-    return 2 * r1 * np.sqrt(1 - ((r1**2 + d**2 - r2**2) / (2 * r1 * d))**2)
-
-
 @numba.njit
 def A_cells_um(nc, rho, A_c_rho1=800):
     """
@@ -3109,45 +2906,10 @@ def rad_to_beta(rad, dist=1):
     return np.sqrt(4 - (dist**2 / rad**2))
 
 
-####### Signaling code
-
-@numba.njit
-def beta_rho_isqrt(rho, *args):
-    return 1/np.sqrt(np.maximum(rho, 1))
-
 @numba.njit
 def beta_rho_exp(rho, m, *args):
     return np.exp(-m * np.maximum(rho - 1, 0))
 
-@numba.njit
-def beta_rho_lin(rho, m, *args):
-    return m - m * np.maximum(rho, 1) + 1
-
-def tc_rhs_beta_normA(S, S_delay, Adj, sender_idx, beta_func, func_args, alpha, k, p, delta, lambda_, rho):
-    """
-    Right-hand side of the transciever circuit delay 
-    differential equation. Uses a matrix of cell-cell contact 
-    lengths `L`.
-    """
-
-    # Get signaling as a function of density
-    beta = beta_func(rho, *func_args)
-    
-    # Get input signal across each interface
-    S_bar = beta * (Adj @ S_delay)
-
-    # Calculate dE/dt
-    dS_dt = (
-        alpha
-        * (S_bar ** p)
-        / (k ** p + (delta * S_delay) ** p + S_bar ** p)
-        - S
-    )
-
-    # Set sender cell to zero
-    dS_dt[sender_idx] = 0
-
-    return dS_dt    
     
 ####################################################
 #######              Figures                 #######
@@ -3220,7 +2982,7 @@ def max_prop_area_vs_density(
         S_rho0_t[i] = S_t
         
         n_act = (S_t > thresh).sum(axis=1)
-        A_rho0_t[i] = A_cells_um(n_act, rho_t)
+        A_rho0_t[i] = ncells_to_area(n_act, rho_t)
     
     results = dict(
         t=t, 
