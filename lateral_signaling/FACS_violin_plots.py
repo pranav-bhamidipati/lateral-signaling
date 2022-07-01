@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 import lateral_signaling as lsig
+lsig.default_rcParams()
 
 
 # Inputs
@@ -18,11 +19,12 @@ data_dir       = os.path.abspath("../data/FACS")
 metadata_fpath = os.path.join(data_dir, "metadata.csv")
 
 # Outputs
-save_dir   = os.path.abspath("../plots")
+save_dir   = os.path.abspath("../plots/tmp")
 violin_pfx = os.path.join(save_dir, "FACS_violins_")
 LLR_fname  = os.path.join(save_dir, "LLR_cutoff_")
 
 def main(
+    cutoff_figsize=(4.0, 2.5),
     violin_prefix=violin_pfx,
     save=False,
     fmt="png",
@@ -57,14 +59,18 @@ def main(
     data_hists_pdf    = (data_hists + 1) / np.sum(data_hists + 1, axis=1, keepdims=True)
     data_hists_logpdf = np.log10(data_hists_pdf)
 
-    # Get the difference between log(PDF)s for reference samples
+    # Get the difference between (log-)PDFs for reference samples
+    OFF_hist_pdf, ON_hist_pdf = data_hists_pdf[refdata_idx]
+    LR  = ON_hist_pdf / OFF_hist_pdf
     OFF_hist_logpdf, ON_hist_logpdf = data_hists_logpdf[refdata_idx]
     LLR = ON_hist_logpdf - OFF_hist_logpdf
 
     # To approximate where it crosses from OFF to ON, find where it changes sign from - to +
+    where_LR_crosses  = np.diff(np.sign(LR - 1)) > 0
     where_LLR_crosses = np.diff(np.sign(LLR)) > 0
     cutoff_idx = where_LLR_crosses.nonzero()[0]
-    cutoff = (bins[cutoff_idx + 1])
+    cutoff = float(bins[cutoff_idx + 1])
+    print(f"{cutoff=}")
 
     ## Make plot showing log-likelihood and cutoff
 
@@ -72,12 +78,15 @@ def main(
     bin_centers = bins[:-1] + np.diff(bins) / 2
 
     # Plot Log-likelihood and cutoff line
-    plt.scatter(bin_centers, LLR, color="k", marker="o", s=5)
-    plt.vlines(cutoff, *plt.gca().get_ylim(), lw=1,)
+    fig, ax = plt.subplots(figsize=cutoff_figsize)
+    plt.scatter(bin_centers, LR, color="k", marker="o", s=5)
+    plt.vlines(cutoff, *plt.gca().get_ylim(), lw=2,)
 
-    # Options
     plt.xlabel("mCherry (AU)")
-    plt.ylabel(r"$\mathrm{Log}_{10}P(\mathrm{ON}) - \mathrm{Log}_{10}P(\mathrm{OFF})$")
+    plt.ylabel(r"$\frac{\mathrm{Likelihood(ON)}}{\mathrm{Likelihood(OFF)}}$")
+    ax.set_yscale("log")
+    plt.title("Effect of an observation\non ON/OFF likelihood ratio")
+    plt.tight_layout()
 
     # Save
     if save:

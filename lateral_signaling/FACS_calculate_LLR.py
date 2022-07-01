@@ -1,7 +1,3 @@
-# Non-parametric model comparison of FACS data using log-likelihood ratio (LLR)
-
-## Setup Environment
-
 import os
 
 import pandas as pd
@@ -23,15 +19,14 @@ def draw_bs_sample(data, samplesize=None):
     return rng.choice(data, size=samplesize)
 
 # Options/files/directories for reading
-data_dir      = os.path.abspath("../data/FACS")
-metadata_fname     = os.path.join(data_dir, "metadata.csv")
+data_dir       = os.path.abspath("../data/FACS")
+metadata_fname = os.path.join(data_dir, "metadata.csv")
 
 # Options/files/directories for writing
-save_data          = False
 metadata_res_fname = os.path.join(data_dir, "metadata_with_LLR.csv")
 
 # Local directory for fast read-write (used during parallelization)
-local_dir = "/tmp/dask-worker-space"
+local_dir = os.path.abspath("/tmp/dask-worker-space")
 
 # Read in metadata
 metadata = pd.read_csv(metadata_fname)
@@ -113,9 +108,13 @@ def get_bs_llr_mean_CI(d, samplesize, n_bs_reps, OFF_logpdf, ON_logpdf, conf=0.9
     return np.mean(llr_bs), *np.quantile(llr_bs, [0.5 - conf / 2, 0.5 + conf / 2])
 
 
-## Perform distributed computation of LLR
-if __name__ == "__main__":
-    
+def main(
+    metadata_res_fname=metadata_res_fname,
+    local_dir=local_dir,
+    bs_rep_size=bs_rep_size,
+    n_bs_reps=n_bs_reps,
+    save=False,
+):
     # Make a client 
     #   The client monitors workers to make sure tasks are allocated efficiently 
     #   (Click on URL to monitor tasks using the dashboard.)
@@ -149,34 +148,6 @@ if __name__ == "__main__":
     llr_bs_means = llr_bs_means_95CI[:, 0]
     llr_bs_95CI  = llr_bs_means_95CI[:, 1:]
 
-    # ## Alternatively: Calculate bootstrap LLRs in a loop (non-parallel)
-    # # Initialize outputs
-    # llr_bs_means = np.zeros((len(data),), dtype=np.float64) 
-    # llr_bs_95CI  = np.zeros((len(data), 2), dtype=np.float64)
-    #
-    # for i, d in enumerate(tqdm(data)):
-    #
-    #     # Get bootstrap replicates of LLR
-    #     llr_bs = np.zeros((n_bs_reps,), dtype=float)
-    #     for j in range(n_bs_reps):
-    #        
-    #         # Draw a bootstrap sample
-    #         bs = draw_bs_sample(data=d, samplesize=bs_rep_size)
-    #        
-    #         # Bin into histogram
-    #         bs_hist = lsig.data_to_hist(bs, nbins)[0]
-    #        
-    #         # Calculate log-likelihood ratio (LLR)
-    #         log_like_OFF = np.sum(bs_hist * OFF_hist_logpdf)
-    #         log_like_ON  = np.sum(bs_hist * ON_hist_logpdf)
-    #         log_like_ratio = log_like_ON - log_like_OFF
-    #         llr_bs[j] = log_like_ratio
-    #    
-    #     # Store mean and 95% confidence intervals
-    #     llr_bs_means[i] = np.mean(llr_bs)
-    #     llr_bs_95CI[i]  = np.quantile(llr_bs, [0.025, 0.975])
-
-
     # Make a new metadata table with results
     metadata_res = metadata.copy()
     metadata_res["LLR_mean"]    = llr_bs_means
@@ -184,5 +155,10 @@ if __name__ == "__main__":
     metadata_res["LLR_95CI_hi"] = llr_bs_95CI[:, 1]
 
     # Save
-    if save_data:
+    if save:
         metadata_res.to_csv(metadata_res_fname, index=False)
+
+if __name__ == "__main__":
+    main(
+        save=True,
+    )
