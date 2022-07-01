@@ -9,6 +9,9 @@ stan_output/
 # Sacred (provenance system for experiments)
 sacred/
 
+# VS Code runtime settins
+.vscode/
+
 # Vim swap files (created during text editing)
 *.swp
 
