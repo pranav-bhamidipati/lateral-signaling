@@ -33,7 +33,7 @@ def main(
     data_fname=data_fname,
     simdata_dir=simdata_dir, 
     simdata_fname=simdata_fname,
-    figsize=(4, 4),
+    figsize=(4, 3.2),
     SMALL_SIZE=14, 
     MEDIUM_SIZE=16, 
     BIGGER_SIZE=20,
@@ -298,5 +298,5 @@ def main(
 
 
 main(
-    save=False,
+    save=True,
 )
