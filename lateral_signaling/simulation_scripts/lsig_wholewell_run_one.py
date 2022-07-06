@@ -26,13 +26,13 @@ data_dir  = os.path.abspath("../data/simulations")
 params_json_path = os.path.join(data_dir, "sim_parameters_wholewell.json")
 
 # Read in growth parameters
-mle_data_dir = os.path.abspath("../data/MLE")
+mle_data_dir = os.path.abspath("../data/growth_curves_MLE")
 mle_params_path = os.path.join(mle_data_dir, "growth_parameters_MLE.csv")
 mle_params_df = pd.read_csv(mle_params_path, index_col=0)
 
 # Get MLE of carrying capacity
 _rho_max = mle_params_df.loc[
-    mle_params_df.condition == "untreated", ["rho_max_ratio"]
+    mle_params_df.treatment == "untreated", ["rho_max_ratio"]
 ].values.ravel()[0]
 _rho_max = float(_rho_max)
 
