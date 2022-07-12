@@ -457,7 +457,7 @@ def get_center_cells(X, n_center=1):
 
 
 def get_weighted_Adj(
-    X, r_int, dtype=np.float32, sparse=False, row_stoch=False, **kwargs
+    X, r_int, dtype=np.float32, sparse=False, row_stoch=False, atol=1e-8, **kwargs
 ):
     """
     Construct adjacency matrix for a non-periodic set of 
@@ -471,7 +471,7 @@ def get_weighted_Adj(
     n = X.shape[0]
     d = pdist(X)
     a = scipy.stats.norm.pdf(d, loc=0, scale=r_int/2)
-    a[d >= r_int] = 0
+    a[d > (r_int + atol)] = 0
     A = squareform(a)
     
     if row_stoch:
@@ -1180,7 +1180,7 @@ sbar_kwargs = dict(
     location="lower right",
 )
 
-# Plot of cell sheet (passed to `plot_hex_sheet()`)
+# Container for plotting kwargs
 plot_kwargs = dict(
     # sender_idx=sender_idx,
     # xlim=xlim,            
@@ -1563,7 +1563,9 @@ def plot_hex_sheet(
         )
         
     if scalebar:
-        _scalebar = ScaleBar(**sbar_kwargs)
+        sb_kw = plot_kwargs["sbar_kwargs"].copy()
+        sb_kw.update(sbar_kwargs)
+        _scalebar = ScaleBar(**sb_kw)
         ax.add_artist(_scalebar)
 
 

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
-save_dir = os.path.abspath("../plots")
+save_dir = os.path.abspath("../plots/tmp")
 fname    = "signaling_vs_density_curve_"
 
 def main(
@@ -83,12 +83,15 @@ def main(
             transform=ax.transData,
         )
         
-        # Draw line from inset to curve
-        endpoint_x = x_ins + ins_width/6
-        endpoint_y = y_ins + ins_height/2
+        # Draw line from curve to inset ensuring line isn't touching either
+        src = np.array([rhos[i], betas[i]])
+        dst = np.array([x_ins + ins_width/6, y_ins + ins_height/2])
+        pad = 0.1 * (dst - src) / np.linalg.norm(dst - src) 
+        src = src + pad
+        dst = dst - pad
         ax.plot(
-            (endpoint_x, rhos[i]), 
-            (endpoint_y, betas[i]), 
+            (src[0], dst[0]), 
+            (src[1], dst[1]), 
             c="k",
         )
         
@@ -103,11 +106,13 @@ def main(
             ylim=ylim,
             ec="w",
             lw=0.2,
+            scalebar=True,
+            sbar_kwargs=dict(font_properties=dict(size=0)),
             # axis_off=False,
         )
     
     # Add titles/labels
-    ax.set_title("Effect of density on signaling", fontsize=18)
+    ax.set_title(r"Signaling coefficient ($\beta$) vs density ($\rho$)", fontsize=18)
     ax.text(
         rho_space.max(), 
         beta_space.max(), 
@@ -129,7 +134,8 @@ def main(
     ax.set_xlim(plot_xlim)
     ax.set_ylim(plot_ylim)
     ax.set_xlabel(r"$\rho$", fontsize=16)
-    ax.set_ylabel("Signaling coefficient", fontsize=16)
+    ax.set_ylabel(r"$\beta$", fontsize=16)
+#    ax.set_ylabel("Signaling coefficient", fontsize=16)
     plt.tick_params(labelsize=12)
     # ax.set_aspect(4)
     
