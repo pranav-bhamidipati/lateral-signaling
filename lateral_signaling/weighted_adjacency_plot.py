@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
-save_dir = os.path.abspath("../plots")
+save_dir = os.path.abspath("../plots/tmp")
 fname    = "weighted_adjacency_"
 
 def main(
@@ -31,7 +31,7 @@ def main(
     ## NOTE: This is hard-coded because r_int is used in a MathTex
     ##        formula below - if it changes, the formula must be 
     ##        manually changed.
-    r_int = 3.001
+    r_int = 3.0
 
     # Make hexagonal sheet and get cell at center
     X = lsig.hex_grid(rows, rows)
@@ -67,8 +67,9 @@ def main(
 
     # Make figure
     fig, ax = plt.subplots(figsize=figsize)
-    plt.suptitle(r"$w_{ij}$, $r_{int}=3$", fontsize=24)
-    plt.title(r"$\sum_j w_{ij} = 1 \quad \forall j$", fontsize=24, y=-0.11)
+    plt.suptitle(r"Cell adjacency weight ($w_{ij}$)", fontsize=24, y=0.95)
+#    plt.title(r"$\sum_j w_{ij} = 1 \quad \forall i$", fontsize=24, y=-0.11)
+    plt.title(r"$\sum_j w_{ij} = \mathbf{1}$", fontsize=24, y=-0.11)
 
     # Plot multivariate Gaussian in background
     plt.pcolor(*xy.T, z_mesh, shading="auto", cmap=cmap)

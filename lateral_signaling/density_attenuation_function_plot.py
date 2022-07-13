@@ -115,20 +115,21 @@ def main(
     ax.set_title(r"Signaling coefficient ($\beta$) vs density ($\rho$)", fontsize=18)
     ax.text(
         rho_space.max(), 
-        beta_space.max(), 
+        beta_space.max() - 0.125, 
+#        beta_space.max(), 
         r"$\beta(\rho, m)=e^{-m(\rho-1)}$", 
         ha="right", 
         va="top", 
         fontsize=14,
     )
-    ax.text(
-        rho_space.max(), 
-        beta_space.max() - 0.125, 
-        f"$m={m:.2f}$", 
-        ha="right", 
-        va="top", 
-        fontsize=14,
-    )
+#    ax.text(
+#        rho_space.max(), 
+#        beta_space.max() - 0.125, 
+#        f"$m={m:.2f}$", 
+#        ha="right", 
+#        va="top", 
+#        fontsize=14,
+#    )
     
     # Set other options
     ax.set_xlim(plot_xlim)
