@@ -26,6 +26,8 @@ from matplotlib_scalebar.scalebar import ScaleBar
 import holoviews as hv
 hv.extension("matplotlib")
 
+lsig.default_rcParams()
+
 # Paths to read
 data_dir           = os.path.abspath("../data/imaging/signaling_gradient")
 image_dir          = os.path.join(data_dir, "processed")
@@ -34,12 +36,13 @@ circle_params_path = os.path.join(data_dir, "roi_circle_params.json")
 lp_params_path     = os.path.join(data_dir, "line_profile.json")
 
 # Paths to write data
-save_dir       = os.path.abspath("../plots")
-im_layout_path = os.path.join(save_dir, "signaling_gradient_images__")
-lp_plot_path   = os.path.join(save_dir, "signaling_gradient_line_profiles__")
+save_dir       = os.path.abspath("../plots/tmp")
+im_layout_path = os.path.join(save_dir, "signaling_gradient_images_")
+lp_plot_path   = os.path.join(save_dir, "signaling_gradient_line_profiles_")
 lp_data_path   = os.path.join(data_dir, "__line_profile_data.json")
 
 def main(
+    figsize=(3, 3),
     save_data=False,
     save_figs=False,
     fmt="png",
@@ -227,12 +230,50 @@ def main(
     ).cols(5)
     curves_layout.opts(sublabel_format="")
 
-    # Save
     if save_figs:
-        _path = lp_plot_path + "." + fmt
+        _path = lp_plot_path  + "." + fmt
         print("Writing to:", _path)
         hv.save(curves_layout, lp_plot_path, fmt=fmt, dpi=dpi)
+
+    # Overlay intensity profiles at first time-point
+#    overlay = hv.Overlay(
+#        [curves[0], curves[5]]
+#    )
     
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    ax.set(
+        xlabel="Position (mm)",
+        ylabel="Norm. Fluorescence",
+        yticks=(0, 1),
+    )
+   
+    idx = (0, 5)
+    colors = ("b", "g")
+    labels = ("BFP", "GFP")
+    for i, clr, lbl in zip(idx, colors, labels):
+        pos = lp_positions[i]
+        pos = pos.max() - pos   # flip direction
+        lp  = line_profiles[i]
+        lp  = (lp - lp.min()) / (lp.max() - lp.min())
+        plt.plot(pos, lp, color=clr, linewidth=0.5, label=lbl)
+    plt.legend(loc="center left", bbox_to_anchor=(0.0, 0.35))
+
+#    twinax=ax.twinx() 
+#    twinax.set(
+#        ylabel="norm. GFP",
+#    )
+
+    plt.tight_layout()
+
+    if save_figs:
+        
+        overlay_path = lp_plot_path + "overlay"
+        _path = overlay_path + "." + fmt
+        print("Writing to:", _path)
+#        hv.save(overlay, overlay_path, fmt=fmt, dpi=dpi)
+        plt.savefig(_path, dpi=dpi, format=fmt)
+
     # Store line profile data
     lp_data_dict = {
         "lp_length": lp_length_mm, 
@@ -250,6 +291,6 @@ def main(
 
 main(
     save_figs=True, 
-    save_data=True,
+    save_data=False,
 )
 

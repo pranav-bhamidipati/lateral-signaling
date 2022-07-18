@@ -21,14 +21,14 @@ sacred_dir   = os.path.join(data_dir, "20211201_singlespotphase/sacred")
 thresh_fpath = os.path.join(data_dir, "phase_threshold.json")
 
 # Writing
-save_dir        = os.path.abspath("../plots")
+save_dir        = os.path.abspath("../plots/tmp")
 v_init_fname    = os.path.join(save_dir, "v_init_histogram")
 n_act_fin_fname = os.path.join(save_dir, "n_act_fin_histogram")
 phase3d_fname   = os.path.join(save_dir, "phase_boundaries_3D")
 
 def main(
-    figsize=(6.4, 4.8),
-    nbins=50,
+    figsize=(4, 3),
+    nbins=30,
     binmin=1,
     binmax=6400,
     save=False,
@@ -96,7 +96,8 @@ def main(
 
     ## Plot histogram of v_init
     fig, ax = plt.subplots(figsize=figsize)
-    plt.hist(df.v_init, bins=nbins, color="k", density=True);
+    plt.hist(df.v_init, bins=nbins, color="k");
+#    plt.hist(df.v_init, bins=nbins, color="k", density=True);
 
     # Threshold used
     plt.vlines(v_init_thresh, *plt.gca().get_ylim(), color="k", linestyles="dashed")
@@ -134,15 +135,21 @@ def main(
     plt.xlim(-2, 2)
     plt.axis("off")
 
-    # Plot histogram in log-space 
+    # Plot histogram on linear-linear axes 
     ax2 = fig.add_subplot(gs[:, 1:])
-    bins = np.geomspace(binmin, binmax, nbins + 1)
-    plt.hist(df.n_act_fin, bins=bins, color="k", density=True, log=True);
-    ax2.semilogx()
+    bins = np.linspace(binmin, binmax, nbins + 1)
+    plt.hist(df.n_act_fin, bins=bins, color="k");
+    plt.ylabel("# simulations", fontsize=16)
+   
+#    # Plot histogram on log-log axes
+#    ax2 = fig.add_subplot(gs[:, 1:])
+#    bins = np.geomspace(binmin, binmax, nbins + 1)
+#    plt.hist(df.n_act_fin, bins=bins, color="k", density=True, log=True);
+#    ax2.semilogx()
+#    plt.ylabel("Frequency", fontsize=16)
 
     # Add labels and options
     plt.xlabel(r"$n_{\mathrm{act, fin}}$", fontsize=16)
-    plt.ylabel("Frequency", fontsize=16)
     plt.tick_params(labelsize=12)
 
     plt.tight_layout()

@@ -26,19 +26,19 @@ examples_json = os.path.join(data_dir, "phase_examples.json")
 examples_dir  = os.path.join(data_dir, "20211209_phase_examples/sacred")
 
 # Reading growth parameter estimation data
-mle_dir       = os.path.abspath("../data/MLE")
+mle_dir       = os.path.abspath("../data/growth_curves_MLE")
 mle_fpath     = os.path.join(mle_dir, "growth_parameters_MLE.csv")
 pert_clr_json = os.path.join(mle_dir, "perturbation_colors.json")
 
 # Writing
-save_dir  = os.path.abspath("../plots")
+save_dir  = os.path.abspath("../plots/tmp")
 fpath_pfx = os.path.join(save_dir, "phase_diagram_2D_")
 
 def main(
     pad=0.05,
-    area_ceiling=1e5,
+    area_ceiling=1,
     bg_alpha=0.8,
-    marker_dim="max_area_um2",
+    marker_dim="max_sqrtarea_mm",
     marker_scale=130,
     legend_bgcol="#bebebe",
     legend_width=0.8,
@@ -457,38 +457,39 @@ def main(
         # Get densities
         rhos = np.sort([k[1] for k in ks])
 
-    # Get dataframe with growth parameters from file
+    # Make dataframe with growth parameters for all perturbations
     pdf = pd.read_csv(mle_fpath, index_col=0)
+    pdf = pdf.merge(pd.DataFrame(ks, columns=["treatment", "rho_0"]))
+
+    # Assign colors
+    pdf["color"] = [
+        color_dict[(t, d)] 
+        for t, d in pdf.loc[:, ["treatment", "rho_0"]].values
+    ]
 
     # Calculate difference between CI bounds and mean
     pdf["g_inv_days_90CIdiff_lo"] = pdf["g_inv_days"] - pdf["g_inv_days_90CI_lo"]
     pdf["g_inv_days_90CIdiff_hi"] = pdf["g_inv_days_90CI_hi"] - pdf["g_inv_days"]
     
-    # Add rows for different density conditions
-    pdf["rho_0"] = rhos[0]
-    untreated_row = pdf.loc[pdf.condition=="untreated", :]
-    untreated_df = pd.concat([untreated_row] * len(rhos))
-    untreated_df["rho_0"] = rhos
-    pdf = pd.concat([pdf, untreated_df])
-    pdf = pdf.drop_duplicates().reset_index(drop=True)
+#    # Add rows for different density treatments
+#    pdf["rho_0"] = rhos[0]
+#    untreated_row = pdf.loc[pdf.treatment=="untreated", :]
+#    untreated_df = pd.concat([untreated_row] * len(rhos))
+#    untreated_df["rho_0"] = rhos
+#    pdf = pd.concat([pdf, untreated_df])
+#    pdf = pdf.drop_duplicates().reset_index(drop=True)
 
-    # Select data for plotting
-    pert_columns = [
-        "condition",
-        "rho_0",
-        "g_inv_days", 
-        "g_inv_days_90CIdiff_lo",
-        "g_inv_days_90CIdiff_hi",
-    ]
-    pdf = pdf.loc[:, pert_columns]
+#    # Select data for plotting
+#    pert_columns = [
+#        "treatment",
+#        r"$\rho_0$",
+#        "g_inv_days", 
+#        "g_inv_days_90CIdiff_lo",
+#        "g_inv_days_90CIdiff_hi",
+#    ]
+#    pdf = pdf.loc[:, pert_columns]
     
-    # Assign colors
-    pdf["color"] = [
-        color_dict[(c, d)] 
-        for c, d in pdf.loc[:, ["condition", "rho_0"]].values
-    ]
-
-    # Remove axis labels and phase examples
+#    # Remove axis labels and phase examples
 #    phasediagram_bare = phasediagram_bare.options(
 #    )
     
@@ -515,26 +516,39 @@ def main(
     )
     
     # Plot growth and density perturbations
-    g_pts = hv.Points(
-        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
+#    g_pts = hv.Points(
+#        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
+#        kdims=["g_inv_days", "rho_0"],
+#        vdims=["color"],
+#    ).opts(**pert_kw)
+#    g_err = hv.ErrorBars(
+#        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
+#        kdims=["g_inv_days"],
+#        vdims=["rho_0", "g_inv_days_90CIdiff_lo", "g_inv_days_90CIdiff_hi"],
+#        horizontal=True,
+#    ).opts(**err_kw)
+#    rho0_pts = hv.Points(
+#        data=pdf.loc[pdf["treatment"]=="untreated", :],
+#        kdims=["g_inv_days", "rho_0"],
+#        vdims=["color"],
+#    ).opts(**pert_kw)
+    
+    pert_pts = hv.Points(
+        data=pdf,
         kdims=["g_inv_days", "rho_0"],
         vdims=["color"],
     ).opts(**pert_kw)
-    g_err = hv.ErrorBars(
-        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
+    pert_err = hv.ErrorBars(
+        data=pdf,
         kdims=["g_inv_days"],
         vdims=["rho_0", "g_inv_days_90CIdiff_lo", "g_inv_days_90CIdiff_hi"],
         horizontal=True,
     ).opts(**err_kw)
-    rho0_pts = hv.Points(
-        data=pdf.loc[pdf["condition"]=="untreated", :],
-        kdims=["g_inv_days", "rho_0"],
-        vdims=["color"],
-    ).opts(**pert_kw)
 
-    drug_overlay      = (phasediagram_bare * g_pts * g_err).opts(xaxis=None, yaxis=None)
-    dens_overlay      = (phasediagram_bare * rho0_pts).opts(xaxis=None, yaxis=None)
-    drug_dens_overlay = (phasediagram_bare * g_pts * rho0_pts).opts(xaxis=None, yaxis=None)
+    pert_overlay = (phasediagram_bare * pert_pts * pert_err).opts(xaxis=None, yaxis=None)
+#    drug_overlay      = (phasediagram_bare * g_pts * g_err).opts(xaxis=None, yaxis=None)
+#    dens_overlay      = (phasediagram_bare * rho0_pts).opts(xaxis=None, yaxis=None)
+#    drug_dens_overlay = (phasediagram_bare * g_pts * rho0_pts).opts(xaxis=None, yaxis=None)
 
 #    drug_overlay      = (phasediagram_bare * g_pts * g_err).opts(*axis_off_args)
 #    dens_overlay      = (phasediagram_bare * rho0_pts).opts(*axis_off_args)
@@ -542,26 +556,28 @@ def main(
     
     if save:
 
-        fpath = prefix + "growth_perturbations" + suffix
+#        fpath = prefix + "growth_perturbations" + suffix
+#        _fpath = fpath + "." + fmt
+#        print(f"Writing to: {_fpath}")
+#        hv.save(drug_overlay, fpath, fmt=fmt, dpi=dpi)
+#
+#        fpath = prefix + "initdensity_perturbations" + suffix
+#        _fpath = fpath + "." + fmt
+#        print(f"Writing to: {_fpath}")
+#        hv.save(dens_overlay, fpath, fmt=fmt, dpi=dpi)
+#
+#        fpath = prefix + "both_perturbations" + suffix
+#        _fpath = fpath + "." + fmt
+#        print(f"Writing to: {_fpath}")
+#        hv.save(drug_dens_overlay, fpath, fmt=fmt, dpi=dpi)
+
+        fpath = prefix + "perturbations" + suffix
         _fpath = fpath + "." + fmt
         print(f"Writing to: {_fpath}")
-        hv.save(drug_overlay, fpath, fmt=fmt, dpi=dpi)
-
-        fpath = prefix + "initdensity_perturbations" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(dens_overlay, fpath, fmt=fmt, dpi=dpi)
-
-        fpath = prefix + "both_perturbations" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(drug_dens_overlay, fpath, fmt=fmt, dpi=dpi)
-
+        hv.save(pert_overlay, fpath, fmt=fmt, dpi=dpi)
 
 
 main(
-    area_ceiling=1,
-    marker_dim="max_sqrtarea_mm",
     save=True,
     suffix="_",
 )
