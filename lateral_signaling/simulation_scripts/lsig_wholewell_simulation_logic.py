@@ -38,8 +38,10 @@ def do_one_simulation(
     rho_0,
     rho_max,
     delay,
+    beta_function,
     ex=None,
     save=False,
+    progress=True,
     animate=False,
     n_frames=100,
     fps=15,
@@ -79,12 +81,18 @@ def do_one_simulation(
     # Calculate density
     rho_t = lsig.logistic(t, g, rho_0, rho_max)
     
+    # Get function for density-based signaling attenuation
+    beta_func = lsig.get_beta_func(beta_function)
+    
     # Initialize storage for each replicate 
     sender_idx_rep = np.empty((n_reps, n_senders), dtype=int)
     S_t_rep        = np.empty((n_reps, nt, n), dtype=np.float32)
     R_t_rep        = np.empty((n_reps, nt, n), dtype=np.float32)
-        
-    for rep in tqdm(range(n_reps)):
+    
+    iterator = range(n_reps)
+    if progress:
+        iterator = tqdm(iterator)
+    for rep in iterator:
 
         # Randomly assign sender cells                           
         sender_idx = np.random.choice(n, n_senders, replace=False)
@@ -112,7 +120,7 @@ def do_one_simulation(
         S_args = (
             Adj, 
             sender_idx, 
-            lsig.beta_rho_exp, 
+            beta_func, 
             beta_args, 
             alpha, 
             k, 
