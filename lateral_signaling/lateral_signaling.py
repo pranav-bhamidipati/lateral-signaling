@@ -1,4 +1,5 @@
 ####### Load depenendencies
+from functools import partial
 import os
 from typing import OrderedDict
 import warnings
@@ -31,6 +32,30 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
 hv.extension("matplotlib")
+
+####### Steady-state expression is computed from simulations
+from steady_state import ss_sacred_dir
+
+_steady_state_error = f"Simulations for steady-state approximation not found in directory: {ss_sacred_dir.resolve().absolute()}"
+
+try:
+    assert ss_sacred_dir.exists(), f"Directory does not exist: {ss_sacred_dir}"
+    import steady_state as ss
+
+    ss_args = ss._initialize()
+    get_steady_state = partial(ss._get_steady_state, *ss_args)
+    get_steady_state_vector = np.vectorize(get_steady_state)
+except Exception as e:
+    if isinstance(e, IndexError) or isinstance(e, AssertionError):
+
+        def get_steady_state(*args, **kwargs):
+            raise FileNotFoundError(_steady_state_error)
+
+        def get_steady_state_vector(*args, **kwargs):
+            raise FileNotFoundError(_steady_state_error)
+
+    else:
+        raise e
 
 
 ####### Constants
@@ -894,7 +919,7 @@ def make_circular_mask(h, w, center=None, radius=None):
 
 
 @numba.njit
-def t_to_units(dimless_time, ref_growth_rate=7.28398176e-01):
+def t_to_units(dimless_time, ref_growth_rate=6.160221865205395e-01):
     """Convert dimensionless time to real units for a growth process.
 
     Returns
@@ -2929,10 +2954,12 @@ def beta_rho_with_low_density(rho, m, q):
     return np.where(rho < 1, rho ** q, np.exp(-m * (rho - 1)))
 
 
-_beta_function_dictionary = OrderedDict([
-    ["exponential", beta_rho_exp],
-    ["exponential_low_density", beta_rho_with_low_density],
-])
+_beta_function_dictionary = OrderedDict(
+    [
+        ["exponential", beta_rho_exp],
+        ["exponential_low_density", beta_rho_with_low_density],
+    ]
+)
 
 
 # def set_beta_func(func_name, func):
