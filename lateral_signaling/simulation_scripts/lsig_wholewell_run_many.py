@@ -1,33 +1,81 @@
-import os
-from lsig_wholewell_run_one import ex
-import numpy as np
-import pandas as pd
+from pathlib import Path
+import dask
+import dask.distributed
 
-# Read in growth parameters
-mle_data_dir    = os.path.abspath("../data/growth_curves_MLE")
-mle_params_path = os.path.join(mle_data_dir, "growth_parameters_MLE__.csv")
-mle_params_df   = pd.read_csv(mle_params_path, index_col=0)
+from lateral_signaling import _dask_client_default_kwargs
 
-save_frames = [round(i) for i in np.linspace(0, 801, 11)]
+# Set dir for Dask to use (spill to disk, etc.)
+local_dir = Path("/home/pbhamidi/scratch/lateral_signaling/dask-worker-space")
 
-# Get MLE of carrying capacity
-conds, gs, rho_maxs = mle_params_df.loc[:, ["treatment", "g_ratio", "rho_max_ratio"]].values.T
+@dask.delayed
+def run_one_task(config_updates):
+    """Run single simulation - executed independently in every thread"""
+    from lsig_wholewell_run_one import ex 
+    ex.run(config_updates=config_updates)
 
-# Try different init densities
-rho_0s = [1.0, 2.0, 4.0]
+def main(
+    rho_0s=[1.0, 2.0, 4.0],
+    save_skip=10,
+    local_dir=local_dir,
+    memory_allocation_percentage=0.85,
+    client_kwargs=_dask_client_default_kwargs,
+    **kw
+):
 
-for cond, g, rho_max in zip(conds, gs, rho_maxs):
-    for rho_0 in rho_0s:
+    import os
+    import psutil
+    
+    import numpy as np
+    import pandas as pd
 
-        # Change default configuration
-        config_updates = {
-            "drug_condition": cond,
-            "rho_0": rho_0,
-            "g": g,
-            "rho_max": rho_max,
-            "save_frames": save_frames,
-        }
+    # Read in growth parameters
+    mle_data_dir    = Path("../data/growth_curves_MLE")
+    mle_params_path = mle_data_dir.joinpath("growth_parameters_MLE.csv")
+    mle_params_df   = pd.read_csv(mle_params_path, index_col=0)
+    conds, gs, rho_maxs = mle_params_df.loc[:, ["treatment", "g_ratio", "rho_max_ratio"]].values.T
+    n_runs = len(conds) * len(rho_0s)
 
-        # Run with updated configuration
-        ex.run(config_updates=config_updates)
+    # Set options based on whether this is being run in a SLURM environment or locally
+    kwargs = client_kwargs.copy()
+    if slurm_ID := os.environ.get("SLURM_JOB_ID"):
+        kwargs["n_workers"] = os.environ["SLURM_NPROCS"]  # Number of available threads
+        mb_per_cpu = int(
+            int(os.environ["SLURM_MEM_PER_CPU"]) * memory_allocation_percentage
+        )
+        kwargs["memory_limit"] = f"{mb_per_cpu} MiB"
+        kwargs["interface"] = "ib0"
+    else:
+        n_threads = psutil.cpu_count(logical=True)
+        kwargs["n_workers"] = min(n_threads, n_runs)
+
+    kwargs.update(kw)
+
+    # Configure a Client that will spawn a local cluster of workers.
+    #   Each task gets one worker and one worker gets one thread.
+    #   Threads are allocated to workers as they become available
+    client = dask.distributed.Client(**kwargs, local_directory=local_dir)
+
+    print("Building list of tasks to execute asynchronously")
+    
+    lazy_results = []
+    for cond, g, rho_max in zip(conds, gs, rho_maxs):
+        for rho_0 in rho_0s:
+            config_updates = {
+                "drug_condition": cond,
+                "rho_0": rho_0,
+                "g": g,
+                "rho_max": rho_max,
+                "save_skip": save_skip,
+            }
+            lazy_results.append(run_one_task(config_updates))
+
+    print("Executing tasks...")
+    dask.compute(*lazy_results)
+    
+
+if __name__ == "__main__":
+    main(
+        n_workers=3,
+        memory_limit="18 GiB",
+    )
     

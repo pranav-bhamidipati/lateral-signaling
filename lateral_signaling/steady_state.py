@@ -4,11 +4,9 @@ import numpy as np
 from pathlib import Path
 
 # Locate simulations of steady-state expression
-ss_sacred_dir = Path("./sacred")
+#ss_sacred_dir = Path("./sacred")
+ss_sacred_dir = Path("../data/simulations/20220726_steadystate/sacred")
 ss_data_dirs = sorted(list(ss_sacred_dir.glob("[0-9]*")))
-ss_data_files = [
-    (d.joinpath("config.json"), d.joinpath("results.hdf5")) for d in ss_data_dirs
-]
 
 # Extract some metadata first
 def get_metadata(results_file):
@@ -29,6 +27,10 @@ def _initialize():
     )
     rho_scan_unsorted = []
     S_tcmean_rep_scan_unsorted = []
+    
+    ss_data_files = [
+        (d.joinpath("config.json"), d.joinpath("results.hdf5")) for d in ss_data_dirs if d.joinpath("config.json").exists()
+    ]
     for i, (config_file, data_file) in enumerate(ss_data_files):
         with config_file.open("r") as f:
             j = json.load(f)

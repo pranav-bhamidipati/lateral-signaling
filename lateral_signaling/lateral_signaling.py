@@ -57,6 +57,14 @@ except Exception as e:
     else:
         raise e
 
+####### Utilities for parallel computing
+
+_dask_client_default_kwargs = dict(
+    threads_per_worker=1,
+    memory_limit="auto",
+    interface="lo",
+    timeout=600,
+)
 
 ####### Constants
 

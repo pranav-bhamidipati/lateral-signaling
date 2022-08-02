@@ -88,8 +88,9 @@ def do_one_simulation(
 
     # Initialize storage for each replicate
     sender_idx_rep = np.empty((n_reps, n_senders), dtype=int)
-    S_t_rep = np.empty((n_reps, nt, n), dtype=np.float32)
-    R_t_rep = np.empty((n_reps, nt, n), dtype=np.float32)
+    nt_save = t[::save_skip].size
+    S_t_rep = np.empty((n_reps, nt_save, n), dtype=np.float32)
+    R_t_rep = np.empty((n_reps, nt_save, n), dtype=np.float32)
 
     iterator = range(n_reps)
     if progress:
@@ -179,8 +180,8 @@ def do_one_simulation(
 
         # Store outcome of replicate
         sender_idx_rep[rep] = sender_idx
-        S_t_rep[rep] = S_t
-        R_t_rep[rep] = R_t
+        S_t_rep[rep] = S_t[::save_skip]
+        R_t_rep[rep] = R_t[::save_skip]
 
     if save:
 
@@ -314,8 +315,8 @@ def do_one_simulation(
                 f.create_dataset("rho_t", data=rho_t[::save_skip])
                 f.create_dataset("sender_idx_rep", data=sender_idx_rep)
                 f.create_dataset("n_senders", data=n_senders)
-                f.create_dataset("S_t_rep", data=S_t_rep[:, ::save_skip])
-                f.create_dataset("R_t_rep", data=R_t_rep[:, ::save_skip])
+                f.create_dataset("S_t_rep", data=S_t_rep)
+                f.create_dataset("R_t_rep", data=R_t_rep)
 
             # # Dump data to a JSON file
             # data_dump_dict = {

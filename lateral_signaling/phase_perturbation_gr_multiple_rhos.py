@@ -17,7 +17,7 @@ hv.extension("matplotlib")
 import lateral_signaling as lsig
 
 #sim_dir    = os.path.abspath("../data/simulations/20220204_phase_perturbations_growthrate/sacred")
-sim_dir    = os.path.abspath("../data/simulations/20220310_phase_perturbations/sacred")
+sim_dir    = os.path.abspath("../data/simulations/20220802_phase_perturbations/sacred")
 data_fname = os.path.abspath("../data/whole_wells/drug_conditions_propagation_and_cellcount.csv")
 
 save_dir   = os.path.abspath("../plots")
@@ -237,7 +237,7 @@ def main(
     
 
 main(
-    save=True,
+#    save=True,
     pad=0.05,
     sample_every=5,
 )
