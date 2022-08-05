@@ -4,7 +4,6 @@ import numba
 import numpy as np
 import pandas as pd
 
-import colorcet as cc
 import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
@@ -41,12 +40,13 @@ def main(
     # grad_maxs=(2.0, 3.0),
     rho_bars=(0.5, 2.0),
     psis=(1 / 20, 1 / 10),
-    rho_crit_lo=0.5,
+    rho_crit_lo=0.366,
     rho_crit_hi=3.0,
     nx=201,
     nt=6,
     tmax_days=6.0,
     figsize=(3, 2.25),
+    bias=0.03,
     save_prefix=save_prefix,
     save=False,
     fmt="png",
@@ -69,19 +69,65 @@ def main(
         [(0.4, 1.5), (0.9, 6.0)],
     ]
 
-    density_colors = plt.get_cmap("Blues")(np.linspace(0.2, 1, nt))
-    ligand_colors = plt.get_cmap("Greens")(np.linspace(0.2, 1, nt))
+    # density_colors = plt.get_cmap("Blues")(np.linspace(0.2, 1, nt))
+    # ligand_colors = plt.get_cmap("Greens")(np.linspace(0.2, 1, nt))
+    # ligand_colors = density_colors = plt.get_cmap("turbo")(np.linspace(0.05, 0.85, nt))
+    ligand_colors = density_colors = plt.get_cmap("gray")(np.linspace(0.0, 0.75, nt))
 
-    def make_steady_state_supplemental_plots():
+    def make_steady_state_v_density_plots():
+
+        bg_alpha = 0.35
+        bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
+        light_bg_clr = lsig.rgb2hex(lsig.kgy(0.7)[:3]) + bg_hex
 
         rho_space = np.logspace(-1, 1, 501)
         mean_ss, std_ss = lsig.get_steady_state_vector(rho_space)
 
         fig, ax1 = plt.subplots(figsize=figsize)
+        ax1.spines["right"].set_visible(False)
+        ax1.spines["top"].set_visible(False)
         plt.semilogx()
         plt.xlabel("Density")
-        plt.ylabel(r"$[\mathrm{GFP}]_\mathrm{steady\, state}$")
-        plt.plot(rho_space, mean_ss, lw=1)
+        plt.ylabel(r"$[\mathrm{GFP}]_\mathrm{SS}$")
+        plt.plot(rho_space, mean_ss, lw=2, color="k")
+
+        xmin, xmax = ax1.get_xlim()
+        ymin, ymax = ax1.get_ylim()
+        xbias = 10 ** (bias * (np.log10(xmax) - np.log10(xmin)))
+        ybias = bias * (ymax - ymin)
+        plt.vlines(
+            (rho_crit_hi, rho_crit_lo),
+            ymin,
+            ymax,
+            colors="k",
+            linestyles="dashed",
+            lw=1,
+        )
+        plt.text(
+            rho_crit_lo / xbias,
+            ymax,
+            r"$\rho_\mathrm{OFF}$",
+            ha="right",
+            va="top",
+            color="k",
+            size="large",
+        )
+        plt.text(
+            rho_crit_hi * xbias,
+            ymax,
+            r"$\rho_\mathrm{ON}$",
+            ha="left",
+            va="top",
+            color="k",
+            size="large",
+        )
+
+        x_fill = [xmin, xmax, xmax, xmin]
+        y_fill = [ymin, ymin, ymax, ymax]
+        x_fill_optimal_density = [rho_crit_lo, rho_crit_hi, rho_crit_hi, rho_crit_lo]
+
+        plt.fill(x_fill, y_fill, light_bg_clr, zorder=-2)
+        plt.fill(x_fill_optimal_density, y_fill, light_bg_clr, zorder=-2)
 
         plt.tight_layout()
 
@@ -96,9 +142,9 @@ def main(
         fig, ax2 = plt.subplots(figsize=figsize)
         plt.semilogx()
         plt.xlabel("Density")
-        plt.ylabel("Coeff. of variation")
-        plt.ylim(-0.05, 0.2)
-        plt.plot(rho_space, std_ss / mean_ss, lw=1)
+        plt.ylabel(r"$\mathrm{COV}\left([\mathrm{GFP}]_\mathrm{SS}\right)$")
+        plt.ylim(-0.01, 0.2)
+        plt.plot(rho_space, std_ss / mean_ss, lw=1, color="k")
 
         plt.tight_layout()
 
@@ -130,10 +176,11 @@ def main(
         bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
         light_bg_clr = lsig.rgb2hex(lsig.kgy(0.7)[:3]) + bg_hex
         colors = plt.get_cmap("gray")(np.linspace(0.1, 0.9, _nx_sample))
-        ylim = (-0.25, rho_max + 0.25)
+        xlim = (x.min(), x.max())
+        ylim = (0, rho_max + 0.5)
 
         x_fill = [-0.1, 1.1, 1.1, -0.1]
-        y_fill = [ylim[0], ylim[0], ylim[1], ylim[1]]
+        y_fill = [0, 0, ylim[1], ylim[1]]
         y_fill_optimal_density = [rho_crit_lo, rho_crit_lo, rho_crit_hi, rho_crit_hi]
 
         # Solve logistic eqn to get density vs space at initial time and over time-course
@@ -144,11 +191,10 @@ def main(
 
         # ax1.spines["right"].set_visible(False)
         # ax1.spines["top"].set_visible(False)
-        plt.xlabel("Position")
+        plt.xlabel("Space")
         plt.xlim(0, 1)
         plt.xticks([])
         plt.ylabel("Initial Density")
-        plt.ylim(ylim)
 
         # plt.hlines(
         #     (rho_crit_lo, rho_crit_hi),
@@ -187,6 +233,8 @@ def main(
 
         plt.plot(_x, rho_x_0, color="k", lw=2)
 
+        plt.xlim(xlim)
+        plt.ylim(ylim)
         plt.tight_layout()
 
         if save:
@@ -255,7 +303,7 @@ def main(
 
         ax1.spines["right"].set_visible(False)
         ax1.spines["top"].set_visible(False)
-        plt.xlabel("Position")
+        plt.xlabel("Space")
         plt.xticks([])
         plt.ylabel("Density")
 
@@ -299,7 +347,7 @@ def main(
 
         ax2.spines["right"].set_visible(False)
         ax2.spines["top"].set_visible(False)
-        plt.xlabel("Position")
+        plt.xlabel("Space")
         plt.xticks([])
         plt.ylabel(r"$[\mathrm{GFP}]_\mathrm{steady\, state}$")
         for j, (ss_x) in enumerate(Sss_x_t):
@@ -330,13 +378,153 @@ def main(
             print(f"Writing to: {_fpath}")
             plt.savefig(_fpath, dpi=dpi)
 
-    for i, args in enumerate(zip(psis, rho_bars, time_xys)):
-        fignum = i + 1
-        make_density_plots(fignum, *args)
-        make_profile_overlay_plots(fignum, *args)
+    def make_profile_overlay_plots2(
+        psi,
+        rho_bar,
+        time_xy,
+        bias=0.05,
+    ):
 
-    make_steady_state_supplemental_plots()
+        bg_alpha = 0.35
+        bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
+        light_bg_clr = lsig.rgb2hex(lsig.kgy(0.7)[:3]) + bg_hex
+        xmin = x.min()
+        xmax = x.max()
+        ymin = 0
+        ymax = rho_max + 1.0
+
+        xbias = bias * (xmax - xmin)
+        xmin -= xbias
+        xmax += xbias
+
+        x_fill = [xmin, xmax, xmax, xmin]
+        y_fill = [0, 0, ymax, ymax]
+        y_fill_optimal_density = [rho_crit_lo, rho_crit_lo, rho_crit_hi, rho_crit_hi]
+
+        # Solve logistic eqn to get density vs space, over time
+        rho_x_t = get_rho_x_t(x, t_x, psi, rho_bar, rho_max)
+
+        # Use data from simulations to get steady-state conc. of ligand (Sss)
+        Sss_x_t_mean_std = np.array(list(map(lsig.get_steady_state_vector, rho_x_t)))
+        Sss_x_t = Sss_x_t_mean_std[:, 0]
+        Sss_x_t_std = Sss_x_t_mean_std[:, 1]
+
+        fig = plt.figure(figsize=(figsize[0], figsize[1] * 2))
+        ax1 = fig.add_subplot(2, 1, 1)
+        # fig, ax1 = plt.subplots(figsize=figsize)
+        ax1.spines["right"].set_visible(False)
+        ax1.spines["top"].set_visible(False)
+
+        plt.xlabel("Space")
+        plt.xticks([0, 1])
+        plt.ylabel("Density")
+
+        plt.fill(x_fill, y_fill, light_bg_clr, zorder=-2)
+        plt.fill(x_fill, y_fill_optimal_density, light_bg_clr, zorder=-2)
+
+        plt.hlines(
+            rho_max,
+            xmin,
+            xmax,
+            linestyles="dashed",
+            lw=1,
+            color="k",
+            zorder=900,
+        )
+        plt.text(
+            0.3,
+            rho_max + 2 * xbias,
+            r"$\rho_\mathrm{max}$",
+            color="k",
+            ha="center",
+            va="bottom",
+        )
+
+        for j, (rho_x) in enumerate(rho_x_t):
+            plt.plot(x, rho_x, color=density_colors[j], lw=1)
+            # plt.plot(x, rho_x, color="k", lw=1)
+
+        plt.text(0.9, 4.0, "Time", ha="center", va="bottom")
+        hw = 0.03
+        hl = 8 * hw
+        plt.arrow(0.9, 0.5, 0.0, 3.0, head_width=hw, head_length=hl, ec="k", fc="k")
+        # ax1.annotate(
+        #     "Time",
+        #     xy=(0.9, 0.0),
+        #     ,
+        #     color="k",
+        #     arrowprops=dict(
+        #         facecolor="k",
+        #         edgecolor="k",
+        #         arrowstyle="<|-",
+        #     ),
+        #     annotation_clip=False,
+        # )
+
+        # ax1.annotate(
+        #     "Time",
+        #     xy=(0.15, 0.5),
+        #     xytext=(0.7, 5.0),
+        #     color="k",
+        #     arrowprops=dict(
+        #         facecolor="k",
+        #         edgecolor="k",
+        #         arrowstyle="<|-",
+        #     ),
+        # )
+
+        plt.xlim(xmin, xmax)
+        plt.ylim(ymin, ymax)
+        plt.tight_layout()
+
+        ax2 = fig.add_subplot(2, 1, 2)
+        # fig, ax2 = plt.subplots(figsize=figsize)
+
+        ax2.spines["right"].set_visible(False)
+        ax2.spines["top"].set_visible(False)
+        plt.xlabel("Space")
+        plt.xticks([0, 1])
+        plt.ylabel(r"$[\mathrm{GFP}]_\mathrm{SS}$")
+        for j, (ss_x) in enumerate(Sss_x_t):
+            plt.plot(x, ss_x, color=ligand_colors[j], lw=1.5)
+
+        plt.ylim(None, 1.7)
+        ann = ax2.annotate(
+            "Time",
+            xy=(0.75, 1.7),
+            xytext=(0.35, 1.7),
+            color="k",
+            va="center",
+            ha="right",
+            arrowprops=dict(
+                facecolor="k",
+                edgecolor="k",
+                arrowstyle="-|>",
+            ),
+        )
+
+        plt.tight_layout()
+
+        if save:
+            _fpath = save_prefix.with_stem(
+                save_prefix.stem + "_density_and_ligand_profiles"
+            ).with_suffix(f".{fmt}")
+            _fpath = str(_fpath.resolve().absolute())
+            print(f"Writing to: {_fpath}")
+            plt.savefig(_fpath, dpi=dpi)
+
+    for i, args in enumerate(zip(psis, rho_bars, time_xys)):
+        # fignum = i + 1
+        # make_density_plots(fignum, *args)
+        # make_profile_overlay_plots(fignum, *args)
+
+        if i == 0:
+            make_profile_overlay_plots2(*args)
+
+    make_steady_state_v_density_plots()
 
 
 if __name__ == "__main__":
-    main(save=False)
+    main(
+        save=True,
+    )

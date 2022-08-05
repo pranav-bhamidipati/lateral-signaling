@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -46,13 +45,13 @@ def get_rho_x_t(x, t, psi, rho_bar, rho_max):
 def main(
     mle_csv=mle_csv,
     im_png=im_png,
-    figsize1=(6, 6),
+    figsize1=(5, 3),
     scale=4.0,
     rho_0s=(4.0, 2.0, 1.0),
     tmax_days=4,
     nt=201,
     g=1.0,
-    figsize2=(10, 3.5),
+    figsize2=(6, 2.5),
     cmap=lsig.kgy,
     nt_sample=4,
     nx=201,
@@ -67,6 +66,8 @@ def main(
     rho_max = pd.read_csv(mle_csv, index_col="treatment").loc[
         "untreated", "rho_max_ratio"
     ]
+
+    bias_scaled = label_bias * scale
 
     fig1 = plt.figure(1, figsize=figsize1)
     ax = plt.gca()
@@ -108,8 +109,8 @@ def main(
 
     # inset axes with rho vs t examples
     inset_x = scale * 1.8
-    inset_w = scale * 0.8
-    inset_h = inset_w
+    inset_w = scale
+    inset_h = 0.8 * inset_w
     inset_ys = -1.75 * scale + (1.75 * inset_h) * np.arange(3)
     inset_ys = inset_ys[::-1]
 
@@ -174,19 +175,27 @@ def main(
     fig2 = plt.figure(2, figsize=figsize2)
     fig2.patch.set_facecolor(bg_clr)
 
-    ax1 = plt.subplot2grid((1, 5), (0, 0))
-    ax1.set_facecolor(bg_clr)
-    ax1.axis("off")
-    plt.xlim(-scale, scale)
-    plt.ylim(-scale, scale)
-    plt.text(
-        -0.25 * scale,
-        0,
-        "$[GFP]$ at\nsteady-state",
-        ha="center",
-        va="center",
-        fontdict=dict(color=cmap(1.0), size=18),
-    )
+    # ax1 = plt.subplot2grid((1, 5), (0, 0))
+    # ax1.set_facecolor(bg_clr)
+    # ax1.axis("off")
+    # plt.xlim(-scale, scale)
+    # plt.ylim(-scale, scale)
+    # plt.text(
+    #     -0.75 * scale,
+    #     bias_scaled,
+    #     "$[GFP]$",
+    #     ha="center",
+    #     va="bottom",
+    #     fontdict=dict(color=cmap(1.0), size=20),
+    # )
+    # plt.text(
+    #     -0.75 * scale,
+    #     0,
+    #     "at\nsteady-state",
+    #     ha="center",
+    #     va="top",
+    #     fontdict=dict(color=cmap(1.0), size=14),
+    # )
 
     #     ax1 = plt.subplot2grid((2, 5), (0, 0))
     #     ax1.set_facecolor(bg_clr)
@@ -223,10 +232,11 @@ def main(
     yy = np.sqrt(rad ** 2 - (xx - rad) ** 2)
     circle = plt.fill_between(xx, rad + yy, rad - yy, lw=0, color="none")
 
-    axs = [ax1]
+    # axs = [ax1]
+    axs = []
     for i, ss_x in enumerate(SS_xs):
-        # ax = plt.subplot2grid((1, 16), (0, 4 + i * 3), colspan=3)
-        ax = plt.subplot2grid((1, 5), (0, 1 + i))
+        # ax = plt.subplot2grid((1, 5), (0, 1 + i))
+        ax = plt.subplot2grid((1, 4), (0, i))
         ax.set_facecolor(bg_clr)
         ax.axis("off")
 
@@ -239,7 +249,7 @@ def main(
 
         plt.text(
             rad,
-            2.3 * rad,
+            2.5 * rad,
             fr"$t_{i + 1}$",
             ha="center",
             va="center",
@@ -248,65 +258,79 @@ def main(
 
         axs.append(ax)
 
-    bias_scaled = 0.1 * scale
+    # axs[-1].text(
+    #     0.75 * scale,
+    #     0.75 * scale,
+    #     r"$[\mathrm{GFP}]_\mathrm{SS}$",
+    #     ha="center",
+    #     va="bottom",
+    #     fontdict=dict(color=cmap(1.0), size=20),
+    # )
 
-    x0, x1, y0, y1 = ax1.axis()
-    width = (x1 - x0) * 2.4
-    x0 += 2 * scale + 8 * label_bias
-    y0 += 4 * label_bias
-    height = y1 - y0
+    # ax1 = axs[0]
+    # x0, x1, y0, y1 = ax1.axis()
+    # width = (x1 - x0) * 2.4
+    # # x0 += 2 * scale + 8 * label_bias
+    # x0 += 8 * label_bias
+    # x1 = x0 + width
+    # y0 += 4 * label_bias
+    # y1 -= 4 * label_bias
+    # height = y1 - y0
 
-    border1 = ax1.vlines(
-        x0, y0 + bias_scaled, y0 + height - bias_scaled, ec="w", linestyle="dotted"
-    )
-    border1.set_clip_on(False)
+    # border1 = ax1.vlines(
+    #     x0, y0 + bias_scaled, y0 + height - bias_scaled, ec="w", linestyle="dotted"
+    # )
+    # border1.set_clip_on(False)
 
-    border2 = ax1.vlines(
-        x0 + width,
-        y0 + bias_scaled,
-        y0 + height - bias_scaled,
-        ec="w",
-        linestyle="dotted",
-    )
-    border2.set_clip_on(False)
+    # border2 = ax1.vlines(
+    #     x0 + width,
+    #     y0 + bias_scaled,
+    #     y0 + height - bias_scaled,
+    #     ec="w",
+    #     linestyle="dotted",
+    # )
+    # border2.set_clip_on(False)
 
-    lbl1 = ax1.text(
-        x0 + 2 * bias_scaled,
-        y1 - 2 * bias_scaled,
-        "Transient gradient",
-        ha="left",
-        va="top",
-        fontdict=dict(color="w", size=16),
-    )
-    lbl1.set_clip_on(False)
+    # lbl1 = ax1.text(
+    #     # x0 + 2 * bias_scaled,
+    #     # y1 - 2 * bias_scaled,
+    #     x0 + width / 2,
+    #     y1,
+    #     "Spatial gradient",
+    #     ha="center",
+    #     va="bottom",
+    #     fontdict=dict(color="w", size=16),
+    # )
+    # lbl1.set_clip_on(False)
 
-    lbl2 = ax1.text(
-        x0 - 6 * bias_scaled,
-        y0 - 2 * bias_scaled,
-        "Time",
-        va="center",
-        color="w",
-        fontsize=18,
-    )
-    # text(x0 + 2 * bias_scaled, y1 - 2 * bias_scaled, "Transient gradient", ha="left", va="top", fontdict=dict(color="w", size=14))
-    lbl2.set_clip_on(False)
+    # lbl2 = ax1.text(
+    #     x0 - 6 * bias_scaled,
+    #     y0 - 2 * bias_scaled,
+    #     "Time",
+    #     va="center",
+    #     color="w",
+    #     fontsize=18,
+    # )
+    # # text(x0 + 2 * bias_scaled, y1 - 2 * bias_scaled, "Spatial gradient", ha="left", va="top", fontdict=dict(color="w", size=14))
+    # lbl2.set_clip_on(False)
 
-    arrow = ax1.arrow(
-        x0 + 0.5 * scale,
-        y0 - 2 * bias_scaled,
-        width / 2,
-        0,
-        ec="w",
-        fc="w",
-        head_width=0.1 * scale,
-    )
-    arrow.set_clip_on(False)
+    # arrow = ax1.arrow(
+    #     x0 + 0.25 * width,
+    #     y0 - 2 * bias_scaled,
+    #     0.5 * width,
+    #     0,
+    #     ec="w",
+    #     fc="w",
+    #     head_width=0.1 * scale,
+    # )
+    # arrow.set_clip_on(False)
 
     if save:
         _fpath = save_prefix.with_stem(save_prefix.stem + "_2").with_suffix(f".{fmt}")
         _fpath = str(_fpath.resolve().absolute())
         print(f"Writing to: {_fpath}")
         plt.savefig(_fpath, dpi=dpi)
+
 
 if __name__ == "__main__":
     main(

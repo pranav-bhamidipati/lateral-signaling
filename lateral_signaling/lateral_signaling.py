@@ -1283,17 +1283,11 @@ def predictive_regression(
     See `bebi103.viz.predictive_regression` for documentation.
     """
 
-    if type(samples) != np.ndarray:
-        if type(samples) == xarray.core.dataarray.DataArray:
-            samples = samples.squeeze().values
-        else:
-            raise RuntimeError("Samples can only be Numpy arrays and xarrays.")
+    if not isinstance(samples, np.ndarray):
+        raise RuntimeError("Samples can only be Numpy arrays.")
 
-    if type(samples_x) != np.ndarray:
-        if type(samples_x) == xarray.core.dataarray.DataArray:
-            samples_x = samples_x.squeeze().values
-        else:
-            raise RuntimeError("`samples_x` can only be Numpy array or xarray.")
+    if not isinstance(samples_x, np.ndarray):
+        raise RuntimeError("samples_x can only be a Numpy array.")
 
     if len(percentiles) > 4:
         raise RuntimeError("Can specify maximally four percentiles.")
@@ -3419,98 +3413,6 @@ def run_basal_activity(
 
     return results, plots
 
-
-####### Inhibitor gradient
-
-
-####### Density vs. inhibitor effect
-
-
-#######
-
-
-####### Hexagonal lattice
-
-
-def act_vmean(t, X, E_save, thresh, chull=False):
-    """
-    Calculate mean velocity of activated cells on hexagonal lattice
-    """
-
-    # Get time difference
-    dt = t[-1] - t[0]
-
-    # Get cells at boundary
-    if X.shape[0] < 3:
-        X_where_bounds = np.array([i for i in range(X.shape[0])])
-    else:
-        X_where_bounds = ConvexHull(X).vertices
-
-    crossed = np.argmax(E_save[:, X_where_bounds].sum(axis=1) > thresh)
-    if crossed > 0:
-        tr = t[:crossed].copy()
-    else:
-        tr = t.copy()
-
-    # Get activated cells at first and last time
-    Et0, Etlast = E_save[0] > thresh, E_save[-1] > thresh
-
-    # Calculate area using convex hull volume or sum of cell areas
-    if chull:
-
-        # Exclude time-points with <3 points (throws error)
-        if np.sum(Et0) < 3:
-            a0 = 0
-        else:
-            a0 = ConvexHull(X[Et0]).volume
-
-        if np.sum(Etlast) < 3:
-            alast = 0
-        else:
-            alast = ConvexHull(X[Etlast]).volume
-    else:
-        a0 = E0.sum() * np.sqrt(3) / 2
-        alast = Etlast.sum() * np.sqrt(3) / 2
-
-    dr = np.diff(np.sqrt(np.array([a0, alast]) / np.pi))
-
-    return dr / dt
-
-
-def act_area_vor(X, E, thresh):
-    """
-    Calculate area of activated cells using Voronoi mesh
-    """
-    vor = Voronoi(X)
-    areas = voronoi_areas(vor)
-
-    return areas[E > thresh].sum()
-
-
-def act_area_chull(X, E, thresh):
-    """
-    Calculate area of activated cells using convex hull
-    """
-
-    # Get cells at boundary
-    if X.shape[0] < 3:
-        X_where_bounds = np.array([i for i in range(X.shape[0])])
-    else:
-        X_where_bounds = ConvexHull(X).vertices
-
-    # Get activated cells at first and last time
-    Et = E > thresh
-
-    # Exclude time-points with <3 points (throws error)
-    if np.sum(Et) < 3:
-        a = 0
-    else:
-        a = ConvexHull(X[Et]).volume
-
-    return a
-
-
-############# Lattice functions (X, A, meta_df)
 
 ###### Make a time-lapse of single-gene ("signal") expression on a lattice
 
