@@ -280,12 +280,11 @@ cols_red = [
 ]
 
 purple = "#8856a7"
-gray = "#aeaeae"
-black = "#060605"
-
 col_light_gray = "#eeeeee"
-col_gray = "#aeaeae"
-col_black = "#060605"
+gray = "#aeaeae"
+dark_gray = "#5a5a5a"
+darker_gray = "#303030"
+black = "#060605"
 
 # Custom version of the "KGY" colormap
 kgy_original = cc.cm["kgy"]
@@ -318,6 +317,12 @@ def rgb_as_float(rgb):
 def sample_cycle(cycle, size):
     """Sample a continuous colormap at regular intervals to get a linearly segmented map"""
     return hv.Cycle([cycle[i] for i in ceiling(np.linspace(0, len(cycle) - 1, size))])
+
+
+def blend_hex(hex1, hex2, c=0.5):
+    """Returns a blend of two colors."""
+    blend_rgb = c * np.asfarray(hex2rgb(hex1)) + (1 - c) * np.asfarray(hex2rgb(hex2))
+    return rgb2hex(tuple(round(i) for i in blend_rgb))
 
 
 def hex2rgb(h):

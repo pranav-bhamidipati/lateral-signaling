@@ -507,7 +507,7 @@ def main(
         marker="^",
         color="color",
         s=250,
-        ec=lsig.col_black,
+        ec=lsig.black,
     )
     err_kw = dict(
 #        linewidth=3,
