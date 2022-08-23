@@ -47,7 +47,7 @@ def do_one_simulation(
     save_frames=(),
     fmt="png",
     dpi=300,
-    **kwargs
+    **kwargs,
 ):
     """Run a lateral signaling simulation"""
 

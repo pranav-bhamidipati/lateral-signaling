@@ -110,9 +110,7 @@ def main(
         rho_0s = j["rho_0"]
         gs = j["g"]
 
-    rho_max = pd.read_csv(mle_params_csv, index_col="treatment").loc[
-        "untreated", "rho_max_ratio"
-    ]
+    rho_max = lsig.mle_params.rho_max_ratio
 
     t = np.linspace(tmin, tmax, 201)
     curve_data = np.array(
@@ -149,7 +147,7 @@ def main(
         rho_crit,
         t.min(),
         t.max(),
-        linestyles="dashed",
+        linestyles="dotted",
         colors=lsig.gray,
         linewidth=3.0,
     )

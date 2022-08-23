@@ -58,10 +58,7 @@ def main(
     t = np.linspace(0, tmax, nt)
     t_x = np.repeat(t, nx).reshape(nt, nx)
 
-    rho_max = pd.read_csv(mle_csv, index_col="treatment").loc[
-        "untreated", "rho_max_ratio"
-    ]
-    rho_max = float(rho_max)
+    rho_max = float(lsig.mle_params.rho_max_ratio)
 
     # Where to put "time" label in density profile plots
     time_xys = [

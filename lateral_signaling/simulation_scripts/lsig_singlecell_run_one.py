@@ -1,49 +1,35 @@
-import os
-import json
+from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
-import pandas as pd
 from lsig_singlecell_simulation_logic import do_one_simulation
+from lateral_signaling import mle_params
 
-import lateral_signaling
+# Growth parameter(s)
+_rho_max = mle_params.rho_max_ratio
 
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_single_cell_example")
-
-# Set storage dir for all Sacred results. Could be made locally
-#   on a local machine or elsewhere high-performance computing cluster
-res_dir = "./sacred"                          # Store locally
-# res_dir = "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Store in a fast read-write dir (scratch on Caltech HPC)
-
-# Use this dir for storage
-sacred_storage_dir = os.path.abspath(res_dir)
-# os.makedirs(sacred_storage_dir)   # Make dir if it doesn't exist
-ex.observers.append(
-    FileStorageObserver(sacred_storage_dir)
+sacred_storage_dir = Path(
+    "./sacred"  # Store locally
+    # "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Caltech HPC scratch (fast read-write)
 )
+sacred_storage_dir.mkdir(exist_ok=True)
+ex.observers.append(FileStorageObserver(sacred_storage_dir))
 
-# Get path to simulation parameters
-data_dir  = os.path.abspath("../data/simulations")
-params_json_path = os.path.join(data_dir, "sim_parameters.json")
-
-# Read in growth parameters
-mle_data_dir = os.path.abspath("../data/MLE")
-mle_params_path = os.path.join(mle_data_dir, "growth_parameters_MLE.csv")
-mle_params_df = pd.read_csv(mle_params_path, index_col=0)
-
-# Get MLE of carrying capacity
-_rho_max = mle_params_df.loc[
-    mle_params_df.condition == "untreated", ["rho_max_ratio"]
-].values.ravel()[0]
-
-# Set default experimental configuration
-ex.add_config(params_json_path)
+# Set default simulation parameters
+data_dir = Path("../data/simulations")
+params_json = data_dir.joinpath("sim_parameters.json")
+ex.add_config(str(params_json.resolve()))
 ex.add_config(rho_max=_rho_max)
 
-@ex.main  # Use ex as our provenance system and call this function as __main__()
+
+@ex.automain
 def run_one_simulation(_config, _run, seed):
-    """Simulates SPV given a single parameter configuration"""
-    # _config contains all the variables in the configuration
-    # _run contains data about the run
-    
+    """Run simulation with a single parameter configuration"""
+
+    # Any file running this should be added as a source
+    import sys
+
+    ex.add_source_file(sys.argv[0])
+
     do_one_simulation(save=True, ex=ex, **_config)

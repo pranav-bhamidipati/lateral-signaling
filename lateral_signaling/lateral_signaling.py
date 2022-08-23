@@ -1,4 +1,3 @@
-####### Load depenendencies
 from functools import partial
 import os
 from typing import OrderedDict
@@ -8,7 +7,7 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 from math import ceil
-from scipy.spatial import Voronoi, voronoi_plot_2d, ConvexHull
+from scipy.spatial import Voronoi
 from scipy.sparse import csr_matrix, identity, diags
 from scipy.spatial.distance import pdist, squareform
 from scipy.interpolate import Rbf
@@ -19,8 +18,7 @@ import tqdm
 import time
 
 from matplotlib import animation
-from matplotlib.patches import Circle
-from matplotlib.collections import PatchCollection, LineCollection
+from matplotlib.collections import LineCollection
 from matplotlib_scalebar.scalebar import ScaleBar
 from shapely.geometry import Polygon, Point
 from descartes import PolygonPatch
@@ -29,11 +27,49 @@ import holoviews as hv
 import colorcet as cc
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+from matplotlib.colors import ListedColormap
 
 hv.extension("matplotlib")
 
-####### Steady-state expression is computed from simulations
+######################################################################
+##########  LOAD DATASETS AT IMPORT-TIME #############################
+######################################################################
+
+### Parameters used to categorize signaling behavior into "phases"
+from phase_parameters import phase_params_json
+
+_phase_params_error = f"WARNING: Parameters used for phase categorizations not found in specified location: {phase_params_json.resolve().absolute()}"
+
+try:
+    assert phase_params_json.exists(), f"File does not exist: {phase_params_json}"
+    import phase_parameters as pp
+
+    phase_params = pp._initialize(phase_params_json)
+
+except Exception as e:
+    if isinstance(e, AssertionError):
+        print(_phase_params_error)
+    else:
+        raise e
+
+### Wild-type growth parameters are read from file
+from growth_parameters import growth_params_csv
+
+_growth_params_error = f"WARNING: Estimates of growth parameters not found in specified location: {growth_params_csv.resolve().absolute()}"
+
+try:
+    assert growth_params_csv.exists(), f"File does not exist: {growth_params_csv}"
+    import growth_parameters as gp
+
+    mle_params = gp._initialize(growth_params_csv)
+
+except Exception as e:
+    if isinstance(e, AssertionError):
+        print(_growth_params_error)
+    else:
+        raise e
+
+### Steady-state expression is computed from simulations
 from steady_state import ss_sacred_dir
 
 _steady_state_error = f"Simulations for steady-state approximation not found in directory: {ss_sacred_dir.resolve().absolute()}"
@@ -57,7 +93,10 @@ except Exception as e:
     else:
         raise e
 
-####### Utilities for parallel computing
+######################################################################
+##########  UTILITIES FOR PARALLEL COMPUTING #########################
+######################################################################
+
 
 _dask_client_default_kwargs = dict(
     threads_per_worker=1,
@@ -66,7 +105,10 @@ _dask_client_default_kwargs = dict(
     timeout=600,
 )
 
-####### Constants
+
+######################################################################
+##########  CONSTANTS ################################################
+######################################################################
 
 # Density at rho = 1
 ref_density_mm = 1250.0  # cells / mm^2
@@ -78,7 +120,9 @@ ref_cell_diam_mm = np.sqrt(2 / (np.sqrt(3) * ref_density_mm))  # mm
 ref_cell_diam_um = ref_cell_diam_mm * 1e3  # um
 
 
-####### Differential equation right-hand-side functions
+######################################################################
+##########  DIFFERENTIAL EQUATION RHS  ###############################
+######################################################################
 
 
 def receiver_rhs(
@@ -187,28 +231,51 @@ def reporter_rhs(
 ####### General utils
 
 # Vectorized integer ceiling
-ceiling = np.vectorize(ceil)
+ceiling = numba.vectorize(ceil)
 
 # Vectorized rounding
-vround = np.vectorize(round)
-
+vround = numba.vectorize(round)
 
 @numba.njit
+def first_nonzero(arr, atol=1e-8):
+    """Returns index of first nonzero entry in an iterable.
+       Returns -1 if none found.
+    """
+    for idx, val in enumerate(arr):
+        if not (-atol < val < atol):
+            return idx
+    return -1
+
+@numba.njit
+def first_zero(arr, atol=1e-8):
+    """Returns index of first nonzero entry in an iterable.
+       Returns -1 if none found.
+    """
+    for idx, val in enumerate(arr):
+        if -atol < val < atol:
+            return idx
+    return -1
+
+
+@numba.vectorize
 def normalize(x, xmin, xmax):
     """Normalize `x` given explicit min/max values."""
     return (x - xmin) / (xmax - xmin)
 
 
-@numba.njit
+@numba.vectorize
 def logistic(t, g, rho_0, rho_max):
     """Returns logistic equation evaluated at time `t`."""
     return rho_0 * rho_max / (rho_0 + (rho_max - rho_0) * np.exp(-g * t))
 
 
-@numba.njit
+@numba.vectorize
 def logistic_inv(rho, g, rho_0, rho_max):
     """Inverse of logistic equation (returns time at a given density `rho`)."""
-    return np.log(rho * (rho_max - rho_0) / (rho_0 * (rho_max - rho))) / g
+    if rho_0 < rho_max:
+        return np.log(rho * (rho_max - rho_0) / (rho_0 * (rho_max - rho))) / g
+    else:
+        return np.nan
 
 
 @numba.njit
@@ -279,8 +346,11 @@ cols_red = [
     "#b0c5cd",
 ]
 
+dark_blue = "#173b84"
 purple = "#8856a7"
-col_light_gray = "#eeeeee"
+
+white = "#ffffff"
+light_gray = "#eeeeee"
 gray = "#aeaeae"
 dark_gray = "#5a5a5a"
 darker_gray = "#303030"
@@ -932,13 +1002,13 @@ def make_circular_mask(h, w, center=None, radius=None):
 
 
 @numba.njit
-def t_to_units(dimless_time, ref_growth_rate=6.160221865205395e-01):
+def t_to_units(dimless_time, ref_growth_rate=mle_params.g_inv_days):
     """Convert dimensionless time to real units for a growth process.
 
     Returns
     -------
     time  :  number or numpy array (dtype float)
-        Time in units (hours, days, etc.)
+        Time in units (hours, days, etc.). Defaults to days.
 
     Parameters
     ----------
@@ -952,13 +1022,14 @@ def t_to_units(dimless_time, ref_growth_rate=6.160221865205395e-01):
         The rate of growth, in the user's defined units. An exponentially
         growing function (e.g. cell population) grows by a factor of `e`
         over a time of `1 / growth_rate`.
-        Defaults to 7.28398176e-01 days.
+        Defaults to the growth rate of wild-type transceivers in units of
+        inverse days.
     """
     return dimless_time / ref_growth_rate
 
 
 @numba.njit
-def g_to_units(dimless_growth_rate, ref_growth_rate=7.28398176e-01):
+def g_to_units(dimless_growth_rate, ref_growth_rate=mle_params.g_inv_days):
     """Convert dimensionless growth rate to real units for a growth process.
 
     Returns
@@ -1061,6 +1132,18 @@ def get_DDE_rhs(func, *func_args):
         return func(E, E_delay, *func_args, *dde_args)
 
     return rhs
+
+
+def get_t_ON(g, rho_0, rho_max=mle_params.rho_max_ratio, rho_ON=phase_params.rho_ON):
+    """Return the time at which signaling will turn ON/OFF. Based on the
+    logistic growth equation and a supplied threshold value."""
+    return logistic_inv(rho_ON, g, rho_0, rho_max)
+
+
+def get_t_OFF(g, rho_0, rho_max=mle_params.rho_max_ratio, rho_OFF=phase_params.rho_OFF):
+    """Return the time at which signaling will turn ON/OFF. Based on the
+    logistic growth equation and a supplied threshold value."""
+    return logistic_inv(rho_OFF, g, rho_0, rho_max)
 
 
 def integrate_DDE(
