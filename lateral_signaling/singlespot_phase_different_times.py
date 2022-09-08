@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import OrderedDict
 import h5py
 
 import numpy as np
@@ -13,8 +14,8 @@ import lateral_signaling as lsig
 
 # Reading simulated data
 data_dir = Path("../data/simulations/")
-# sacred_dir = data_dir.joinpath("sacred")
-sacred_dir = data_dir.joinpath("20211209_phase_2D/sacred")
+log_sacred_dir = Path("sacred")
+lin_sacred_dir = data_dir.joinpath("20211209_phase_2D/sacred")
 thresh_fpath = data_dir.joinpath("phase_threshold.json")
 
 # Reading growth parameter estimation data
@@ -26,10 +27,10 @@ pert_clr_json = mle_dir.joinpath("perturbation_colors.json")
 save_dir = Path("../plots/tmp")
 
 
-def get_phase(actnum_t, v_init, v_init_thresh):
+def get_phase(actnum_t, v_init, v_init_thresh, rho_0):
 
     # If activation doesn't happen immediately, signaling is attenuated
-    if v_init < v_init_thresh:
+    if (v_init < v_init_thresh) and (rho_0 > 1.0):
         return 0
 
     # Find time-point where activation first happens
@@ -50,19 +51,22 @@ def get_phase(actnum_t, v_init, v_init_thresh):
         return 0
 
 
-def main(
-    grad_t=2.7,
-    grad_lo=2.0,
-    grad_hi=5.0,
+def make_plots_linear_rho_0(
+    grad_t,
+    grad_lo,
+    grad_hi,
     grad_g=1.0,
     figsize=(3, 3),
+    well_figsize=(2, 2),
     thresh_fpath=thresh_fpath,
-    sacred_dir=sacred_dir,
+    sacred_dir=lin_sacred_dir,
     save_dir=save_dir,
-    prefix="phase_diagram_2D_mpl",
+    prefix="phase_diagram_2D_lin",
+    atol=1e-8,
     save=False,
     fmt="png",
     dpi=300,
+    **kwargs,
 ):
 
     # Get threshold for v_init
@@ -71,17 +75,17 @@ def main(
         v_init_thresh = float(threshs["v_init_thresh"])
 
     # Read in phase metric data
-    run_dirs = list(sacred_dir.glob("[0-9]*"))
-    run_dirs = [rd for rd in run_dirs if rd.joinpath("config.json").exists()]
+    data_dirs = list(sacred_dir.glob("[0-9]*"))
+    data_dirs = [d for d in data_dirs if d.joinpath("config.json").exists()]
 
     # Extract metadata
-    rd0 = run_dirs[0]
-    with rd0.joinpath("config.json").open("r") as f:
+    d0 = data_dirs[0]
+    with d0.joinpath("config.json").open("r") as f:
         config = json.load(f)
         rho_max = config["rho_max"]
         g_space = config["g_space"]
 
-    with h5py.File(str(rd0.joinpath("results.hdf5")), "r") as f:
+    with h5py.File(str(d0.joinpath("results.hdf5")), "r") as f:
         t = np.asarray(f["t"])
 
     grad_t_idx = np.minimum(np.searchsorted(t, grad_t), t.size)
@@ -89,16 +93,16 @@ def main(
 
     # Extract data for each run
     dfs = []
-    for rd in run_dirs:
+    for d in data_dirs:
 
-        _config_file = rd.joinpath("config.json")
-        _results_file = rd.joinpath("results.hdf5")
+        _config_file = d.joinpath("config.json")
+        _results_file = d.joinpath("results.hdf5")
 
         with _config_file.open("r") as c:
             config = json.load(c)
             rho_0 = config["rho_0"]
 
-        if not (1.0 <= rho_0 <= rho_max):
+        if not (1.0 - atol <= rho_0 <= rho_max + atol):
             continue
 
         with h5py.File(str(_results_file), "r") as f:
@@ -110,7 +114,7 @@ def main(
             v_init = np.asarray(f["v_init_g"])
 
         phase_g = [
-            get_phase(actnum_t[:grad_t_idx], v_init_, v_init_thresh)
+            get_phase(actnum_t[:grad_t_idx], v_init_, v_init_thresh, rho_0)
             for actnum_t, v_init_ in zip(actnum_t_g, v_init)
         ]
 
@@ -130,15 +134,6 @@ def main(
     # Concatenate into one dataset
     df = pd.concat(dfs).reset_index(drop=True)
     df["g_inv_days"] = lsig.g_to_units(df["g"].values)
-
-    # # Assign phases and sort by phase
-    # sort_idx = np.argsort(rho_0s)
-    # rho_0_space = np.asarray(rho_0s)[sort_idx]
-    # actnum_t_rho_0 = np.asarray(actnum_ts)[sort_idx]
-    # actnum = df.pivot(columns="g_inv_days", index="rho_0", values="actnum")
-    # df["phase"] = (df.v_init > v_init_thresh).astype(int) * (
-    #     1 + (df.n_act_fin > 0).astype(int)
-    # )
     df = df.sort_values("phase")
 
     # Extract data ranges
@@ -149,41 +144,7 @@ def main(
 
     # Colors for phase regions
     phase_colors = lsig.cols_blue[::-1]
-
-    # # Options for different plot types
-    # plot_kw = dict(
-    #     xlim=xlim,
-    #     ylim=ylim,
-    #     xlabel=r"proliferation rate ($days^{-1}$)",
-    #     xticks=(0.5, 1.0, 1.5),
-    #     ylabel=r"init. density (x 100% confl.)",
-    #     yticks=(0, 1, 2, 3, 4, 5, 6),
-    #     hooks=[lsig.remove_RT_spines],
-    #     fontscale=1.0,
-    #     show_legend=False,
-    #     #        aspect=1.,
-    # )
-    # bare_kw = dict(
-    #     marker="s",
-    #     edgecolor=None,
-    #     s=60,
-    #     color=hv.Cycle(phase_colors),
-    # )
-    # example_kw = dict(
-    #     marker="s",
-    #     s=60,
-    #     edgecolor="k",
-    #     linewidth=1.5,
-    #     color=hv.Cycle(phase_colors),
-    # )
-    # text_init_kw = dict(
-    #     fontsize=11,
-    #     halign="left",
-    # )
-    # text_kw = dict(
-    #     c="w",
-    #     weight="normal",
-    # )
+    phase_cmap = mpl.colors.ListedColormap(phase_colors)
 
     # Plot phase diagram
     data = df.pivot(columns="g_inv_days", index="rho_0", values="phase")
@@ -192,23 +153,18 @@ def main(
     g_space_inv_days = lsig.g_to_units(g_space)
     grad_g_inv_days = lsig.g_to_units(grad_g)
 
-    phase_cmap = mpl.colors.ListedColormap(lsig.cols_blue[::-1])
-
     dr = rho_0_space[1] - rho_0_space[0]
     dg = g_space_inv_days[1] - g_space_inv_days[0]
     extent_r = (rho_0_space[0] - dr / 2, rho_max + dr / 2)
     extent_g = (g_space_inv_days[0] - dg / 2, g_space_inv_days[-1] + dg / 2)
     img_aspect = (extent_g[1] - extent_g[0]) / (extent_r[1] - extent_r[0])
 
-    dg = (g_space_inv_days[1] - g_space_inv_days[0]) / 2
-    dr = (rho_0_space[1] - rho_0_space[0]) / 2
-
-    fig1 = plt.figure(1, figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     ax = plt.gca()
     plt.imshow(
         data_vals,
         origin="lower",
-        cmap=mpl.colors.ListedColormap(phase_colors, name="phase"),
+        cmap=phase_cmap,
         aspect=img_aspect,
         extent=(*extent_g, *extent_r),
     )
@@ -220,9 +176,12 @@ def main(
         colors="k",
         lw=2,
     )
-    plt.text(-dr, rho_max, r"$\rho_\mathrm{max}$", ha="right", va="center", fontsize=12)
+    plt.text(
+        -0.02, rho_max, r"$\rho_\mathrm{max}$", ha="right", va="center", fontsize=12
+    )
 
-    plt.title(r"$t=2.7$ days")
+    grad_t_days = lsig.t_to_units(grad_t)
+    plt.title(fr"$t={{{grad_t_days:.1f}}}$ days")
     plt.xlabel(r"$g$ ($\mathrm{days}^{-1}$)")
     # plt.xlim(_xlim)
     # plt.xticks([])
@@ -232,88 +191,435 @@ def main(
 
     plt.tight_layout()
 
-    if save:
+    # if save:
 
-        fpath = save_dir.joinpath(f"{prefix}_t{grad_t:.1f}_basic.{fmt}")
-        print(f"Writing to: {str(fpath)}")
-        plt.savefig(fpath, dpi=dpi)
+    #     fpath = save_dir.joinpath(f"{prefix}_basic.{fmt}")
+    #     print(f"Writing to: {str(fpath)}")
+    #     plt.savefig(fpath, dpi=dpi)
 
-    plt.vlines(grad_g_inv_days, grad_lo, grad_hi, colors="k", lw=3)
+    plt.vlines(grad_g_inv_days, grad_lo, grad_hi, colors="k", lw=2)
     plt.hlines(
         (grad_lo, grad_hi),
-        grad_g_inv_days - dr / 2,
-        grad_g_inv_days + dr / 2,
+        grad_g_inv_days - 0.1,
+        grad_g_inv_days + 0.1,
         colors="k",
         lw=2,
     )
 
     if save:
 
-        fpath = save_dir.joinpath(f"{prefix}_t{grad_t:.1f}_gradient.{fmt}")
+        fpath = save_dir.joinpath(f"{prefix}_gradient.{fmt}")
         print(f"Writing to: {str(fpath)}")
         plt.savefig(fpath, dpi=dpi)
 
-    # Plot phase diagram
-    g_wt = df.loc[np.isclose(df["g"].values, 1.0), "g_inv_days"].values[0]
-    cols = data.columns.to_list()
-    g_col_idx = cols.index(g_wt)
-    g_col = cols[g_col_idx]
-    g_col_phase = data[g_col].values
-    data = data + 3
-    data[g_col] = g_col_phase
-    data = data.values
-    # data.to_csv(Path(save_dir).joinpath("test.txt"), sep="\t")
-    # 0 / 0
-    g_space_inv_days = lsig.g_to_units(g_space)
-    dg = (g_space_inv_days[1] - g_space_inv_days[0]) / 2
-    dr = (rho_0_space[1] - rho_0_space[0]) / 2
-    _xlim = g_space_inv_days[0] - dg, g_space_inv_days[-1] + dg
-    _ylim = rho_0_space[0] - dr, rho_0_space[-1] + dr
-    _yrange = _ylim[1] - _ylim[0]
-    _aspect = (_xlim[1] - _xlim[0]) / (_ylim[1] - _ylim[0])
-
-    fig2 = plt.figure(2, figsize=(2, 2))
-    ax = plt.gca()
-    plt.imshow(
-        data,
-        origin="lower",
-        cmap=mpl.colors.ListedColormap(
-            phase_colors + [lsig.blend_hex(c, lsig.white, 0.5) for c in phase_colors],
-            name="phase",
-        ),
-        aspect=_aspect,
-        extent=(*_xlim, *_ylim),
+    fig, ax = make_well_with_GFP_SS(
+        well_figsize, grad_lo, grad_hi, grad_t, rho_max, grad_g, **kwargs
     )
-
-    g_wt_xloc = lsig.normalize(g_wt, *_xlim)
-    ax.annotate(
-        "",
-        xy=(g_wt_xloc, 1.0),
-        xycoords="axes fraction",
-        xytext=(g_wt_xloc, 1.15),
-        arrowprops=dict(
-            arrowstyle="->",
-            color="k",
-            linewidth=1.25,
-            capstyle="projecting",
-        ),
-    )
-    plt.xlabel(r"$g$")
-    plt.xlim(_xlim)
-    plt.xticks([])
-    plt.ylabel(r"$\rho_0$")
-    plt.ylim(_ylim)
-    plt.yticks([])
-
-    plt.tight_layout()
 
     if save:
 
-        fpath = save_dir.joinpath(f"{prefix}_t{grad_t:.1f}_highlighted.{fmt}")
+        fpath = save_dir.joinpath(f"{prefix}_GFP.{fmt}")
         print(f"Writing to: {str(fpath)}")
         plt.savefig(fpath, dpi=dpi)
 
-    print()
+
+def make_well_with_GFP_SS(
+    figsize,
+    grad_lo,
+    grad_hi,
+    grad_t,
+    rho_max,
+    grad_g,
+    rho_ON=None,
+    rho_OFF=None,
+    nx=201,
+    bg_clr="k",
+    plot_labels=False,
+    interp_fun=np.linspace,
+):
+
+    fig = plt.figure(figsize=figsize)
+    fig.patch.set_facecolor(bg_clr)
+
+    _rho_space = interp_fun(grad_lo, grad_hi, nx)
+    rho_x = lsig.logistic(grad_t, grad_g, _rho_space, rho_max)[::-1]
+
+    SS_x = lsig.get_steady_state_vector(rho_x)[0]
+
+    SS_x = lsig.normalize(SS_x, SS_x.min(), SS_x.max())
+    norm = mpl.colors.Normalize(0, 1)
+
+    # Make a circle to clip the gradient into a circle
+    rad = (nx - 1) / 2
+    xx = np.linspace(0, nx - 1, nx * 2)
+    yy = np.sqrt(rad ** 2 - (xx - rad) ** 2)
+    circle = plt.fill_between(xx, rad + yy, rad - yy, lw=0, color="none")
+
+    ax = plt.gca()
+    ax.set_facecolor(bg_clr)
+    ax.axis("off")
+
+    gradient = plt.imshow(
+        np.ones((nx, nx)) * SS_x[:, np.newaxis],
+        cmap=lsig.kgy,
+        norm=norm,
+        # extent=(-0.5, 0.5, 0, 1),
+    )
+    gradient.set_clip_path(circle.get_paths()[0], transform=ax.transData)
+    ax.set_aspect(1)
+
+    _xlim = plt.xlim()
+    _ylim = plt.ylim()
+    _yrange = _ylim[1] - _ylim[0]
+
+    if (rho_ON is not None) and (rho_OFF is not None):
+
+        rho_ON_y = rho_ON * _yrange + _ylim[0]
+        rho_OFF_y = rho_OFF * _yrange + _ylim[0]
+
+        plt.hlines(rho_ON_y, *_xlim, colors="w", linestyle="dotted")
+        plt.hlines(rho_OFF_y, *_xlim, colors="w", linestyle="dashed")
+
+        if plot_labels:
+
+            text_x = 0.9 * (_xlim[1] - _xlim[0]) + _xlim[0]
+            plt.text(
+                text_x,
+                rho_ON_y - 0.05 * _yrange,
+                r"$\rho_\mathrm{ON}$",
+                c="w",
+                ha="center",
+                va="top",
+            )
+            plt.text(
+                text_x,
+                rho_OFF_y + 0.05 * _yrange,
+                r"$\rho_\mathrm{OFF}$",
+                c="w",
+                ha="center",
+                va="bottom",
+            )
+
+            arrow_min = rho_ON_y
+            arrow_max = rho_OFF_y
+            arrow_len = arrow_max - arrow_min
+            arrow_min += 0.05 * arrow_len
+            arrow_max -= 0.05 * arrow_len
+            ax.annotate(
+                "",
+                xy=(text_x, arrow_min),
+                xytext=(text_x, arrow_max),
+                arrowprops=dict(arrowstyle="<->", color="w"),
+            )
+
+        plt.xlim(_xlim)
+        plt.ylim(_ylim)
+
+    return fig, ax
+
+
+def make_plots_logarithmic_rho_0(
+    grad_ts,
+    grad_lo,
+    grad_hi,
+    rho_min=0.0,
+    figsize=(3, 3),
+    well_figsize=(2, 2),
+    grad_g=1.0,
+    nscan=101,
+    thresh_fpath=thresh_fpath,
+    sacred_dir=log_sacred_dir,
+    save_dir=save_dir,
+    prefix="phase_diagram_2D_log",
+    atol=1e-8,
+    save=False,
+    fmt="png",
+    dpi=300,
+    **kwargs,
+):
+
+    # Get threshold for v_init
+    with thresh_fpath.open("r") as f:
+        threshs = json.load(f)
+        v_init_thresh = float(threshs["v_init_thresh"])
+
+    # Read in phase metric data
+    data_dirs = list(sacred_dir.glob("[0-9]*"))
+    data_dirs = [d for d in data_dirs if d.joinpath("config.json").exists()]
+
+    # Make a dictionary assigning time-points to DataFrame columns
+    time_dict = OrderedDict([(f"phase_t{i + 1}", gt) for i, gt in enumerate(grad_ts)])
+
+    # Extract metadata
+    d0 = data_dirs[0]
+    with d0.joinpath("config.json").open("r") as f:
+        config = json.load(f)
+        rho_max = config["rho_max"]
+        g_space = np.asarray(config["g_space"])
+        delay = config["delay"]
+
+    with h5py.File(str(d0.joinpath("results.hdf5")), "r") as f:
+        t = np.asarray(f["t"])
+
+    t_days = lsig.t_to_units(t)
+    delay_days = lsig.t_to_units(delay)
+    step_delay = (t_days <= delay_days).sum()
+
+    g_idx = np.isclose(g_space, grad_g).nonzero()[0][0]
+    g_space_inv_days = lsig.g_to_units(g_space)
+    grad_g_inv_days = lsig.g_to_units(grad_g)
+
+    # Extract data for each run
+    dfs = []
+    for d in data_dirs:
+
+        _config_file = d.joinpath("config.json")
+        _results_file = d.joinpath("results.hdf5")
+
+        with _config_file.open("r") as c:
+            config = json.load(c)
+            rho_0 = config["rho_0"]
+
+        if not (rho_min - atol <= rho_0 <= rho_max + atol):
+            continue
+
+        with h5py.File(str(_results_file), "r") as f:
+
+            # Number of activated cells and density vs. time
+            actnum_t_g = np.asarray(f["S_t_g_actnum"])
+
+            # Initial velocity of activation
+            v_init = np.asarray(f["v_init_g"])
+
+        phase_dict = dict()
+        for col, grad_t in time_dict.items():
+            grad_t_idx = np.minimum(np.searchsorted(t, grad_t), t.size)
+            phase_g = [
+                get_phase(actnum_t[:grad_t_idx], v_init_, v_init_thresh, rho_0)
+                for actnum_t, v_init_ in zip(actnum_t_g, v_init)
+            ]
+            phase_dict[col] = phase_g
+
+        # Assemble dataframe
+        _df = pd.DataFrame(
+            dict(
+                g=g_space,
+                rho_0=rho_0,
+                rho_max=rho_max,
+                v_init=v_init,
+                **phase_dict,
+            )
+        )
+
+        dfs.append(_df)
+
+    # Concatenate into one dataset
+    df = pd.concat(dfs).reset_index(drop=True)
+    df["g_inv_days"] = lsig.g_to_units(df["g"].values)
+    df = df.sort_values([col for col in time_dict.keys()])
+
+    # Extract data ranges
+    g_space = np.unique(df["g"])
+    g_range = g_space[-1] - g_space[0]
+    rho_0_space = np.unique(df["rho_0"])
+    rho_0_range = rho_0_space[-1] - rho_0_space[0]
+
+    # Colors for phase regions
+    phase_colors = lsig.cols_blue[::-1]
+    phase_cmap = mpl.colors.ListedColormap(phase_colors)
+
+    # Calculate level sets for critical densities
+
+    # Plot phase diagrams for different time-points
+    dr = rho_0_space[1] / rho_0_space[0]
+    extent_r = (
+        np.log10(rho_0_space[0] / np.sqrt(dr)),
+        np.log10(rho_0_space[-1] * np.sqrt(dr)),
+    )
+
+    dg = g_space_inv_days[1] - g_space_inv_days[0]
+    extent_g = (g_space_inv_days[0] - dg / 2, g_space_inv_days[-1] + dg / 2)
+    img_aspect = (extent_g[1] - extent_g[0]) / (extent_r[1] - extent_r[0])
+
+    g_scan = np.linspace(g_space[0], g_space[-1], nscan)
+    g_scan_inv_days = lsig.g_to_units(g_scan)
+    rho_ON = lsig.phase_params.rho_ON
+    rho_OFF = lsig.phase_params.rho_OFF
+
+    for i, (phase_col, grad_t) in enumerate(time_dict.items()):
+
+        data = df.pivot(columns="g_inv_days", index="rho_0", values=phase_col)
+        data_vals = data.values
+
+        # critial density level sets
+        rho_ON_levelset = lsig.logistic_solve_rho_0(rho_ON, grad_t, g_scan, rho_max)
+        rho_OFF_levelset = lsig.logistic_solve_rho_0(rho_OFF, grad_t, g_scan, rho_max)
+        rho_ON_levelset_log = np.log10(rho_ON_levelset)
+        rho_OFF_levelset_log = np.log10(rho_OFF_levelset)
+
+        fig = plt.figure(figsize=figsize)
+        ax = plt.gca()
+        plt.imshow(
+            data_vals,
+            origin="lower",
+            cmap=phase_cmap,
+            aspect=img_aspect,
+            extent=(*extent_g, *extent_r),
+        )
+
+        plt.hlines(
+            np.log10(rho_max),
+            *extent_g,
+            linestyles="dashed",
+            colors="k",
+            lw=2,
+        )
+        plt.text(
+            -0.02,
+            np.log10(rho_max),
+            r"$\rho_\mathrm{max}$",
+            ha="right",
+            va="center",
+            fontsize=12,
+        )
+
+        grad_t_days = lsig.t_to_units(grad_t)
+        plt.title(fr"$t={{{grad_t_days:.1f}}}$ days")
+
+        plt.xlabel(r"$g$ ($\mathrm{days}^{-1}$)")
+        plt.ylabel(r"$\rho_0$")
+        yticks, _ = plt.yticks()
+        yticks = [k for k in yticks if np.isclose(k, int(k))]
+        yticklabels = [fr"$10^{{{int(k)}}}$" for k in yticks]
+        plt.yticks(yticks, yticklabels)
+
+        plt.tight_layout()
+
+        # if save:
+        #     fpath = save_dir.joinpath(f"{prefix}_t{phase_col[-1]}_basic.{fmt}")
+        #     print(f"Writing to: {str(fpath)}")
+        #     plt.savefig(fpath, dpi=dpi)
+
+        plt.vlines(
+            grad_g_inv_days, np.log10(grad_lo), np.log10(grad_hi), colors="k", lw=2
+        )
+        plt.hlines(
+            (np.log10(grad_lo), np.log10(grad_hi)),
+            grad_g_inv_days - 0.1,
+            grad_g_inv_days + 0.1,
+            colors="k",
+            lw=2,
+        )
+
+        _xlim = plt.xlim()
+        _ylim = plt.ylim()
+        plt.plot(g_scan_inv_days, rho_ON_levelset_log, c="w", linestyle="dotted")
+        plt.plot(g_scan_inv_days, rho_OFF_levelset_log, c="w", linestyle="dashed")
+        plt.xlim(_xlim)
+        plt.ylim(_ylim)
+
+        if i == 0:
+            # Labels for crtical density range
+            label_idx = int(0.03 * nscan)
+            plt.text(
+                g_scan_inv_days[label_idx],
+                rho_ON_levelset_log[label_idx] + np.log10(dr),
+                r"$\rho_\mathrm{ON}$",
+                ha="left",
+                va="bottom",
+                c="w",
+            )
+
+            plt.text(
+                g_scan_inv_days[label_idx],
+                rho_OFF_levelset_log[label_idx] - np.log10(dr),
+                r"$\rho_\mathrm{OFF}$",
+                ha="left",
+                va="top",
+                c="w",
+            )
+
+            arrow_idx = int(0.65 * nscan)
+            arrow_g = g_scan_inv_days[arrow_idx]
+            arrow_min = rho_ON_levelset_log[arrow_idx]
+            arrow_max = rho_OFF_levelset_log[arrow_idx]
+            arrow_len = arrow_max - arrow_min
+            arrow_min += 0.05 * arrow_len
+            arrow_max -= 0.05 * arrow_len
+            # plt.arrow(
+            #     arrow_g,
+            #     arrow_min,
+            #     0,
+            #     arrow_max - arrow_min,
+            #     ec="w",
+            #     fc="w",
+            #     head_width=0.05,
+            # )
+            ax.annotate(
+                "",
+                xy=(arrow_g, arrow_min),
+                xytext=(arrow_g, arrow_max),
+                arrowprops=dict(arrowstyle="<->", color="w"),
+            )
+
+        if save:
+
+            fpath = save_dir.joinpath(f"{prefix}_t{phase_col[-1]}_gradient.{fmt}")
+            print(f"Writing to: {str(fpath)}")
+            plt.savefig(fpath, dpi=dpi)
+
+        grad_lo_after_growth, grad_hi_after_growth = lsig.logistic(
+            grad_t, 1.0, (grad_lo, grad_hi), rho_max
+        )
+
+        rho_ON_trans = lsig.normalize(
+            *np.log([rho_ON, grad_lo_after_growth, grad_hi_after_growth])
+        )
+        rho_OFF_trans = lsig.normalize(
+            *np.log([rho_OFF, grad_lo_after_growth, grad_hi_after_growth])
+        )
+
+        plot_labels = i == 0
+        fig, ax = make_well_with_GFP_SS(
+            well_figsize,
+            grad_lo,
+            grad_hi,
+            grad_t,
+            rho_max,
+            grad_g,
+            rho_ON_trans,
+            rho_OFF_trans,
+            interp_fun=np.geomspace,
+            plot_labels=plot_labels,
+        )
+
+        if save:
+
+            fpath = save_dir.joinpath(f"{prefix}_t{phase_col[-1]}_GFP.{fmt}")
+            print(f"Writing to: {str(fpath)}")
+            plt.savefig(fpath, dpi=dpi)
+
+
+def main(
+    linear_grad_t=1.66,
+    linear_grad_lo=2.0,
+    linear_grad_hi=5.0,
+    logarithmic_grad_ts=(1, 3, 5),
+    logarithmic_grad_lo=0.02,
+    logarithmic_grad_hi=2.0,
+    **kwargs,
+):
+
+    make_plots_linear_rho_0(
+        grad_t=linear_grad_t, grad_lo=linear_grad_lo, grad_hi=linear_grad_hi, **kwargs
+    )
+
+    make_plots_logarithmic_rho_0(
+        grad_ts=logarithmic_grad_ts,
+        grad_lo=logarithmic_grad_lo,
+        grad_hi=logarithmic_grad_hi,
+        **kwargs,
+    )
 
 
 if __name__ == "__main__":

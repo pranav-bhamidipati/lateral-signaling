@@ -42,34 +42,13 @@ def get_rho_x_t(x, t, psi, rho_bar, rho_max):
     return rho_max * rho_x_0 * np.exp(t) / (rho_max + rho_x_0 * (np.exp(t) - 1))
 
 
-def main(
-    mle_csv=mle_csv,
+def make_schematic_1_no_callouts(
     im_png=im_png,
-    figsize1=(5, 3),
+    figsize=(5, 3),
     scale=4.0,
-    rho_0s=(4.0, 2.0, 1.0),
-    tmax_days=4,
-    nt=201,
-    g=1.0,
-    figsize2=(6, 2.5),
-    cmap=lsig.kgy,
-    nt_sample=4,
-    nx=201,
-    dt_days=0.6,
-    bg_clr="k",
-    label_bias=0.1,
-    save_prefix=save_prefix,
-    save=True,
-    dpi=300,
-    fmt="png",
 ):
-    rho_max = pd.read_csv(mle_csv, index_col="treatment").loc[
-        "untreated", "rho_max_ratio"
-    ]
 
-    bias_scaled = label_bias * scale
-
-    fig1 = plt.figure(1, figsize=figsize1)
+    fig = plt.figure(figsize=figsize)
     ax = plt.gca()
     ax.axis("off")
 
@@ -96,6 +75,50 @@ def main(
     img = mpimg.imread(im_png)
     plt.imshow(img, extent=im_extent)
 
+    return fig, ax
+
+
+def main(
+    mle_csv=mle_csv,
+    im_png=im_png,
+    figsize1_nc=(4, 2),
+    figsize1=(5, 3),
+    scale=4.0,
+    rho_0s=(4.0, 2.0, 1.0),
+    tmax_days=4,
+    nt=201,
+    g=1.0,
+    figsize2=(6, 2.5),
+    cmap=lsig.kgy,
+    nt_sample=4,
+    nx=201,
+    dt_days=0.6,
+    bg_clr="k",
+    label_bias=0.1,
+    save_prefix=save_prefix,
+    save=True,
+    dpi=300,
+    fmt="png",
+):
+    rho_max = pd.read_csv(mle_csv, index_col="treatment").loc[
+        "untreated", "rho_max_ratio"
+    ]
+
+    # bias_scaled = label_bias * scale
+
+    fig, ax = make_schematic_1_no_callouts(
+        im_png=im_png, figsize=figsize1_nc, scale=scale
+    )
+    plt.tight_layout()
+
+    if save:
+        _fpath = save_prefix.with_stem(save_prefix.stem + "_1_no_callouts").with_suffix(
+            f".{fmt}"
+        )
+        _fpath = str(_fpath.resolve().absolute())
+        print(f"Writing to: {_fpath}")
+        plt.savefig(_fpath, dpi=dpi)
+
     # Callout boxes
     callout_ys = scale * np.array([0.5, -0.125, -0.5])
     callout_w = 0.6
@@ -105,6 +128,8 @@ def main(
         for y in callout_ys
     ]
     p = coll.PatchCollection(callouts, match_original=True)
+
+    fig, ax = make_schematic_1_no_callouts(im_png=im_png, figsize=figsize1, scale=scale)
     ax.add_collection(p)
 
     # inset axes with rho vs t examples

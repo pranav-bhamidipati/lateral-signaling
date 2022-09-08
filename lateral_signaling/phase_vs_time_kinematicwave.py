@@ -173,8 +173,6 @@ def main(
         print(f"Writing to: {fname.resolve().absolute()}")
         plt.savefig(fname, dpi=dpi, facecolor=bg_color)
 
-    print()
-
     #####
     ## Run the same expreiment with low density also, scanning through rho_0
     ##  on a log-scale.
