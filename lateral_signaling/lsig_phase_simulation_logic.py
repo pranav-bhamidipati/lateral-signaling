@@ -1,5 +1,5 @@
 from uuid import uuid4
-from math import ceil
+from tqdm import tqdm
 import os
 import h5py
 
@@ -39,12 +39,17 @@ def do_one_simulation(
     rho_max,
     delay,
     beta_function,
+    progress=False,
     nt_t_save=100,
     ex=None,
     save=False,
+    uid=uid,
     **kwargs,
 ):
     """Run a lateral signaling simulation and calculate phase metrics."""
+
+    if progress:
+        print(f"[ID {uid[:8]}]: Starting")
 
     # Set time span
     nt = int(nt_t * tmax_days) + 1
@@ -146,7 +151,10 @@ def do_one_simulation(
     v_init_g = np.empty((n_g), dtype=np.float32)
     n_act_fin_g = np.empty((n_g), dtype=np.float32)
 
-    for j in range(n_g):
+    iterator = range(n_g)
+    if progress:
+        iterator = tqdm(iterator)
+    for j in iterator:
 
         S_t_rep = np.empty((n_reps, nt, n), dtype=np.float32)
         R_t_rep = np.empty_like(S_t_rep)
@@ -198,6 +206,9 @@ def do_one_simulation(
 
         # Number of TCs producing signal at end of simulation
         n_act_fin_g[j] = S_t_g_actnum[j, -1]
+
+        # if progress:
+        # print(f"[ID {uid[:8]}]: {j+1}/{n_g}")
 
     if save:
 

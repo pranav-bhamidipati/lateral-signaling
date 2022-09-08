@@ -24,6 +24,7 @@ ex.add_config(
     rho_max=_rho_max,
     n_reps=5,
     nt_t_save=100,
+    progress=False,
 )
 
 
