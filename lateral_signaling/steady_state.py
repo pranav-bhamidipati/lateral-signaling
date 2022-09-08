@@ -2,15 +2,16 @@ import json
 import h5py
 import numpy as np
 from pathlib import Path
+from lateral_signaling import simulation_params
 
 # Locate simulations of steady-state expression
 # ss_sacred_dir = Path("./sacred")
-ss_sacred_dir = Path("../data/simulations/20220726_steadystate/sacred")
-ss_data_dirs = sorted(list(ss_sacred_dir.glob("[0-9]*")))
+_ss_sacred_dir = Path("../data/simulations/20220726_steadystate/sacred")
+_ss_data_dirs = sorted(list(_ss_sacred_dir.glob("[0-9]*")))
 
 # Extract some metadata first
 def get_metadata(results_file):
-    nscan = len(ss_data_dirs)
+    nscan = len(_ss_data_dirs)
     with h5py.File(results_file, "r") as h:
         nreps, nc = np.asarray(h["S_final_rep"]).shape
         nsenders = np.asarray(h["sender_idx_rep"]).shape[1]
@@ -23,14 +24,14 @@ def get_metadata(results_file):
 def _initialize():
     """Must be run before get_steady_state and get_steady_state_vector can be used."""
     nscan, nreps, nc, nsenders, ntc, rep_idx = get_metadata(
-        ss_data_dirs[0].joinpath("results.hdf5")
+        _ss_data_dirs[0].joinpath("results.hdf5")
     )
     rho_scan_unsorted = []
     S_tcmean_rep_scan_unsorted = []
 
     ss_data_files = [
         (d.joinpath("config.json"), d.joinpath("results.hdf5"))
-        for d in ss_data_dirs
+        for d in _ss_data_dirs
         if d.joinpath("config.json").exists()
     ]
     for i, (config_file, data_file) in enumerate(ss_data_files):
@@ -97,3 +98,23 @@ def _get_steady_state(
         raise ValueError
 
     return mean, std
+
+
+def _get_critical_densities(
+    rho_scan,
+    S_tcmean_scan,
+    
+):
+    """
+    Returns densities `rho_ON` and `rho_OFF`, between which signaling is efficient (steady 
+    state is above the promoter threshold.
+    
+    Will be used to derive the threshold values at import-time, rather than keeping them hard-coded
+    """
+    
+    pass
+
+    # Get the mean density and steady state values
+    # Subtract k from SS vals
+    # Find where it crosses zero
+    # Return two results

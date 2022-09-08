@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 
 
-growth_params_dir = Path("../data/growth_curves_MLE")
-growth_params_csv = growth_params_dir.joinpath("growth_parameters_MLE.csv")
+_growth_params_dir = Path("../data/growth_curves_MLE")
+_growth_params_csv = _growth_params_dir.joinpath("growth_parameters_MLE.csv")
 
 
 @dataclass(frozen=True)

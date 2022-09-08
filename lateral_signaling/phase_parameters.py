@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 
-data_dir = Path("../data/simulations")
-phase_params_json = data_dir.joinpath("phase_threshold.json")
+_data_dir = Path("../data/simulations")
+_phase_params_json = _data_dir.joinpath("phase_threshold.json")
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,6 @@ class PhaseParameters:
 
 def _initialize(params_json: Path):
     with params_json.open("r") as f:
-        j = json.load(f, object_pairs_hook=OrderedDict)  # Loads entries in order
+        j = json.load(f)
 
-    return PhaseParameters(*j.values())
+    return PhaseParameters(**j)
