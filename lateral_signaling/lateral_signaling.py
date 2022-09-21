@@ -1124,6 +1124,43 @@ def ncells_to_area(ncells, rho, ref_density=1250):
     return _nc2a_ufunc(ncells, rho, ref_density)
 
 
+@numba.vectorize
+def hexagon_side_to_area(side):
+    """Return area of a hexagon given side length.
+
+    Returns
+    -------
+    area :  number or numpy array (dtype float)
+        Area of hexagon
+    
+    Parameters
+    ----------
+    side  :  number or numpy array (dtype float)
+        Length of side
+
+    """
+    return 3 * np.sqrt(3) / 2 * side ** 2
+
+
+@numba.vectorize
+def area_to_hexagon_side(area):
+    """Return side length of a hexagon given area
+
+    Returns
+    -------
+    side  :  number or numpy array (dtype float)
+        Length of side
+
+    Parameters
+    ----------
+
+    area :  number or numpy array (dtype float)
+        Area of hexagon
+    
+    """
+    return np.sqrt(area * 2 / (3 * np.sqrt(3)))
+
+
 ####### Delay diff eq integration
 
 
