@@ -989,7 +989,7 @@ def verts_to_circle(xy):
 
 
 # @numba.njit
-def make_circular_mask(h, w, center=None, radius=None):
+def make_circular_mask(h, w, center, radius):
     """
     Construct a mask to select elements within a circle
 

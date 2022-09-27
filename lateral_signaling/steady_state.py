@@ -2,7 +2,6 @@ import json
 import h5py
 import numpy as np
 from pathlib import Path
-from lateral_signaling import simulation_params
 
 # Locate simulations of steady-state expression
 # ss_sacred_dir = Path("./sacred")
@@ -103,15 +102,14 @@ def _get_steady_state(
 def _get_critical_densities(
     rho_scan,
     S_tcmean_scan,
-    
 ):
     """
-    Returns densities `rho_ON` and `rho_OFF`, between which signaling is efficient (steady 
+    Returns densities `rho_ON` and `rho_OFF`, between which signaling is efficient (steady
     state is above the promoter threshold.
-    
+
     Will be used to derive the threshold values at import-time, rather than keeping them hard-coded
     """
-    
+
     pass
 
     # Get the mean density and steady state values

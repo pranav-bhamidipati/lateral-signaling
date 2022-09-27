@@ -20,6 +20,8 @@ dependencies:
   - h5py=3.*
   - pytables=3.*
   - conda-forge::tqdm=4.*
+  - conda-forge::imageio=2.22.*
+  - conda-forge::openpiv=0.*
     #  - conda-forge::ffmpeg
   - conda-forge::imageio-ffmpeg
   - conda-forge::firefox
