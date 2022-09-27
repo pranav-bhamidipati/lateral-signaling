@@ -8,9 +8,6 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-import colorcet as cc
-import cmocean.cm as cmo
-
 import holoviews as hv
 
 hv.extension("matplotlib")
@@ -38,6 +35,30 @@ save_dir = os.path.abspath("../plots/tmp")
 fpath_pfx = os.path.join(save_dir, "phase_diagram_2D_")
 
 
+def get_phase(actnum_t, v_init, v_init_thresh, rho_0):
+
+    # If activation doesn't happen immediately, signaling is attenuated
+    if (v_init < v_init_thresh) and (rho_0 > 1.0):
+        return 0
+
+    # Find time-point where activation first happens
+    activate_idx = lsig.first_nonzero(actnum_t)
+    if activate_idx != -1:
+
+        # If there's deactivation, signaling was limited
+        deactivate_idx = lsig.first_zero(actnum_t[activate_idx:])
+        if deactivate_idx != -1:
+            return 1
+
+        # If no deactivation, unlimited
+        else:
+            return 2
+
+    # If no activation, signaling is attenuated
+    else:
+        return 0
+
+
 def main(
     pad=0.05,
     area_ceiling=1,
@@ -49,7 +70,7 @@ def main(
     legend_pt_ypos=0.5,
     save=False,
     prefix=fpath_pfx,
-    suffix="_",
+    suffix="",
     fmt="png",
     dpi=300,
 ):
@@ -75,6 +96,8 @@ def main(
 
     # Store each run's data and in a DataFrame
     dfs = []
+    rho_0_max = 0.0
+    rho_0_min = 1.0
     for rd_idx, rd in enumerate(tqdm(run_dirs)):
 
         _config_file = os.path.join(rd, "config.json")
@@ -93,6 +116,12 @@ def main(
             rho_max = config["rho_max"]
             g_space = config["g_space"]
 
+        if rho_0 < rho_0_min:
+            rho_0_min = rho_0
+
+        if rho_0 > rho_0_max:
+            rho_0_max = rho_0
+
         if not (1.0 <= rho_0 <= rho_max):
             continue
 
@@ -102,15 +131,21 @@ def main(
             t = np.asarray(f["t"])
 
             # Number of activated cells and density vs. time
-            ncells_t_g = np.asarray(f["S_t_g_actnum"])
+            n_act_t_g = np.asarray(f["S_t_g_actnum"])
             rho_t_g = np.asarray(f["rho_t_g"])
 
             # Phase metrics
-            v_init = np.asarray(f["v_init_g"])
+            v_init_g = np.asarray(f["v_init_g"])
             n_act_fin = np.asarray(f["n_act_fin_g"])
 
         # Calculate maximum area for each param set in batch
-        maxArea_g = lsig.ncells_to_area(ncells_t_g, rho_t_g).max(axis=1)
+        maxArea_g = lsig.ncells_to_area(n_act_t_g, rho_t_g).max(axis=1)
+
+        # Calculate phase
+        phase_g = [
+            get_phase(n_act_t, v_init, v_init_thresh, rho_0)
+            for n_act_t, v_init in zip(n_act_t_g, v_init_g)
+        ]
 
         # Assemble dataframe
         _df = pd.DataFrame(
@@ -118,9 +153,10 @@ def main(
                 g=g_space,
                 rho_0=rho_0,
                 rho_max=rho_max,
-                v_init=v_init,
+                v_init=v_init_g,
                 n_act_fin=n_act_fin,
                 max_area_mm2=maxArea_g,
+                phase=phase_g,
             )
         )
         dfs.append(_df)
@@ -130,9 +166,9 @@ def main(
     df["g_inv_days"] = lsig.g_to_units(df["g"].values)
 
     # Assign phases and sort by phase
-    df["phase"] = (df.v_init > v_init_thresh).astype(int) * (
-        1 + (df.n_act_fin > 0).astype(int)
-    )
+    # df["phase"] = (df.v_init > v_init_thresh).astype(int) * (
+    #     1 + (df.n_act_fin > 0).astype(int)
+    # )
     df = df.sort_values("phase")
 
     # Extract data ranges
@@ -158,7 +194,7 @@ def main(
     ylim = tuple(
         [
             rho_0_space[0] - pad * rho_0_range,
-            rho_0_space[-1] + pad * rho_0_range,
+            rho_0_max + pad * rho_0_range,
         ]
     )
     y_range = ylim[1] - ylim[0]
@@ -166,18 +202,77 @@ def main(
     # Colors for phase regions
     phase_colors = lsig.cols_blue[::-1]
 
+    data = df.pivot(columns="g_inv_days", index="rho_0", values="phase")
+    g_wt = df.loc[np.isclose(df["g"].values, 1.0), "g_inv_days"].values[0]
+    cols = data.columns.to_list()
+    g_col_idx = cols.index(g_wt)
+    g_col = cols[g_col_idx]
+    g_col_phase = data[g_col].values
+    data = data + 3
+    data[g_col] = g_col_phase
+    data = data.values
+
+    g_space_inv_days = lsig.g_to_units(g_space)
+    dg = g_space_inv_days[1] - g_space_inv_days[0]
+    dr = rho_0_space[1] - rho_0_space[0]
+    _xlim = g_space_inv_days[0] - dg / 2, g_space_inv_days[-1] + dg / 2
+    _ylim = rho_0_space[0] - dr / 2, rho_0_space[-1] + dr / 2
+    _yrange = _ylim[1] - _ylim[0]
+    _aspect = (_xlim[1] - _xlim[0]) / (_ylim[1] - _ylim[0])
+
+    ## [Matplotlib] A phase diagram "highlighted" at one value of `g`
+    fig1 = plt.figure(1, figsize=(2, 2))
+    ax = plt.gca()
+    plt.imshow(
+        data,
+        origin="lower",
+        cmap=mpl.colors.ListedColormap(
+            phase_colors + [lsig.blend_hex(c, lsig.white, 0.5) for c in phase_colors],
+            name="phase",
+        ),
+        aspect=_aspect,
+        extent=(*_xlim, *_ylim),
+    )
+
+    g_wt_xloc = lsig.normalize(g_wt, *_xlim)
+    ax.annotate(
+        "",
+        xy=(g_wt_xloc, 1.0),
+        xycoords="axes fraction",
+        xytext=(g_wt_xloc, 1.15),
+        arrowprops=dict(
+            arrowstyle="->",
+            color="k",
+            linewidth=1.25,
+            capstyle="projecting",
+        ),
+    )
+    plt.xlabel(r"$g$")
+    plt.xlim(_xlim)
+    plt.xticks([])
+    plt.ylabel(r"$\rho_0$")
+    plt.ylim(_ylim)
+    plt.yticks([])
+
+    if save:
+
+        _fname = str(Path(save_dir).joinpath(prefix + "highlighted" + "." + fmt))
+        print(_fname)
+        plt.savefig(_fname, dpi=dpi)
+
+    ## [Holoviews] Various versions of same phase diagram
     # Options for different plot types
     plot_kw = dict(
         xlim=xlim,
         ylim=ylim,
-        xlabel=r"proliferation rate ($days^{-1}$)",
+        xlabel=r"Proliferation rate ($\mathrm{days}^{-1}$)",
         xticks=(0.5, 1.0, 1.5),
-        ylabel=r"init. density (x 100% confl.)",
+        ylabel=r"Init. density (x $1250\,\mathrm{mm}^{-2}$)",
         yticks=(0, 1, 2, 3, 4, 5, 6),
         hooks=[lsig.remove_RT_spines],
         fontscale=1.0,
         show_legend=False,
-        #        aspect=1.,
+        aspect=((xlim[1] - xlim[0]) / dg) / ((ylim[1] - ylim[0]) / dr),
     )
     bare_kw = dict(
         marker="s",
@@ -215,62 +310,6 @@ def main(
         )
         .overlay()
     )
-
-    data = df.pivot(columns="g_inv_days", index="rho_0", values="phase")
-    g_wt = df.loc[np.isclose(df["g"].values, 1.0), "g_inv_days"].values[0]
-    cols = data.columns.to_list()
-    g_col_idx = cols.index(g_wt)
-    g_col = cols[g_col_idx]
-    g_col_phase = data[g_col].values
-    data = data + 3
-    data[g_col] = g_col_phase
-    data = data.values
-    # data.to_csv(Path(save_dir).joinpath("test.txt"), sep="\t")
-    # 0 / 0
-    g_space_inv_days = lsig.g_to_units(g_space)
-    dg = (g_space_inv_days[1] - g_space_inv_days[0]) / 2
-    dr = (rho_0_space[1] - rho_0_space[0]) / 2
-    _xlim = g_space_inv_days[0] - dg, g_space_inv_days[-1] + dg
-    _ylim = rho_0_space[0] - dr, rho_0_space[-1] + dr
-    _yrange = _ylim[1] - _ylim[0]
-    _aspect = (_xlim[1] - _xlim[0]) / (_ylim[1] - _ylim[0])
-
-    fig1 = plt.figure(1, figsize=(2, 2))
-    ax = plt.gca()
-    plt.imshow(
-        data,
-        origin="lower",
-        cmap=mpl.colors.ListedColormap(
-            phase_colors + [lsig.blend_hex(c, lsig.white, 0.5) for c in phase_colors],
-            name="phase",
-        ),
-        aspect=_aspect,
-        extent=(*_xlim, *_ylim),
-    )
-
-    g_wt_xloc = lsig.normalize(g_wt, *_xlim)
-    ax.annotate(
-        "",
-        xy=(g_wt_xloc, 1.0),
-        xycoords="axes fraction",
-        xytext=(g_wt_xloc, 1.15),
-        arrowprops=dict(
-            arrowstyle="->",
-            color="k",
-            linewidth=1.25,
-            capstyle="projecting",
-        ),
-    )
-    plt.xlabel(r"$g$")
-    plt.xlim(_xlim)
-    plt.xticks([])
-    plt.ylabel(r"$\rho_0$")
-    plt.ylim(_ylim)
-    plt.yticks([])
-
-    _fname = str(Path(save_dir).joinpath(prefix + "highlighted" + "." + fmt))
-    print(_fname)
-    plt.savefig(_fname, dpi=dpi)
 
     # Phase diagram with examples
     examples = (
@@ -531,67 +570,17 @@ def main(
     pdf["g_inv_days_90CIdiff_lo"] = pdf["g_inv_days"] - pdf["g_inv_days_90CI_lo"]
     pdf["g_inv_days_90CIdiff_hi"] = pdf["g_inv_days_90CI_hi"] - pdf["g_inv_days"]
 
-    #    # Add rows for different density treatments
-    #    pdf["rho_0"] = rhos[0]
-    #    untreated_row = pdf.loc[pdf.treatment=="untreated", :]
-    #    untreated_df = pd.concat([untreated_row] * len(rhos))
-    #    untreated_df["rho_0"] = rhos
-    #    pdf = pd.concat([pdf, untreated_df])
-    #    pdf = pdf.drop_duplicates().reset_index(drop=True)
-
-    #    # Select data for plotting
-    #    pert_columns = [
-    #        "treatment",
-    #        r"$\rho_0$",
-    #        "g_inv_days",
-    #        "g_inv_days_90CIdiff_lo",
-    #        "g_inv_days_90CIdiff_hi",
-    #    ]
-    #    pdf = pdf.loc[:, pert_columns]
-
-    #    # Remove axis labels and phase examples
-    #    phasediagram_bare = phasediagram_bare.options(
-    #    )
-
-    # Set plotting options
-    #    axis_off_args = (
-    #        hv.opts.Scatter(
-    #            edgecolor=None,
-    #        ),
-    #        hv.opts.Overlay(
-    #            xaxis=None,
-    #            yaxis=None,
-    #        ),
-    #    )
     pert_kw = dict(
-        marker="^",
+        marker="o",
         color="color",
-        s=250,
+        s=55,
         ec=lsig.black,
     )
     err_kw = dict(
-        #        linewidth=3,
+        # linewidth=3,
         capsize=4,
         color="k",
     )
-
-    # Plot growth and density perturbations
-    #    g_pts = hv.Points(
-    #        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
-    #        kdims=["g_inv_days", "rho_0"],
-    #        vdims=["color"],
-    #    ).opts(**pert_kw)
-    #    g_err = hv.ErrorBars(
-    #        data=pdf.loc[pdf["rho_0"]==rhos[0], :],
-    #        kdims=["g_inv_days"],
-    #        vdims=["rho_0", "g_inv_days_90CIdiff_lo", "g_inv_days_90CIdiff_hi"],
-    #        horizontal=True,
-    #    ).opts(**err_kw)
-    #    rho0_pts = hv.Points(
-    #        data=pdf.loc[pdf["treatment"]=="untreated", :],
-    #        kdims=["g_inv_days", "rho_0"],
-    #        vdims=["color"],
-    #    ).opts(**pert_kw)
 
     pert_pts = hv.Points(
         data=pdf,
@@ -605,33 +594,15 @@ def main(
         horizontal=True,
     ).opts(**err_kw)
 
-    pert_overlay = (phasediagram_bare * pert_pts * pert_err).opts(
-        xaxis=None, yaxis=None
+    pert_extend = 0.1
+    pert_overlay = (phasediagram_bare * pert_err * pert_pts).opts(
+        xaxis=None,
+        yaxis=None,
+        xlim=(xlim[0], xlim[1] + pert_extend * (xlim[1] - xlim[0])),
+        ylim=(ylim[0], ylim[1] + pert_extend * (ylim[1] - ylim[0])),
     )
-    #    drug_overlay      = (phasediagram_bare * g_pts * g_err).opts(xaxis=None, yaxis=None)
-    #    dens_overlay      = (phasediagram_bare * rho0_pts).opts(xaxis=None, yaxis=None)
-    #    drug_dens_overlay = (phasediagram_bare * g_pts * rho0_pts).opts(xaxis=None, yaxis=None)
-
-    #    drug_overlay      = (phasediagram_bare * g_pts * g_err).opts(*axis_off_args)
-    #    dens_overlay      = (phasediagram_bare * rho0_pts).opts(*axis_off_args)
-    #    drug_dens_overlay = (phasediagram_bare * g_pts * rho0_pts).opts(*axis_off_args)
 
     if save:
-
-        #        fpath = prefix + "growth_perturbations" + suffix
-        #        _fpath = fpath + "." + fmt
-        #        print(f"Writing to: {_fpath}")
-        #        hv.save(drug_overlay, fpath, fmt=fmt, dpi=dpi)
-        #
-        #        fpath = prefix + "initdensity_perturbations" + suffix
-        #        _fpath = fpath + "." + fmt
-        #        print(f"Writing to: {_fpath}")
-        #        hv.save(dens_overlay, fpath, fmt=fmt, dpi=dpi)
-        #
-        #        fpath = prefix + "both_perturbations" + suffix
-        #        _fpath = fpath + "." + fmt
-        #        print(f"Writing to: {_fpath}")
-        #        hv.save(drug_dens_overlay, fpath, fmt=fmt, dpi=dpi)
 
         fpath = prefix + "perturbations" + suffix
         _fpath = fpath + "." + fmt
@@ -642,6 +613,5 @@ def main(
 if __name__ == "__main__":
 
     main(
-        save=False,
-        suffix="_",
+        save=True,
     )

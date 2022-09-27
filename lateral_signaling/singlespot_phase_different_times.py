@@ -18,11 +18,6 @@ log_sacred_dir = Path("sacred")
 lin_sacred_dir = data_dir.joinpath("20211209_phase_2D/sacred")
 thresh_fpath = data_dir.joinpath("phase_threshold.json")
 
-# Reading growth parameter estimation data
-mle_dir = Path("../data/growth_curves_MLE")
-mle_fpath = mle_dir.joinpath("growth_parameters_MLE.csv")
-pert_clr_json = mle_dir.joinpath("perturbation_colors.json")
-
 # Writing
 save_dir = Path("../plots/tmp")
 
@@ -58,6 +53,7 @@ def make_plots_linear_rho_0(
     grad_g=1.0,
     figsize=(3, 3),
     well_figsize=(2, 2),
+    ny=201,
     thresh_fpath=thresh_fpath,
     sacred_dir=lin_sacred_dir,
     save_dir=save_dir,
@@ -189,22 +185,38 @@ def make_plots_linear_rho_0(
     # plt.ylim(_ylim)
     # plt.yticks([])
 
-    plt.tight_layout()
-
-    # if save:
-
-    #     fpath = save_dir.joinpath(f"{prefix}_basic.{fmt}")
-    #     print(f"Writing to: {str(fpath)}")
-    #     plt.savefig(fpath, dpi=dpi)
-
-    plt.vlines(grad_g_inv_days, grad_lo, grad_hi, colors="k", lw=2)
-    plt.hlines(
-        (grad_lo, grad_hi),
-        grad_g_inv_days - 0.1,
-        grad_g_inv_days + 0.1,
-        colors="k",
-        lw=2,
+    plt.text(
+        0.1,
+        4.0,
+        "No signaling (NS)",
+        c="w",
+        fontsize=8,
+        weight="bold",
+        ha="left",
+        va="center",
     )
+    plt.text(
+        0.1,
+        2.6,
+        "Signaling (S)",
+        c="w",
+        fontsize=8,
+        weight="bold",
+        ha="left",
+        va="center",
+    )
+
+    # # Labeling a possible gradient on phase diagram
+    # plt.vlines(grad_g_inv_days, grad_lo, grad_hi, colors="k", lw=2)
+    # plt.hlines(
+    #     (grad_lo, grad_hi),
+    #     grad_g_inv_days - 0.1,
+    #     grad_g_inv_days + 0.1,
+    #     colors="k",
+    #     lw=2,
+    # )
+
+    plt.tight_layout()
 
     if save:
 
@@ -212,8 +224,14 @@ def make_plots_linear_rho_0(
         print(f"Writing to: {str(fpath)}")
         plt.savefig(fpath, dpi=dpi)
 
+    rho_0_y = np.linspace(grad_lo, grad_hi, ny)
+    rho_y = lsig.logistic(grad_t, 1.0, rho_0_y, rho_max)
+    SS_y = lsig.get_steady_state_vector(rho_y)[0]
+
     fig, ax = make_well_with_GFP_SS(
-        well_figsize, grad_lo, grad_hi, grad_t, rho_max, grad_g, **kwargs
+        well_figsize,
+        SS_y,
+        nx=ny,
     )
 
     if save:
@@ -225,45 +243,35 @@ def make_plots_linear_rho_0(
 
 def make_well_with_GFP_SS(
     figsize,
-    grad_lo,
-    grad_hi,
-    grad_t,
-    rho_max,
-    grad_g,
-    rho_ON=None,
-    rho_OFF=None,
+    SS_y,
+    rho_ON_y=None,
+    rho_OFF_y=None,
+    ylim=(0, 1),
     nx=201,
     bg_clr="k",
-    plot_labels=False,
-    interp_fun=np.linspace,
+    plot_arrow=False,
 ):
 
     fig = plt.figure(figsize=figsize)
     fig.patch.set_facecolor(bg_clr)
 
-    _rho_space = interp_fun(grad_lo, grad_hi, nx)
-    rho_x = lsig.logistic(grad_t, grad_g, _rho_space, rho_max)[::-1]
-
-    SS_x = lsig.get_steady_state_vector(rho_x)[0]
-
-    SS_x = lsig.normalize(SS_x, SS_x.min(), SS_x.max())
-    norm = mpl.colors.Normalize(0, 1)
-
     # Make a circle to clip the gradient into a circle
-    rad = (nx - 1) / 2
-    xx = np.linspace(0, nx - 1, nx * 2)
-    yy = np.sqrt(rad ** 2 - (xx - rad) ** 2)
-    circle = plt.fill_between(xx, rad + yy, rad - yy, lw=0, color="none")
+    ymin, ymax = ylim
+    ymid = (ymax + ymin) / 2
+    rad = (ymax - ymin) / 2
+    xx = np.linspace(-rad, rad, nx)
+    yy = np.sqrt(rad ** 2 - xx ** 2)
+    circle = plt.fill_between(xx, ymid + yy, ymid - yy, lw=0, color="none")
 
     ax = plt.gca()
     ax.set_facecolor(bg_clr)
     ax.axis("off")
 
     gradient = plt.imshow(
-        np.ones((nx, nx)) * SS_x[:, np.newaxis],
+        np.ones((nx, nx)) * SS_y[:, np.newaxis],
         cmap=lsig.kgy,
-        norm=norm,
-        # extent=(-0.5, 0.5, 0, 1),
+        extent=(-rad, rad, ymin, ymax),
+        origin="lower",
     )
     gradient.set_clip_path(circle.get_paths()[0], transform=ax.transData)
     ax.set_aspect(1)
@@ -272,17 +280,13 @@ def make_well_with_GFP_SS(
     _ylim = plt.ylim()
     _yrange = _ylim[1] - _ylim[0]
 
-    if (rho_ON is not None) and (rho_OFF is not None):
+    if (rho_ON_y is not None) or (rho_OFF_y is not None):
 
-        rho_ON_y = rho_ON * _yrange + _ylim[0]
-        rho_OFF_y = rho_OFF * _yrange + _ylim[0]
+        text_x = 0.9 * (_xlim[1] - _xlim[0]) + _xlim[0]
 
-        plt.hlines(rho_ON_y, *_xlim, colors="w", linestyle="dotted")
-        plt.hlines(rho_OFF_y, *_xlim, colors="w", linestyle="dashed")
+        if rho_ON_y is not None:
 
-        if plot_labels:
-
-            text_x = 0.9 * (_xlim[1] - _xlim[0]) + _xlim[0]
+            plt.hlines(rho_ON_y, *_xlim, colors="w", linestyle="dotted")
             plt.text(
                 text_x,
                 rho_ON_y - 0.05 * _yrange,
@@ -291,6 +295,10 @@ def make_well_with_GFP_SS(
                 ha="center",
                 va="top",
             )
+
+        if rho_OFF_y is not None:
+
+            plt.hlines(rho_OFF_y, *_xlim, colors="w", linestyle="dashed")
             plt.text(
                 text_x,
                 rho_OFF_y + 0.05 * _yrange,
@@ -299,6 +307,8 @@ def make_well_with_GFP_SS(
                 ha="center",
                 va="bottom",
             )
+
+        if plot_arrow:
 
             arrow_min = rho_ON_y
             arrow_max = rho_OFF_y
@@ -323,10 +333,13 @@ def make_plots_logarithmic_rho_0(
     grad_lo,
     grad_hi,
     rho_min=0.0,
+    yticks_log10=(-2, -1, 0),
     figsize=(3, 3),
     well_figsize=(2, 2),
     grad_g=1.0,
     nscan=101,
+    ny=201,
+    well_ylim=(0, 1),
     thresh_fpath=thresh_fpath,
     sacred_dir=log_sacred_dir,
     save_dir=save_dir,
@@ -488,28 +501,20 @@ def make_plots_logarithmic_rho_0(
 
         plt.xlabel(r"$g$ ($\mathrm{days}^{-1}$)")
         plt.ylabel(r"$\rho_0$")
-        yticks, _ = plt.yticks()
-        yticks = [k for k in yticks if np.isclose(k, int(k))]
+        yticks = [k for k in yticks_log10 if np.isclose(k, int(k))]
         yticklabels = [fr"$10^{{{int(k)}}}$" for k in yticks]
         plt.yticks(yticks, yticklabels)
 
-        plt.tight_layout()
-
-        # if save:
-        #     fpath = save_dir.joinpath(f"{prefix}_t{phase_col[-1]}_basic.{fmt}")
-        #     print(f"Writing to: {str(fpath)}")
-        #     plt.savefig(fpath, dpi=dpi)
-
-        plt.vlines(
-            grad_g_inv_days, np.log10(grad_lo), np.log10(grad_hi), colors="k", lw=2
-        )
-        plt.hlines(
-            (np.log10(grad_lo), np.log10(grad_hi)),
-            grad_g_inv_days - 0.1,
-            grad_g_inv_days + 0.1,
-            colors="k",
-            lw=2,
-        )
+        # plt.vlines(
+        #     grad_g_inv_days, np.log10(grad_lo), np.log10(grad_hi), colors="k", lw=2
+        # )
+        # plt.hlines(
+        #     (np.log10(grad_lo), np.log10(grad_hi)),
+        #     grad_g_inv_days - 0.1,
+        #     grad_g_inv_days + 0.1,
+        #     colors="k",
+        #     lw=2,
+        # )
 
         _xlim = plt.xlim()
         _ylim = plt.ylim()
@@ -562,6 +567,8 @@ def make_plots_logarithmic_rho_0(
                 arrowprops=dict(arrowstyle="<->", color="w"),
             )
 
+        plt.tight_layout()
+
         if save:
 
             fpath = save_dir.joinpath(f"{prefix}_t{phase_col[-1]}_gradient.{fmt}")
@@ -569,28 +576,32 @@ def make_plots_logarithmic_rho_0(
             plt.savefig(fpath, dpi=dpi)
 
         grad_lo_after_growth, grad_hi_after_growth = lsig.logistic(
-            grad_t, 1.0, (grad_lo, grad_hi), rho_max
+            grad_t, 1.0, np.array([grad_lo, grad_hi]), rho_max
         )
 
-        rho_ON_trans = lsig.normalize(
-            *np.log([rho_ON, grad_lo_after_growth, grad_hi_after_growth])
-        )
-        rho_OFF_trans = lsig.normalize(
-            *np.log([rho_OFF, grad_lo_after_growth, grad_hi_after_growth])
-        )
+        rho_0_y = np.geomspace(grad_lo, grad_hi, ny)
+        rho_y = lsig.logistic(grad_t, 1.0, rho_0_y, rho_max)
+        SS_y = lsig.get_steady_state_vector(rho_y)[0]
 
-        plot_labels = i == 0
+        y = np.linspace(*well_ylim, ny)
+        if rho_y.min() < rho_ON < rho_y.max():
+            rho_ON_y = y[np.minimum(np.searchsorted(rho_y, rho_ON), ny - 1)]
+        else:
+            rho_ON_y = None
+        if rho_y.min() < rho_OFF < rho_y.max():
+            rho_OFF_y = y[np.minimum(np.searchsorted(rho_y, rho_OFF), ny - 1)]
+        else:
+            rho_OFF_y = None
+
+        plot_arrow = i == 1
         fig, ax = make_well_with_GFP_SS(
             well_figsize,
-            grad_lo,
-            grad_hi,
-            grad_t,
-            rho_max,
-            grad_g,
-            rho_ON_trans,
-            rho_OFF_trans,
-            interp_fun=np.geomspace,
-            plot_labels=plot_labels,
+            SS_y,
+            rho_ON_y,
+            rho_OFF_y,
+            nx=ny,
+            ylim=well_ylim,
+            plot_arrow=plot_arrow,
         )
 
         if save:
@@ -624,6 +635,11 @@ def main(
 
 if __name__ == "__main__":
 
+    log_grad_ts = np.array([1, 3, 5]) / lsig.t_to_units(1)
+
     main(
         save=True,
+        figsize=(2.3, 2.3),
+        logarithmic_grad_ts=log_grad_ts,
+        # logarithmic_grad_ts=(0.92403328, 1.84806656, 2.77209984),
     )
