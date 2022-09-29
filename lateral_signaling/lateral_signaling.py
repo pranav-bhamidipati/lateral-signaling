@@ -1,11 +1,13 @@
 from functools import partial
-from typing import OrderedDict
+import os
+from typing import OrderedDict, TypeVar
 import warnings
 from copy import deepcopy
 
 import numpy as np
 import pandas as pd
 from math import ceil
+from pathlib import Path
 from scipy.sparse import csr_matrix, identity, diags
 from scipy.spatial.distance import pdist, squareform
 import scipy.stats
@@ -23,6 +25,29 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
 hv.extension("matplotlib")
+
+######################################################################
+##########  SET UP DIRECTORIES AT IMPORT-TIME ########################
+######################################################################
+
+PathLike = TypeVar("PathLike", str, bytes, Path, os.PathLike, None)
+
+data_dir = Path(os.getenv("LSIG_DATA_DIR"))
+simulation_dir = Path(os.getenv("LSIG_SIMULATION_DIR"))
+plot_dir = Path(os.getenv("LSIG_PLOTTING_DIR"))
+temp_plot_dir = Path(os.getenv("LSIG_TEMPPLOTTING_DIR"))
+
+assert data_dir.exists(), f"Invalid path to data directory `data_dir`: {data_dir}"
+assert (
+    simulation_dir.exists()
+), f"Invalid path to simulation results directory `simulation_dir`: {simulation_dir}"
+assert (
+    plot_dir.exists()
+), f"Invalid path to plotting results directory `plot_dir`: {plot_dir}"
+assert (
+    temp_plot_dir.exists()
+), f"Invalid path to plotting results directory `temp_plot_dir`: {temp_plot_dir}"
+
 
 ######################################################################
 ##########  LOAD DATASETS AT IMPORT-TIME #############################
@@ -243,10 +268,14 @@ def reporter_rhs(
 ####### General utils
 
 # Vectorized integer ceiling
-ceiling = numba.vectorize(ceil)
+@numba.vectorize
+def ceiling(x):
+    return ceil(x)
 
 # Vectorized rounding
-vround = numba.vectorize(round)
+@numba.vectorize
+def vround(x):
+     return round(x)
 
 
 @numba.njit
@@ -290,6 +319,7 @@ def logistic_inv(rho, g, rho_0, rho_max):
         return np.log(rho * (rho_max - rho_0) / (rho_0 * (rho_max - rho))) / g
     else:
         return np.nan
+
 
 @numba.vectorize
 def logistic_solve_rho_0(rho, t, g, rho_max):
@@ -1132,7 +1162,7 @@ def hexagon_side_to_area(side):
     -------
     area :  number or numpy array (dtype float)
         Area of hexagon
-    
+
     Parameters
     ----------
     side  :  number or numpy array (dtype float)
@@ -1156,9 +1186,28 @@ def area_to_hexagon_side(area):
 
     area :  number or numpy array (dtype float)
         Area of hexagon
-    
+
     """
     return np.sqrt(area * 2 / (3 * np.sqrt(3)))
+
+
+@numba.vectorize
+def area_to_radius(area):
+    """Return radius of a circle given its area
+
+    Returns
+    -------
+    radius  :  number or numpy array (dtype float)
+        Circle radius
+
+    Parameters
+    ----------
+
+    area :  number or numpy array (dtype float)
+        Circle area
+
+    """
+    return np.sqrt(area / np.pi)
 
 
 ####### Delay diff eq integration
