@@ -1,11 +1,13 @@
+from functools import partial
 import json
 import h5py
 import numpy as np
 from pathlib import Path
+from scipy.interpolate import interp1d
 
 # Locate simulations of steady-state expression
-# ss_sacred_dir = Path("./sacred")
-_ss_sacred_dir = Path("../data/simulations/20220726_steadystate/sacred")
+# _ss_sacred_dir = Path("./sacred")
+_ss_sacred_dir = Path("../data/simulations/20221006_steadystate/sacred")
 _ss_data_dirs = sorted(list(_ss_sacred_dir.glob("[0-9]*")))
 
 # Extract some metadata first
@@ -19,9 +21,23 @@ def get_metadata(results_file):
     return nscan, nreps, nc, nsenders, ntc, rep_idx
 
 
+def _find_linear_root(x1, y1, x2, y2, c=0.0):
+    """Solve for the root of `(y2 - y1) - m * (x2 - x1) = c`, where `m` is the
+    slope of the line between (x1, y1) and (x2, y2). The root should be known to
+    lie between `x1` and `x2`.
+    """
+
+    dy = y2 - y1
+    dx = x2 - x1
+    return x1 + (c - y1) / dy * dx
+
+
 # Extract data from a parameter scan across density (rho)
 def _initialize():
     """Must be run before get_steady_state and get_steady_state_vector can be used."""
+
+    from lateral_signaling import simulation_params
+
     nscan, nreps, nc, nsenders, ntc, rep_idx = get_metadata(
         _ss_data_dirs[0].joinpath("results.hdf5")
     )
@@ -33,7 +49,9 @@ def _initialize():
         for d in _ss_data_dirs
         if d.joinpath("config.json").exists()
     ]
-    for i, (config_file, data_file) in enumerate(ss_data_files):
+
+    for config_file, data_file in ss_data_files:
+
         with config_file.open("r") as f:
             j = json.load(f)
             rho_0 = j["rho_0"]
@@ -62,57 +80,60 @@ def _initialize():
     minval = rho_scan.min()
     maxval = rho_scan.max()
 
-    return rho_scan, minval, maxval, nscan, S_tcmean_scan, S_tcmean_scan_std
+    def _get_steady_state(
+        rho,
+        method="nearest",
+    ):
+        """
+        Get approximate steady-state ligand expression of Transceivers at density `rho`.
+        Returns mean and standard deviation of 10 replicate simulations.
+        """
 
+        if not (minval <= rho <= maxval):
+            raise ValueError(
+                f"Argument `rho` must be within the range: `{minval:.3f} <= rho <= {maxval:.3f}`"
+            )
 
-def _get_steady_state(
-    rho_scan,
-    minval,
-    maxval,
-    nscan,
-    S_tcmean_scan,
-    S_tcmean_scan_std,
-    rho,
-    method="nearest",
-):
-    """
-    Get approximate steady-state ligand expression of Transceivers at density `rho`.
-    Returns mean and standard deviation of 10 replicate simulations.
-    """
+        if method in ("left", "right"):
+            idx = np.searchsorted(rho_scan, rho, side=method)
+            mean = S_tcmean_scan[idx]
+            std = S_tcmean_scan_std[idx]
+        elif method == "nearest":
+            idx = round((nscan - 1) * (rho - minval) / (maxval - minval))
+            mean = S_tcmean_scan[idx]
+            std = S_tcmean_scan_std[idx]
+        elif method == "linear":
+            f = interp1d(rho_scan, S_tcmean_scan)
+            mean = f(rho)
+            std = None
+        else:
+            raise ValueError
 
-    if not (minval <= rho <= maxval):
-        raise ValueError(
-            f"Argument `rho` must be within the range: `{minval:.3f} <= rho <= {maxval:.3f}`"
-        )
+        return mean, std
 
-    if method in ("left", "right"):
-        idx = np.searchsorted(rho_scan, rho, side=method)
-        mean = S_tcmean_scan[idx]
-        std = S_tcmean_scan_std[idx]
-    elif method == "nearest":
-        idx = round((nscan - 1) * (rho - minval) / (maxval - minval))
-        mean = S_tcmean_scan[idx]
-        std = S_tcmean_scan_std[idx]
-    else:
-        raise ValueError
+    ## Simulated GFP conc. can cross the threshold many times (back and forth) due
+    ## to stochasticity. We take the most extreme values as the low and high ones
+    critical_idx = np.diff(np.sign(S_tcmean_scan - simulation_params.k)).nonzero()[0]
 
-    return mean, std
+    crit_idx_lo = critical_idx[0]
+    crit_rho_lo = _find_linear_root(
+        rho_scan[crit_idx_lo],
+        S_tcmean_scan[crit_idx_lo],
+        rho_scan[crit_idx_lo + 1],
+        S_tcmean_scan[crit_idx_lo + 1],
+        c=simulation_params.k,
+    )
 
+    crit_idx_hi = critical_idx[-1]
+    crit_rho_hi = _find_linear_root(
+        rho_scan[crit_idx_hi],
+        S_tcmean_scan[crit_idx_hi],
+        rho_scan[crit_idx_hi + 1],
+        S_tcmean_scan[crit_idx_hi + 1],
+        c=simulation_params.k,
+    )
+    
+    print()
 
-def _get_critical_densities(
-    rho_scan,
-    S_tcmean_scan,
-):
-    """
-    Returns densities `rho_ON` and `rho_OFF`, between which signaling is efficient (steady
-    state is above the promoter threshold.
+    return _get_steady_state, {"rho_ON": crit_rho_lo, "rho_OFF": crit_rho_hi}
 
-    Will be used to derive the threshold values at import-time, rather than keeping them hard-coded
-    """
-
-    pass
-
-    # Get the mean density and steady state values
-    # Subtract k from SS vals
-    # Find where it crosses zero
-    # Return two results

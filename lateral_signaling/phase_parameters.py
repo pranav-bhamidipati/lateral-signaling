@@ -17,8 +17,8 @@ class PhaseParameters:
     v_init_thresh: float = -1.0
 
 
-def _initialize(params_json: Path):
+def _initialize(params_json: Path, **kw):
     with params_json.open("r") as f:
         j = json.load(f)
 
-    return PhaseParameters(**j)
+    return PhaseParameters(**j, **kw)

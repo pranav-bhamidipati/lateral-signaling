@@ -72,23 +72,6 @@ except Exception as e:
     else:
         raise e
 
-### Parameters used to categorize signaling behavior into "phases"
-from phase_parameters import _phase_params_json
-
-_phase_params_error = f"WARNING: Parameters used for phase categorizations not found in specified location: {_phase_params_json.resolve().absolute()}"
-
-try:
-    assert _phase_params_json.exists(), f"File does not exist: {_phase_params_json}"
-    import phase_parameters as pp
-
-    phase_params = pp._initialize(_phase_params_json)
-
-except Exception as e:
-    if isinstance(e, AssertionError):
-        print(_phase_params_error)
-    else:
-        raise e
-
 ### Wild-type growth parameters are read from file
 from growth_parameters import _growth_params_csv
 
@@ -115,9 +98,10 @@ try:
     assert _ss_sacred_dir.exists(), f"Directory does not exist: {_ss_sacred_dir}"
     import steady_state as ss
 
-    ss_args = ss._initialize()
-    get_steady_state = partial(ss._get_steady_state, *ss_args)
+    # get_steady_state = partial(ss._get_steady_state, *ss._initialize())
+    get_steady_state, _critical_rhos = ss._initialize()
     get_steady_state_vector = np.vectorize(get_steady_state)
+    
 except Exception as e:
     if isinstance(e, IndexError) or isinstance(e, AssertionError):
 
@@ -127,6 +111,23 @@ except Exception as e:
         def get_steady_state_vector(*args, **kwargs):
             raise FileNotFoundError(_steady_state_error)
 
+    else:
+        raise e
+
+### Parameters used to categorize signaling behavior into "phases"
+from phase_parameters import _phase_params_json
+
+_phase_params_error = f"WARNING: Parameters used for phase categorizations not found in specified location: {_phase_params_json.resolve().absolute()}"
+
+try:
+    assert _phase_params_json.exists(), f"File does not exist: {_phase_params_json}"
+    import phase_parameters as pp
+
+    phase_params = pp._initialize(_phase_params_json, **_critical_rhos)
+
+except Exception as e:
+    if isinstance(e, AssertionError):
+        print(_phase_params_error)
     else:
         raise e
 
@@ -272,10 +273,11 @@ def reporter_rhs(
 def ceiling(x):
     return ceil(x)
 
+
 # Vectorized rounding
 @numba.vectorize
 def vround(x):
-     return round(x)
+    return round(x)
 
 
 @numba.njit
@@ -3124,20 +3126,23 @@ def beta_rho_exp(rho, m, *args):
 
 
 @numba.njit
+def beta_rho_two_sided(rho, m):
+    r = np.where(rho < 1, 1 / rho, rho)
+    return np.exp(-m * (r - 1))
+
+
+@numba.njit
 def beta_rho_with_low_density(rho, m, q):
     return np.where(rho < 1, rho ** q, np.exp(-m * (rho - 1)))
 
 
 _beta_function_dictionary = OrderedDict(
     [
-        ["exponential", beta_rho_exp],
-        ["exponential_low_density", beta_rho_with_low_density],
+        ["one_sided", beta_rho_exp],
+        ["two_sided", beta_rho_two_sided],
+        ["two_sided_different_functions", beta_rho_with_low_density],
     ]
 )
-
-
-# def set_beta_func(func_name, func):
-#     _beta_function_dictionary[str(func_name)] = func
 
 
 def get_beta_func(func_name):
