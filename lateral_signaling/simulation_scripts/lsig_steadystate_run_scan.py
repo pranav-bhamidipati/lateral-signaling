@@ -18,9 +18,7 @@ def run_one(config_updates):
 
 
 def main(
-    nrho=1000,
-    m=1.0,
-    q=1,
+    nrho=5000,
     scan_minrho=0.001,
     scan_maxrho=10.0,
     memory_allocation_percentage=0.85,
@@ -32,7 +30,6 @@ def main(
 ):
     ## Below is only executed by the master node
 
-    from copy import deepcopy
     import os
     import numpy as np
     import psutil
@@ -67,7 +64,11 @@ def main(
     print("Building list of tasks to execute asynchronously")
     lazy_results = []
     for rho in rho_scan:
-        config_updates = {"rho_0": float(rho)}
+        config_updates = {
+            "rho_0": float(rho),
+            "beta_function": "exponential_two_sided",
+            "beta_args": [1.0],
+        }
         lazy_results.append(run_one(config_updates))
 
     print("Executing tasks...")
