@@ -1,4 +1,11 @@
-from functools import partial
+"""Contact-dependent signaling between cells on a hexagonal lattice.
+"""
+__version__ = "0.0.1"
+__author__ = "Pranav Bhamidipati"
+__email__ = "pbhamidi@caltech.edu"
+__license__ = "MIT"
+
+
 import os
 from typing import OrderedDict, TypeVar
 import warnings
@@ -25,6 +32,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 
 hv.extension("matplotlib")
+
 
 ######################################################################
 ##########  SET UP DIRECTORIES AT IMPORT-TIME ########################
