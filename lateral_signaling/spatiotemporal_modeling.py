@@ -78,7 +78,8 @@ def main(
         light_bg_clr = lsig.rgb2hex(lsig.kgy(0.7)[:3]) + bg_hex
 
         rho_space = np.logspace(-1, 1, 501)
-        mean_ss, std_ss = lsig.get_steady_state_vector(rho_space)
+        mean_ss = lsig.get_steady_state_mean(rho_space)
+        std_ss = lsig.get_steady_state_std(rho_space)
 
         fig, ax1 = plt.subplots(figsize=figsize)
         ax1.spines["right"].set_visible(False)
@@ -290,10 +291,13 @@ def main(
         rho_x_t = get_rho_x_t(x, t_x, psi, rho_bar, rho_max)
 
         # Use data from simulations to get steady-state conc. of ligand (Sss)
-        Sss_x_t_mean_std = np.array(list(map(lsig.get_steady_state_vector, rho_x_t)))
-        Sss_x_t = Sss_x_t_mean_std[:, 0]
-        Sss_x_t_std = Sss_x_t_mean_std[:, 1]
+        # Sss_x_t_mean_std = np.array(list(map(lsig.get_steady_state_vector, rho_x_t)))
+        # Sss_x_t = Sss_x_t_mean_std[:, 0]
+        # Sss_x_t_std = Sss_x_t_mean_std[:, 1]
 
+        Sss_x_t = lsig.get_steady_state_mean(rho_x_t)
+        Sss_x_t_std = lsig.get_steady_state_std(rho_x_t)
+        
         # fig = plt.figure(figsize=figsize)
         # ax1 = fig.add_subplot(2, 1, 1)
         fig, ax1 = plt.subplots(figsize=figsize)
@@ -402,9 +406,12 @@ def main(
         rho_x_t = get_rho_x_t(x, t_x, psi, rho_bar, rho_max)
 
         # Use data from simulations to get steady-state conc. of ligand (Sss)
-        Sss_x_t_mean_std = np.array(list(map(lsig.get_steady_state_vector, rho_x_t)))
-        Sss_x_t = Sss_x_t_mean_std[:, 0]
-        Sss_x_t_std = Sss_x_t_mean_std[:, 1]
+        # Sss_x_t_mean_std = np.array(list(map(lsig.get_steady_state_vector, rho_x_t)))
+        # Sss_x_t = Sss_x_t_mean_std[:, 0]
+        # Sss_x_t_std = Sss_x_t_mean_std[:, 1]
+
+        Sss_x_t = lsig.get_steady_state_mean(rho_x_t)
+        Sss_x_t_std = lsig.get_steady_state_std(rho_x_t)
 
         fig = plt.figure(figsize=(figsize[0], figsize[1] * 2))
         ax1 = fig.add_subplot(2, 1, 1)

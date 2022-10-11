@@ -80,7 +80,7 @@ def main(
     actnum_t_rho_0 = np.asarray(actnum_ts)[sort_idx]
 
     rho_t = lsig.logistic(t[np.newaxis, :], 1.0, rho_space[:, np.newaxis], rho_max)
-    SS_t = np.vectorize(lsig.get_steady_state_vector)(rho_t)[0]
+    SS_t = lsig.get_steady_state_mean(rho_t)
     area_t = lsig.ncells_to_area(actnum_t_rho_0, rho_t)
 
     phase_t = np.zeros(actnum_t_rho_0.shape, dtype=int)

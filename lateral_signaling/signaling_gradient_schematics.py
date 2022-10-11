@@ -243,7 +243,7 @@ def main(
     for i in range(nt_sample):
         t = (i + 1) * time_step
         rho_x = get_rho_x_t(x, t, psi, rho_bar, rho_max)
-        SS_x = lsig.get_steady_state_vector(rho_x)[0]
+        SS_x = lsig.get_steady_state_mean(rho_x)
 
         x_t[i] = rho_x
         SS_xs[i] = SS_x

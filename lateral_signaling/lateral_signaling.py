@@ -99,18 +99,49 @@ try:
     import steady_state as ss
 
     # get_steady_state = partial(ss._get_steady_state, *ss._initialize())
-    get_steady_state, _critical_rhos = ss._initialize()
-    get_steady_state_vector = np.vectorize(get_steady_state)
+    (
+        _get_steady_state_mean,
+        _get_steady_state_std,
+        _get_steady_state_replicates,
+        _get_steady_state_ci_lo,
+        _get_steady_state_ci_hi,
+    ), _critical_rhos = ss._initialize()
+    # get_steady_state_mean = np.vectorize(_get_steady_state_mean)
+    # get_steady_state_std = np.vectorize(_get_steady_state_std)
+    # get_steady_state_ci = np.vectorize(_get_steady_state_ci)
+    get_steady_state_mean = numba.vectorize(_get_steady_state_mean)
+    get_steady_state_std = numba.vectorize(_get_steady_state_std)
+    get_steady_state_reps = numba.vectorize(_get_steady_state_replicates)
+    get_steady_state_ci_lo = numba.vectorize(_get_steady_state_ci_lo)
+    get_steady_state_ci_hi = numba.vectorize(_get_steady_state_ci_hi)
     
+    def get_steady_state_ci(rho, conf_int = 0.8):
+        return get_steady_state_ci_lo(rho, conf_int), get_steady_state_ci_hi(rho, conf_int)
+    
+        
+
 except Exception as e:
     if isinstance(e, IndexError) or isinstance(e, AssertionError):
 
-        def get_steady_state(*args, **kwargs):
+        def get_steady_state_mean(*args, **kwargs):
             raise FileNotFoundError(_steady_state_error)
 
-        def get_steady_state_vector(*args, **kwargs):
+        def get_steady_state_std(*args, **kwargs):
             raise FileNotFoundError(_steady_state_error)
 
+        def get_steady_state_reps(*args, **kwargs):
+            raise FileNotFoundError(_steady_state_error)
+
+        def get_steady_state_ci_lo(*args, **kwargs):
+            raise FileNotFoundError(_steady_state_error)
+
+        def get_steady_state_ci_hi(*args, **kwargs):
+            raise FileNotFoundError(_steady_state_error)
+
+        def get_steady_state_ci(*args, **kwargs):
+            raise FileNotFoundError(_steady_state_error)
+
+        
     else:
         raise e
 
