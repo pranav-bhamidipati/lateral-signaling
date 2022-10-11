@@ -5,8 +5,6 @@ import h5py
 
 import numpy as np
 import pandas as pd
-from scipy.spatial.transform import Rotation as rotation
-from tqdm import tqdm
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -26,7 +24,7 @@ n_act_fin_fname = os.path.join(save_dir, "n_act_fin_histogram")
 
 def main(
     figsize=(3.5, 2.5),
-    nbins=30,
+    nbins=22,
     binmin=1,
     binmax=5000,
     save=False,
@@ -44,7 +42,7 @@ def main(
 
     # Store each run's data in a DataFrame
     dfs = []
-    for rd_idx, rd in enumerate(tqdm(run_dirs)):
+    for rd_idx, rd in enumerate(run_dirs):
 
         _config_file = os.path.join(rd, "config.json")
         _results_file = os.path.join(rd, "results.hdf5")
@@ -90,21 +88,15 @@ def main(
     df["activates"] = df["v_init"] > v_init_thresh
     df["deactivates"] = df["n_act_fin"] > 0
 
-    # Get pct inactivated cells at end of simulation
+    # Get pct of runs
     pct_off = (~df.deactivates).sum() / nrow
+    pct_on = df.activates.sum() / nrow
 
     ## Plot n_act distribution
     fig1 = plt.figure(1, figsize=figsize)
     ax = plt.gca()
     ax.spines["right"].set_visible(False)
     ax.spines["top"].set_visible(False)
-
-    bins = np.linspace(binmin, binmax, nbins + 1)
-    # histdata = (
-    #     df.loc[df["n_act_fin"] != 0, "n_act_fin"].values,
-    #     df.loc[df["n_act_fin"] == 0, "n_act_fin"].values,
-    # )
-    # histlabels = np.where(df.n_act_fin == 0, "inactive", "active")
 
     sns.histplot(
         df,
@@ -113,10 +105,11 @@ def main(
         hue="deactivates",
         palette=plt.get_cmap("Pastel1").colors,
         legend=False,
+        bins=nbins,
     )
-    # plt.hist(histdata, bins=bins, stacked=True)
-    plt.xlabel(r"$n_{\mathrm{act, fin}}$", fontsize=16)
-    plt.ylabel("# simulations", fontsize=16)
+
+    plt.xlabel(r"$n_\mathrm{act}$ ($t=8\,\mathrm{days}$)", fontsize=16)
+    plt.ylabel("# Simulations", fontsize=16)
     plt.tick_params(labelsize=12)
 
     # Plot pie chart of runs with zero/nonzero active cells at the end
@@ -125,7 +118,7 @@ def main(
     sizes = (pct_off, 1 - pct_off)
     explode = (0.0, 0.0)
 
-    plt.text(450, 6000, r"$n_{\mathrm{act, fin}}=0$", fontsize=14, color="red")
+    plt.text(450, 6000, r"$n_\mathrm{act}=0$", fontsize=14, color="red")
 
     xmin, xmax = ax.get_xlim()
     ymin, ymax = ax.get_ylim()
@@ -158,6 +151,9 @@ def main(
     ## Plot histogram of v_init
     fig2 = plt.figure(2, figsize=figsize)
     ax = plt.gca()
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+
     sns.histplot(
         df,
         x="v_init",
@@ -165,6 +161,7 @@ def main(
         hue="activates",
         palette=plt.get_cmap("Pastel1").colors,
         legend=False,
+        bins=nbins,
     )
 
     # Threshold used
@@ -190,6 +187,32 @@ def main(
     plt.tick_params(labelsize=12)
 
     plt.tight_layout()
+
+    # Plot pie chart of runs with zero/nonzero active cells at the end
+    # pielabels = (r"$=0$", r"$>0$")
+    pielabels = ("", "")
+    sizes = (pct_on, 1 - pct_on)
+    explode = (0.0, 0.0)
+
+    plt.text(450, 6000, r"$v_\mathrm{init}=0$", fontsize=14, color="red")
+
+    xmin, xmax = ax.get_xlim()
+    ymin, ymax = ax.get_ylim()
+    xrange = xmax - xmin
+    yrange = ymax - ymin
+
+    # Make inset axis
+    axins = ax.inset_axes(
+        [xmin + 0.35 * xrange, ymin + 0.25 * yrange, 0.75 * xrange, 0.65 * yrange],
+        transform=ax.transData,
+    )
+    axins.pie(
+        sizes,
+        explode=explode,
+        labels=pielabels,
+        colors=plt.get_cmap("Pastel1").colors,
+        autopct="%1.1f%%",
+    )
 
     if save:
 
