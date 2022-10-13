@@ -20,6 +20,9 @@ from scipy.spatial.distance import pdist, squareform
 import scipy.stats
 
 import numba
+from numpy.random import default_rng, SeedSequence
+import concurrent.futures
+import psutil
 import tqdm
 
 from matplotlib import animation
@@ -40,12 +43,22 @@ hv.extension("matplotlib")
 
 PathLike = TypeVar("PathLike", str, bytes, Path, os.PathLike, None)
 
+### These paths are set during the `conda` environment creation.
+### You can change them manually by re-defining the environment
+### variable or edit `environment.yml` and rebuild the env.
 data_dir = Path(os.getenv("LSIG_DATA_DIR"))
+analysis_dir = data_dir.joinpath("analysis")
+# analysis_dir = Path(os.getenv("LSIG_ANALYSIS_DIR"))
 simulation_dir = Path(os.getenv("LSIG_SIMULATION_DIR"))
 plot_dir = Path(os.getenv("LSIG_PLOTTING_DIR"))
 temp_plot_dir = Path(os.getenv("LSIG_TEMPPLOTTING_DIR"))
 
-assert data_dir.exists(), f"Invalid path to data directory `data_dir`: {data_dir}"
+assert (
+    data_dir.exists()
+), f"Invalid path to directory `data_dir` containing supplementary data: {data_dir}"
+assert (
+    analysis_dir.exists()
+), f"Invalid path to directory `analysis_dir` for saving results of data analysis: {analysis_dir}"
 assert (
     simulation_dir.exists()
 ), f"Invalid path to simulation results directory `simulation_dir`: {simulation_dir}"
@@ -62,8 +75,7 @@ assert (
 ######################################################################
 
 ### Parameters used for simulation of the system
-from simulation_parameters import _simulation_params_json
-
+_simulation_params_json = simulation_dir.joinpath("sim_parameters.json")
 _simulation_params_error = f"WARNING: Parameters used for simulation not found in specified location: {_simulation_params_json.resolve().absolute()}"
 
 try:
@@ -72,7 +84,7 @@ try:
     ), f"File does not exist: {_simulation_params_json}"
     import simulation_parameters as sp
 
-    simulation_params = sp._initialize(_simulation_params_json)
+    simulation_params = sp.SimulationParameters.from_json(_simulation_params_json)
 
 except Exception as e:
     if isinstance(e, AssertionError):
@@ -81,15 +93,14 @@ except Exception as e:
         raise e
 
 ### Wild-type growth parameters are read from file
-from growth_parameters import _growth_params_csv
-
+_growth_params_csv = analysis_dir.joinpath("growth_parameters_MLE.csv")
 _growth_params_error = f"WARNING: Estimates of growth parameters not found in specified location: {_growth_params_csv.resolve().absolute()}"
 
 try:
     assert _growth_params_csv.exists(), f"File does not exist: {_growth_params_csv}"
     import growth_parameters as gp
 
-    mle_params = gp._initialize(_growth_params_csv)
+    mle_params = gp.MLEGrowthParams.from_csv(_growth_params_csv)
 
 except Exception as e:
     if isinstance(e, AssertionError):
@@ -98,7 +109,13 @@ except Exception as e:
         raise e
 
 ### Steady-state expression is computed from simulations
-from steady_state import _ss_sacred_dir
+
+# This directory contains simulation results for steady-state expression
+_ss_sacred_dir = simulation_dir.joinpath("20221006_steadystate/sacred")
+
+# If you want to run the steady-state sim in the local folder and use
+# those results instead, uncomment this:
+# _ss_sacred_dir = Path("./sacred")
 
 _steady_state_error = f"Simulations for steady-state approximation not found in directory: {_ss_sacred_dir.resolve().absolute()}"
 
@@ -106,27 +123,23 @@ try:
     assert _ss_sacred_dir.exists(), f"Directory does not exist: {_ss_sacred_dir}"
     import steady_state as ss
 
-    # get_steady_state = partial(ss._get_steady_state, *ss._initialize())
     (
         _get_steady_state_mean,
         _get_steady_state_std,
         _get_steady_state_replicates,
         _get_steady_state_ci_lo,
         _get_steady_state_ci_hi,
-    ), _critical_rhos = ss._initialize()
-    # get_steady_state_mean = np.vectorize(_get_steady_state_mean)
-    # get_steady_state_std = np.vectorize(_get_steady_state_std)
-    # get_steady_state_ci = np.vectorize(_get_steady_state_ci)
+    ), _critical_rhos = ss._initialize(_ss_sacred_dir)
     get_steady_state_mean = numba.vectorize(_get_steady_state_mean)
     get_steady_state_std = numba.vectorize(_get_steady_state_std)
     get_steady_state_reps = numba.vectorize(_get_steady_state_replicates)
     get_steady_state_ci_lo = numba.vectorize(_get_steady_state_ci_lo)
     get_steady_state_ci_hi = numba.vectorize(_get_steady_state_ci_hi)
-    
-    def get_steady_state_ci(rho, conf_int = 0.8):
-        return get_steady_state_ci_lo(rho, conf_int), get_steady_state_ci_hi(rho, conf_int)
-    
-        
+
+    def get_steady_state_ci(rho, conf_int=0.8):
+        return get_steady_state_ci_lo(rho, conf_int), get_steady_state_ci_hi(
+            rho, conf_int
+        )
 
 except Exception as e:
     if isinstance(e, IndexError) or isinstance(e, AssertionError):
@@ -149,13 +162,11 @@ except Exception as e:
         def get_steady_state_ci(*args, **kwargs):
             raise FileNotFoundError(_steady_state_error)
 
-        
     else:
         raise e
 
 ### Parameters used to categorize signaling behavior into "phases"
-from phase_parameters import _phase_params_json
-
+_phase_params_json = simulation_dir.joinpath("phase_threshold.json")
 _phase_params_error = f"WARNING: Parameters used for phase categorizations not found in specified location: {_phase_params_json.resolve().absolute()}"
 
 try:
@@ -899,6 +910,102 @@ def ecdf_vals(d):
     x = np.sort(d)
     y = np.linspace(1, 0, x.size, endpoint=False)[::-1]
     return x, y
+
+
+class MultithreadedBootstrap:
+    """Multithreaded random number generation for drawing bootstrap replicates
+
+    Modified from NumPy Docs > API reference > Random sampling > Multithreaded
+        Generation
+    Source: https://numpy.org/doc/stable/reference/random/multithreading.html
+    """
+
+    def __init__(
+        self, data_list, n_bs_reps, sizes=None, seed=None, threads=None, logical=True
+    ):
+        if threads is None:
+            threads = psutil.cpu_count(logical=logical)
+        self.threads = threads
+
+        seq = SeedSequence(seed)
+        self._random_generators = [default_rng(s) for s in seq.spawn(threads)]
+
+        self.n_bs_reps = n_bs_reps
+        self.executor = concurrent.futures.ProcessPoolExecutor(threads)
+
+        # Accepts single sample if `data` is 1d or multiple samples if `data`
+        #    is 2d (n_samples x sample_size)
+        self.data_list = list(data_list)
+        self.n_samples = len(self.data_list)
+
+        self.sizes = (
+            [len(d) for d in data_list] if sizes is None else [sizes] * self.n_samples
+        )
+        self.results = [
+            np.zeros((self.n_bs_reps, s), dtype=d.dtype)
+            for s, d in zip(self.sizes, self.data_list)
+        ]
+
+    def _draw_one_bootstrap(self, i, rep):
+        """Draw one bootstrap replicate"""
+        rg = self._random_generators[rep % self.threads]
+        self.results[i][rep] = rg.choice(self.data_list[i], self.sizes[i], replace=True)
+
+    def _parallel_bootstrap(self):
+        """Submit parallel execution of bootstrapping"""
+        futures = []
+        for data_idx in range(self.n_samples):
+            print(f"\nDataset {data_idx}")
+            for rep in range(self.n_bs_reps):
+                f = self.executor.submit(self._draw_one_bootstrap, data_idx, rep)
+                futures.append(f)
+
+                if rep % 5000 == 0:
+                    print(f" -- {rep + 1} / {self.n_bs_reps}")
+
+        return futures
+
+    # def _collect_futures_with_progress(self, futures):
+    #     """Generator for collecting futures with a tqdm progress bar"""
+    #     for f in tqdm.tqdm(
+    #         concurrent.futures.as_completed(futures),
+    #         total=self.n_samples * self.n_bs_reps,
+    #     ):
+    #         yield f.result()
+
+    def draw_bootstraps(self, progress=False):
+        """Run bootstrapping of samples"""
+        futures = self._parallel_bootstrap()
+        print("Submitted execution")
+        if progress:
+            pbar = tqdm.tqdm(total=self.n_samples * self.n_bs_reps)
+            for _ in concurrent.futures.as_completed(futures):
+                pbar.update(1)
+
+            # _ = list(self._collect_futures_with_progress(futures))
+        else:
+            concurrent.futures.wait(futures)
+
+    def _draw_one_bootstrap_not_parallel(self, i, rep):
+        """Draw one bootstrap replicate"""
+        rg = self._random_generators[0]
+        self.results[i][rep] = rg.choice(self.data_list[i], self.sizes[i], replace=True)
+
+    def draw_bootstraps_not_parallel(self, progress=True):
+
+        if progress:
+            pbar = tqdm.tqdm(total=self.n_samples * self.n_bs_reps)
+            for data_idx in range(self.n_samples):
+                for rep in range(self.n_bs_reps):
+                    self._draw_one_bootstrap(data_idx, rep)
+                    pbar.update(1)
+        else:
+            for data_idx in range(self.n_samples):
+                for rep in range(self.n_bs_reps):
+                    self._draw_one_bootstrap(data_idx, rep)
+
+    def __del__(self):
+        self.executor.shutdown(wait=False)
 
 
 ##### Image and ROI functions

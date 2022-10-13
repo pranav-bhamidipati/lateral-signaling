@@ -51,6 +51,7 @@ dependencies:
 
 variables:
   LSIG_DATA_DIR: "../data"
+  LSIG_ANALYSIS_DIR: "../data/analysis"
   LSIG_SIMULATION_DIR: "../data/simulations"
   LSIG_PLOTTING_DIR: "../plots"
   LSIG_TEMPPLOTTING_DIR: "../plots/tmp"

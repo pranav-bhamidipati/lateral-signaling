@@ -1,24 +1,16 @@
 import json
 import h5py
-import numba
 import numpy as np
-from pathlib import Path
-from scipy.interpolate import interp1d
 
-# Locate simulations of steady-state expression
-# _ss_sacred_dir = Path("./sacred")
-_ss_sacred_dir = Path("../data/simulations/20221006_steadystate/sacred")
-_ss_data_dirs = sorted(list(_ss_sacred_dir.glob("[0-9]*")))
 
-# Extract some metadata first
 def get_metadata(results_file):
-    nscan = len(_ss_data_dirs)
+    """Extract some metadata"""
     with h5py.File(results_file, "r") as h:
         nreps, nc = np.asarray(h["S_final_rep"]).shape
         nsenders = np.asarray(h["sender_idx_rep"]).shape[1]
         ntc = nc - nsenders
         rep_idx = np.repeat(np.arange(nreps), nsenders)
-    return nscan, nreps, nc, nsenders, ntc, rep_idx
+    return nreps, nc, nsenders, ntc, rep_idx
 
 
 def _find_linear_root(x1, y1, x2, y2, c=0.0):
@@ -33,12 +25,15 @@ def _find_linear_root(x1, y1, x2, y2, c=0.0):
 
 
 # Extract data from a parameter scan across density (rho)
-def _initialize():
+def _initialize(_ss_sacred_dir):
     """Must be run before steady state functions."""
 
     from lateral_signaling import simulation_params
 
-    nscan, nreps, nc, nsenders, ntc, rep_idx = get_metadata(
+    _ss_data_dirs = sorted(list(_ss_sacred_dir.glob("[0-9]*")))
+    nscan = len(_ss_data_dirs)
+
+    nreps, nc, nsenders, ntc, rep_idx = get_metadata(
         _ss_data_dirs[0].joinpath("results.hdf5")
     )
     rho_scan_unsorted = []

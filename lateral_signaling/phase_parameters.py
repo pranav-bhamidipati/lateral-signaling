@@ -1,11 +1,6 @@
-from collections import OrderedDict
 from dataclasses import dataclass
 import json
 from pathlib import Path
-
-
-_data_dir = Path("../data/simulations")
-_phase_params_json = _data_dir.joinpath("phase_threshold.json")
 
 
 @dataclass(frozen=True)

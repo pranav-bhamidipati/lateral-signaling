@@ -24,14 +24,6 @@ from lateral_signaling import mle_params
 
 _rho_max = float(mle_params.rho_max_ratio)
 
-# mle_data_dir = os.path.abspath("../data/growth_curves_MLE")
-# mle_params_path = os.path.join(mle_data_dir, "growth_parameters_MLE.csv")
-# mle_params_df = pd.read_csv(mle_params_path, index_col=0)
-# _rho_max = mle_params_df.loc[
-#     mle_params_df.treatment == "untreated", ["rho_max_ratio"]
-# ].values.ravel()[0]
-# _rho_max = float(_rho_max)
-
 # Set default experimental configuration
 ex.add_config(params_json_path)
 ex.add_config(rho_max=_rho_max)

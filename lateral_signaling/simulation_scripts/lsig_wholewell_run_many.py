@@ -7,11 +7,14 @@ from lateral_signaling import _dask_client_default_kwargs
 # Set dir for Dask to use (spill to disk, etc.)
 local_dir = Path("/home/pbhamidi/scratch/lateral_signaling/dask-worker-space")
 
+
 @dask.delayed
 def run_one_task(config_updates):
     """Run single simulation - executed independently in every thread"""
-    from lsig_wholewell_run_one import ex 
+    from lsig_wholewell_run_one import ex
+
     ex.run(config_updates=config_updates)
+
 
 def main(
     rho_0s=[1.0, 2.0, 4.0],
@@ -19,20 +22,20 @@ def main(
     local_dir=local_dir,
     memory_allocation_percentage=0.85,
     client_kwargs=_dask_client_default_kwargs,
-    **kw
+    **kw,
 ):
 
     import os
     import psutil
-    
-    import numpy as np
     import pandas as pd
+    from lateral_signaling import analysis_dir
 
     # Read in growth parameters
-    mle_data_dir    = Path("../data/growth_curves_MLE")
-    mle_params_path = mle_data_dir.joinpath("growth_parameters_MLE.csv")
-    mle_params_df   = pd.read_csv(mle_params_path, index_col=0)
-    conds, gs, rho_maxs = mle_params_df.loc[:, ["treatment", "g_ratio", "rho_max_ratio"]].values.T
+    mle_csv = analysis_dir.joinpath("growth_parameters_MLE.csv")
+    mle_params_df = pd.read_csv(mle_csv, index_col=0)
+    conds, gs, rho_maxs = mle_params_df.loc[
+        :, ["treatment", "g_ratio", "rho_max_ratio"]
+    ].values.T
     n_runs = len(conds) * len(rho_0s)
 
     # Set options based on whether this is being run in a SLURM environment or locally
@@ -56,7 +59,7 @@ def main(
     client = dask.distributed.Client(**kwargs, local_directory=local_dir)
 
     print("Building list of tasks to execute asynchronously")
-    
+
     lazy_results = []
     for cond, g, rho_max in zip(conds, gs, rho_maxs):
         for rho_0 in rho_0s:
@@ -71,11 +74,10 @@ def main(
 
     print("Executing tasks...")
     dask.compute(*lazy_results)
-    
+
 
 if __name__ == "__main__":
     main(
         n_workers=3,
         memory_limit="18 GiB",
     )
-    
