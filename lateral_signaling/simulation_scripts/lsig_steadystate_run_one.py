@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
@@ -14,12 +15,17 @@ sacred_storage_dir = Path(
     # "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Caltech HPC scratch (fast read-write)
 )
 sacred_storage_dir.mkdir(exist_ok=True)
-ex.observers.append(FileStorageObserver(sacred_storage_dir))
+ex.observers.append(FileStorageObserver(str(sacred_storage_dir)))
 
-# Set default simulation parameters
+# Set default simulation parameters, modified for the steady state case
 data_dir = Path("../data/simulations")
-params_json = data_dir.joinpath("sim_parameters_steadystate.json")
-ex.add_config(str(params_json.resolve()))
+default_params_json = data_dir.joinpath("sim_parameters.json")
+steady_state_params_json = data_dir.joinpath("steadystate_parameters.json")
+
+steady_state_config = json.load(default_params_json.open("r")).update(
+    json.load(steady_state_params_json.open("r"))
+)
+ex.add_config(**steady_state_config)
 ex.add_config(rho_max=_rho_max)
 
 

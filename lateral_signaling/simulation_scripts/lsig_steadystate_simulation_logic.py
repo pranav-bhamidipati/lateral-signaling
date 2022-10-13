@@ -144,7 +144,7 @@ def do_one_simulation(
         R_args = (
             Adj,
             sender_idx,
-            lsig.beta_rho_exp,
+            beta_func,
             beta_args,
             alpha,
             k,

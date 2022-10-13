@@ -66,8 +66,6 @@ def main(
     for rho in rho_scan:
         config_updates = {
             "rho_0": float(rho),
-            "beta_function": "exponential_two_sided",
-            "beta_args": [1.0],
         }
         lazy_results.append(run_one(config_updates))
 

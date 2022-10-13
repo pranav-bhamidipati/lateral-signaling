@@ -27,6 +27,7 @@ def do_one_simulation(
     gamma_R,
     g,
     delay,
+    beta_function,
     rho_0,
     ex=None,
     save=False,
@@ -67,12 +68,15 @@ def do_one_simulation(
     # Set initial expressions
     S0 = np.array([0, 1, 0], dtype=np.float32)
 
+    # Get function for density sensitivity
+    beta_func = lsig.get_beta_func(beta_function)
+
     # Package args for DDe integrator
     fixed_idx_tc = np.array([0, 1])
     tc_args = (
         Adj,
         fixed_idx_tc,
-        lsig.beta_rho_exp,
+        beta_func,
         beta_args,
         alpha,
         k,
@@ -101,7 +105,7 @@ def do_one_simulation(
     rc_args = (
         Adj,
         fixed_idx_rc,
-        lsig.beta_rho_exp,
+        beta_func,
         beta_args,
         alpha,
         k,

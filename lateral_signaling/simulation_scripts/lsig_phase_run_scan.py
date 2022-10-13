@@ -1,4 +1,3 @@
-import psutil
 import os
 from typing import List, Literal, Optional, Tuple, Union
 import dask
@@ -26,8 +25,6 @@ def main(
     size: int = 49,
     scale: Literal["log", "lin", "geom"] = "geom",
     g_space: Optional[List[float]] = None,
-    beta_function: str = "exponential_low_density",
-    beta_args: Tuple[float] = (1.0, 2.0),
     **kwargs,
 ):
 
@@ -76,9 +73,6 @@ def main(
         config_updates = dict(
             g_space=g_space,
             rho_0=float(rho_0),
-            beta_function=beta_function,
-            beta_args=beta_args,
-            **kwargs,
         )
         lazy_results.append(run_one(config_updates))
 

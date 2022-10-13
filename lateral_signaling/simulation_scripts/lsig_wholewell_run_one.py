@@ -1,31 +1,32 @@
-import os
+import json
+from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
 from lsig_wholewell_simulation_logic import do_one_simulation
+from lateral_signaling import simulation_dir, mle_params
 
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_whole_well")
 
-# Set storage dir for all Sacred results
-res_dir = "./sacred"  # Store locally
-# res_dir = "/home/pbhamidi/scratch/lateral_signaling/sacred"  # On Caltech HPC, store in scratch (fast read-write)
+# Use this dir for storing results
+sacred_storage_dir = Path(
+    "./sacred"  # Store locally
+    # "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Caltech HPC scratch (fast read-write)
+)
+sacred_storage_dir.mkdir(exist_ok=True)
+ex.observers.append(FileStorageObserver(str(sacred_storage_dir)))
 
-# Use this dir for storage
-sacred_storage_dir = os.path.abspath(res_dir)
-# os.makedirs(sacred_storage_dir)   # Make dir if it doesn't exist
-ex.observers.append(FileStorageObserver(sacred_storage_dir))
-
-# Get path to simulation parameters
-data_dir = os.path.abspath("../data/simulations")
-params_json_path = os.path.join(data_dir, "sim_parameters_wholewell.json")
-
-# Read in growth parameters
-from lateral_signaling import mle_params
+# Get simulation parameters
+default_params_json = simulation_dir.joinpath("sim_parameters.json")
+whole_well_params_json = simulation_dir.joinpath("wholewell_parameters.json")
 
 _rho_max = float(mle_params.rho_max_ratio)
 
-# Set default experimental configuration
-ex.add_config(params_json_path)
+# Set default experimental configuration, modified for the whole well case
+whole_well_config = json.load(default_params_json.open("r")).update(
+    whole_well_params_json.open("r")
+)
+ex.add_config(**whole_well_config)
 ex.add_config(rho_max=_rho_max)
 
 

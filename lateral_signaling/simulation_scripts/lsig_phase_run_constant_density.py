@@ -1,6 +1,6 @@
 import psutil
 import os
-from typing import Literal, Tuple, Union
+from typing import Literal, Union
 import dask
 import dask.distributed
 
@@ -24,8 +24,6 @@ def main(
     end: Union[int, float],
     size: int = 51,
     scale: Literal["log", "lin"] = "log",
-    beta_function: str = "exponential_low_density",
-    beta_args: Tuple[float] = (1.0, 2.0),
     n_reps: int = 5,
 ):
 
@@ -69,8 +67,6 @@ def main(
             n_reps=n_reps,
             g_space=[0.0],
             rho_0=float(rho_0),
-            beta_function=beta_function,
-            beta_args=beta_args,
         )
         lazy_results.append(run_one(config_updates))
 
@@ -79,17 +75,9 @@ def main(
 
 # Below is only executed by the master node
 if __name__ == "__main__":
-
-    # ## Default params for density of 1+
-    # main(
-    #     start=0.01,
-    #     end=1.0,
-    #     beta_function="exponential",
-    #     beta_args=(1.,),
-    # )
-
-    ## Params for low-density simulation
     main(
         start=0.01,
         end=1.0,
+        size=51,
+        scale="lin",
     )
