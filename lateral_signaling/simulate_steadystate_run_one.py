@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
-from lsig_steadystate_simulation_logic import do_one_simulation
+from simulate_steadystate_simulation_logic import do_one_simulation
 from lateral_signaling import mle_params
 
 # Growth parameter(s)

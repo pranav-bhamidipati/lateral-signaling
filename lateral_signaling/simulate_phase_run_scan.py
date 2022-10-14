@@ -13,7 +13,7 @@ def run_one(config_updates):
     """Run single simulation - executed independently in every thread"""
 
     # Experiment should happen independently in each thread
-    from lsig_phase_run_one import ex
+    from simulate_phase_run_one import ex
 
     ex.add_source_file(__file__)
     ex.run(config_updates=config_updates)

@@ -11,7 +11,7 @@ local_dir = Path("/home/pbhamidi/scratch/lateral_signaling/dask-worker-space")
 @dask.delayed
 def run_one_task(config_updates):
     """Run single simulation - executed independently in every thread"""
-    from lsig_wholewell_run_one import ex
+    from simulate_wholewell_run_one import ex
 
     ex.run(config_updates=config_updates)
 

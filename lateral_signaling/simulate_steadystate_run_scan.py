@@ -12,7 +12,7 @@ def run_one(config_updates):
     """Run single simulation - executed independently in every thread"""
 
     # Experiment should happen independently in each thread
-    from lsig_steadystate_run_one import ex
+    from simulate_steadystate_run_one import ex
 
     ex.run(config_updates=config_updates)
 

@@ -1,10 +1,8 @@
 import dask
 import dask.distributed
-from lateral_signaling import simulation_dir
 from pathlib import Path
 
-# Location of phase example params
-example_fpath = simulation_dir.joinpath("phase_examples.json")
+# from simulate_phase_run_one import ex # We import the experiment here. It knows what are the default values, how to run the code, and where to store its results
 
 # Set dir for Dask to use (spill to disk, etc.)
 local_dir = Path("/home/pbhamidi/scratch/dask-worker-space")
@@ -15,25 +13,25 @@ def run_one(config_updates):
     """Run single simulation - executed independently in every thread"""
 
     # Experiment should happen independently in each thread
-    from lsig_basicsim_run_one import ex
+    from simulate_phase_run_one import ex
 
     ex.run(config_updates=config_updates)
 
+
+# Number of replicates of each param set
+n_reps = 5
 
 # Below is only executed by the master node
 if __name__ == "__main__":
 
     # Import dependencies
-    import json
     import numpy as np
 
-    # Get example parameters
-    with example_fpath.open("r") as f:
-        examples = json.load(f)
-        # example_names  = examples["name"]
-        example_gs = np.asarray(examples["g"])
-        example_rho_0s = np.asarray(examples["rho_0"])
-        n_runs = len(example_gs)
+    # Parameter values to scan
+    g_space = np.linspace(0, 2.4, 25)[1:].tolist()
+    rho_0_space = np.linspace(0, 6.0, 25)[1:]
+
+    n_runs = rho_0_space.size
 
     # Decide how many workers to create in the Dask cluster
     #   In general, you can make n_workers = n_runs until n_runs gets
@@ -69,15 +67,18 @@ if __name__ == "__main__":
 
     # Make a list of tasks to execute (populated asynchronously)
     lazy_results = []
-    print("Building lazy results list")
-    for g, rho_0 in zip(example_gs, example_rho_0s):
+    print("building lazy results")
+    for rho_0 in rho_0_space:
         config_updates = dict(
-            g=float(g),
+            n_reps=n_reps,
+            g_space=g_space,
             rho_0=float(rho_0),
         )
         lazy_results.append(run_one(config_updates))
 
+    print("built lazy results")
+
     # Compute tasks lazily - tasks in list are assigned to workers
     #   on demand and the list is populated with results asynchronously.
-    print("Computing results")
+
     dask.compute(*lazy_results)

@@ -82,7 +82,7 @@ try:
     assert (
         _simulation_params_json.exists()
     ), f"File does not exist: {_simulation_params_json}"
-    import simulation_parameters as sp
+    import _simulation_parameters as sp
 
     simulation_params = sp.SimulationParameters.from_json(_simulation_params_json)
 
@@ -90,7 +90,7 @@ except Exception as e:
     if isinstance(e, AssertionError):
         print(_simulation_params_error)
     else:
-        raise e
+        raise
 
 ### Wild-type growth parameters are read from file
 _growth_params_csv = analysis_dir.joinpath("growth_parameters_MLE.csv")
@@ -98,7 +98,7 @@ _growth_params_error = f"WARNING: Estimates of growth parameters not found in sp
 
 try:
     assert _growth_params_csv.exists(), f"File does not exist: {_growth_params_csv}"
-    import growth_parameters as gp
+    import _growth_parameters as gp
 
     mle_params = gp.MLEGrowthParams.from_csv(_growth_params_csv)
 
@@ -106,7 +106,7 @@ except Exception as e:
     if isinstance(e, AssertionError):
         print(_growth_params_error)
     else:
-        raise e
+        raise
 
 ### Steady-state expression is computed from simulations
 
@@ -121,7 +121,7 @@ _steady_state_error = f"Simulations for steady-state approximation not found in 
 
 try:
     assert _ss_sacred_dir.exists(), f"Directory does not exist: {_ss_sacred_dir}"
-    import steady_state as ss
+    import _steady_state as ss
 
     (
         _get_steady_state_mean,
@@ -163,7 +163,7 @@ except Exception as e:
             raise FileNotFoundError(_steady_state_error)
 
     else:
-        raise e
+        raise
 
 ### Parameters used to categorize signaling behavior into "phases"
 _phase_params_json = simulation_dir.joinpath("phase_threshold.json")
@@ -171,7 +171,7 @@ _phase_params_error = f"WARNING: Parameters used for phase categorizations not f
 
 try:
     assert _phase_params_json.exists(), f"File does not exist: {_phase_params_json}"
-    import phase_parameters as pp
+    import _phase_parameters as pp
 
     phase_params = pp._initialize(_phase_params_json, **_critical_rhos)
 
@@ -179,7 +179,7 @@ except Exception as e:
     if isinstance(e, AssertionError):
         print(_phase_params_error)
     else:
-        raise e
+        raise
 
 ######################################################################
 ##########  UTILITIES FOR PARALLEL COMPUTING #########################

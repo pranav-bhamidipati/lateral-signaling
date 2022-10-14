@@ -1,5 +1,5 @@
 import os
-from lsig_singlecell_run_one import ex
+from simulate_singlecell_run_one import ex
 import numpy as np
 import pandas as pd
 import lateral_signaling as lsig

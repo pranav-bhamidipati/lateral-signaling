@@ -1,5 +1,5 @@
 import os
-from lsig_basicsim_run_one import ex # We import the experiment here. It knows what are the default values, how to run the code, and where to store its results
+from simulate_basicsim_run_one import ex # We import the experiment here. It knows what are the default values, how to run the code, and where to store its results
 import numpy as np
 import pandas as pd
 

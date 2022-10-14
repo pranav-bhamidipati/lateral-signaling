@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
-from lsig_wholewell_simulation_logic import do_one_simulation
+from simulate_wholewell_simulation_logic import do_one_simulation
 from lateral_signaling import simulation_dir, mle_params
 
 # Set up Sacred experiment

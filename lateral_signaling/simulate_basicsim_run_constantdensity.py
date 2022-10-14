@@ -1,5 +1,5 @@
 # import os
-from lsig_basicsim_run_one import ex 
+from simulate_basicsim_run_one import ex 
 import numpy as np
 # import pandas as pd
 import lateral_signaling as lsig

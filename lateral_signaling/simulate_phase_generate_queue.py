@@ -3,7 +3,7 @@ import json
 import numpy as np
 
 # File containing queue of arguments for array job
-q_fname = "lsig_phase_queue.json"
+q_fname = "simulate_phase_queue.json"
 
 # Number of replicates of each param set
 n_reps = 2
