@@ -4,47 +4,35 @@ import json
 import h5py
 
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
-
-import colorcet as cc
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 import holoviews as hv
+
 hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
 # Reading
-sim_dir   = os.path.abspath("../data/simulations/20220124_singlecell_example/sacred")
+sim_dir = lsig.simulation_dir.joinpath("20220124_singlecell_example/sacred")
 
-# Writing
-save_dir  = os.path.abspath("../plots")
-fpath     = os.path.join(save_dir, "singlecell_example_plot_")
 
 def main(
     sim_dir=sim_dir,
-    fpath=fpath,
+    save_dir=lsig.plot_dir,
     save=False,
     fmt="png",
     dpi=300,
 ):
-    
-    # Read simulated data
-    run_dir      = glob(os.path.join(sim_dir, "[0-9]*"))[0]
-    config_file  = os.path.join(run_dir, "config.json")
-    results_file = os.path.join(run_dir, "results.hdf5")
-    
-    with open(config_file, "r") as c:
-        config = json.load(c)
 
-        # Transcription-translation delay
+    # Read simulated data
+    run_dir = next(sim_dir.glob("[0-9]*"))
+
+    with run_dir.joinpath("config.json").open("r") as c:
+        config = json.load(c)
         delay = config["delay"]
 
-    with h5py.File(results_file, "r") as f:
-        
+    with h5py.File(run_dir.joinpath("results.hdf5"), "r") as f:
+
         # Time parameters
-        t  = np.asarray(f["t"])
+        t = np.asarray(f["t"])
         nt = t.size
         dt = t[1] - t[0]
 
@@ -53,63 +41,65 @@ def main(
         step_delay = int(delay * nt_t)
 
         # Indices of cell types
-        sender_idx      = np.atleast_1d(f["sender_idx"]).astype(int)[0]
-        receiver_idx    = np.atleast_1d(f["receiver_idx"]).astype(int)[0]
+        sender_idx = np.atleast_1d(f["sender_idx"]).astype(int)[0]
+        receiver_idx = np.atleast_1d(f["receiver_idx"]).astype(int)[0]
         transceiver_idx = np.atleast_1d(f["transceiver_idx"]).astype(int)[0]
-        SRT_idx       = np.array([sender_idx, receiver_idx, transceiver_idx])
-        
+        SRT_idx = np.array([sender_idx, receiver_idx, transceiver_idx])
+
         # Expression in each cell type
-        E_t           = np.asarray(f["E_t"])
-        S_sender      = E_t[:, sender_idx]
+        E_t = np.asarray(f["E_t"])
+        S_sender = E_t[:, sender_idx]
         S_transceiver = E_t[:, transceiver_idx]
-        R_receiver    = E_t[:, receiver_idx]
+        R_receiver = E_t[:, receiver_idx]
 
     ## Transform data for plotting
     # Get time-course with past included (negative time)
-    t_past = -t[int(1.5 * step_delay):0:-1]
+    t_past = -t[int(1.5 * step_delay) : 0 : -1]
     npast = t_past.size
     t_wpast = np.concatenate([t_past, t])
-    
+
     # Prepend past expression
-    S_sender      = np.concatenate([np.zeros(npast), S_sender])
-    R_receiver    = np.concatenate([np.zeros(npast), R_receiver])
+    S_sender = np.concatenate([np.zeros(npast), S_sender])
+    R_receiver = np.concatenate([np.zeros(npast), R_receiver])
     S_transceiver = np.concatenate([np.zeros(npast), S_transceiver])
-    
+
     # Normalize
-    S_sender_norm      = S_sender / S_sender.max()
-    R_receiver_norm    = R_receiver / R_receiver.max()
+    S_sender_norm = S_sender / S_sender.max()
+    R_receiver_norm = R_receiver / R_receiver.max()
     S_transceiver_norm = S_transceiver / S_transceiver.max()
-    E_t_norm = np.array(
-        [S_sender_norm, R_receiver_norm, S_transceiver_norm]
-    )[SRT_idx].T
+    E_t_norm = np.array([S_sender_norm, R_receiver_norm, S_transceiver_norm])[SRT_idx].T
 
     ## Plotting options
     # Ticks
     xticks = [
         (-2 * delay, "-2τ"),
-        (-1 * delay,  "-τ"),
-        ( 0 * delay,   "0"),
-        ( 1 * delay,   "τ"),
-        ( 2 * delay,  "2τ"),
-        ( 3 * delay,  "3τ"),
-        ( 4 * delay,  "4τ"),
-        ( 5 * delay,  "5τ"),
-        ( 6 * delay,  "6τ"),
-        ( 7 * delay,  "7τ"),
+        (-1 * delay, "-τ"),
+        (0 * delay, "0"),
+        (1 * delay, "τ"),
+        (2 * delay, "2τ"),
+        (3 * delay, "3τ"),
+        (4 * delay, "4τ"),
+        (5 * delay, "5τ"),
+        (6 * delay, "6τ"),
+        (7 * delay, "7τ"),
     ]
 
     # Curve labels
-    labels = tuple(np.array(
-        ["Sender (GFP)", "Receiver (mCherry)", "Transceiver (GFP)"]
-    )[SRT_idx])
-    
+    labels = tuple(
+        np.array(["Sender (GFP)", "Receiver (mCherry)", "Transceiver (GFP)"])[SRT_idx]
+    )
+
     # Curve colors
-    colors = tuple(np.array([
-        lsig.hexa2hex(lsig._gfp_green, 0.5),
-        lsig._receiver_red,
-        lsig._gfp_green,
-    ])[SRT_idx])
-    
+    colors = tuple(
+        np.array(
+            [
+                lsig.hexa2hex(lsig._gfp_green, 0.5),
+                lsig._receiver_red,
+                lsig._gfp_green,
+            ]
+        )[SRT_idx]
+    )
+
     ## Make plot
     tau_lines = [
         hv.VLine(v).opts(
@@ -125,14 +115,13 @@ def main(
     )
     curves = [
         hv.Curve(
-            (t_wpast, e), label=l,
+            (t_wpast, e),
+            label=l,
         ).opts(c=c)
         for e, c, l in zip(E_t_norm.T, colors, labels)
     ]
 
-    overlay = hv.Overlay(
-        [*tau_lines, t0_line, *curves]
-    ).opts(
+    overlay = hv.Overlay([*tau_lines, t0_line, *curves]).opts(
         hv.opts.Curve(
             linewidth=3,
         ),
@@ -146,15 +135,14 @@ def main(
             legend_position="right",
         ),
     )
-    
+
     if save:
+        _fpath = save_dir.joinpath(f"singlecell_example_plot.{fmt}")
+        print(f"Writing to: {_fpath.resolve().absolute()}")
+        hv.save(overlay, _fpath, fmt=fmt, dpi=dpi)
 
-        # Print update and save
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(overlay, fpath, fmt=fmt, dpi=dpi) 
 
-main(
-    save=True,
-)
-
+if __name__ == "__main__":
+    main(
+        save=True,
+    )

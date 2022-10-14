@@ -20,15 +20,12 @@ sacred_dir = data_dir.joinpath("20211201_singlespotphase/sacred")
 thresh_fpath = data_dir.joinpath("phase_threshold.json")
 slices_fpath = data_dir.joinpath("phase_slices.json")
 
-# Writing
-save_dir = Path("../plots/tmp")
-save_pfx = "phase_diagram_3Dslice_"
-
 
 def main(
     pad=0.05,
     shrink=0.1,
-    prefix=save_pfx,
+    prefix="phase_diagram_3Dslice",
+    save_dir=lsig.plot_dir,
     save=False,
     fmt="png",
     dpi=300,
@@ -50,20 +47,14 @@ def main(
         v_init_thresh = float(threshs["v_init_thresh"])
 
     # Read in phase metric data
-    run_dirs = glob(os.path.join(sacred_dir, "[0-9]*"))
+    run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
 
     # Store each run's data in a DataFrame
     dfs = []
     for rd_idx, rd in enumerate(tqdm(run_dirs)):
 
-        _config_file = os.path.join(rd, "config.json")
-        _results_file = os.path.join(rd, "results.hdf5")
-
-        if (not os.path.exists(_config_file)) or (not os.path.exists(_results_file)):
-            continue
-
         # Get some info from the run configuration
-        with open(_config_file, "r") as c:
+        with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
 
             # Initial density, carrying capacity
@@ -76,7 +67,7 @@ def main(
             continue
 
         # Get remaining info from run's data dump
-        with h5py.File(_results_file, "r") as f:
+        with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
 
             # Phase metrics
             v_init = np.asarray(f["v_init_g"])
@@ -242,7 +233,7 @@ def main(
 
     if save:
         for i, p in enumerate(pd_slices):
-            fpath = save_dir.joinpath(prefix + str(i)).with_suffix(f".{fmt}")
+            fpath = save_dir.joinpath(f"{prefix}_{i}.{fmt}")
             print(f"Writing to: {fpath.resolve().absolute()}")
             hv.save(p, fpath, fmt=fmt, dpi=dpi)
 

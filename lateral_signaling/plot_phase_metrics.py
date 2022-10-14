@@ -11,15 +11,8 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
-# Reading
-data_dir = os.path.abspath("../data/simulations")
-sacred_dir = os.path.join(data_dir, "20211201_singlespotphase/sacred")
-thresh_fpath = os.path.join(data_dir, "phase_threshold.json")
-
-# Writing
-save_dir = os.path.abspath("../plots/tmp")
-v_init_fname = os.path.join(save_dir, "v_init_histogram")
-n_act_fin_fname = os.path.join(save_dir, "n_act_fin_histogram")
+sacred_dir = lsig.simulation_dir.joinpath("20211201_singlespotphase/sacred")
+thresh_fpath = lsig.simulation_dir.joinpath("phase_threshold.json")
 
 
 def main(
@@ -27,6 +20,7 @@ def main(
     nbins=22,
     binmin=1,
     binmax=5000,
+    save_dir=lsig.plot_dir,
     save=False,
     fmt="png",
     dpi=300,
@@ -38,20 +32,14 @@ def main(
         v_init_thresh = float(threshs["v_init_thresh"])
 
     # Read in phase metric data
-    run_dirs = glob(os.path.join(sacred_dir, "[0-9]*"))
+    run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
 
     # Store each run's data in a DataFrame
     dfs = []
     for rd_idx, rd in enumerate(run_dirs):
 
-        _config_file = os.path.join(rd, "config.json")
-        _results_file = os.path.join(rd, "results.hdf5")
-
-        if (not os.path.exists(_config_file)) or (not os.path.exists(_results_file)):
-            continue
-
         # Get some info from the run configuration
-        with open(_config_file, "r") as c:
+        with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
 
             # Initial density, carrying capacity
@@ -59,7 +47,7 @@ def main(
             rho_max = config["rho_max"]
 
         # Get remaining info from run's data dump
-        with h5py.File(_results_file, "r") as f:
+        with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
 
             # Phase metrics
             v_init = np.asarray(f["v_init_g"])
@@ -141,11 +129,8 @@ def main(
     plt.tight_layout()
 
     if save:
-
-        _fpath = str(n_act_fin_fname)
-        if not _fpath.endswith(fmt):
-            _fpath += "." + fmt
-        print("Writing to:", _fpath)
+        _fpath = save_dir.joinpath(f"n_act_fin_histogram.{fmt}")
+        print("Writing to:", _fpath.resolve().absolute())
         plt.savefig(_fpath, dpi=dpi)
 
     ## Plot histogram of v_init
@@ -215,11 +200,8 @@ def main(
     )
 
     if save:
-
-        _fpath = str(v_init_fname)
-        if not _fpath.endswith(fmt):
-            _fpath += "." + fmt
-        print("Writing to:", _fpath)
+        _fpath = save_dir.joinpath(f"v_init_histogram.{fmt}")
+        print("Writing to:", _fpath.resolve().absolute())
         plt.savefig(_fpath, dpi=dpi)
 
 

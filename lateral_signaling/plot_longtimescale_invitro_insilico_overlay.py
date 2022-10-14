@@ -1,43 +1,33 @@
-import os
-from glob import glob
 import json
-from copy import deepcopy
 import h5py
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 import colorcet as cc
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 import holoviews as hv
 
 hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-sim_dir = os.path.abspath("../data/simulations/20220113_increasingdensity/sacred")
-prop_fname = os.path.abspath("../data/single_spots/singlespot_timeseries.csv")
-save_dir = os.path.abspath("../plots")
-fpath = os.path.join(save_dir, "invitro_sim_longcourse_overlay_2")
-fmt = "png"
-dpi = 300
+sim_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity", "sacred")
+invitro_data_csv = lsig.data_dir.joinpath("single_spots", "singlespot_timeseries.csv")
 
 
 def main(
     sim_dir=sim_dir,
-    prop_fname=prop_fname,
+    invitro_data_csv=invitro_data_csv,
     pad=0.05,
-    sample_every=1,
+    sample_every=20,
+    save_dir=lsig.plot_dir,
     save=False,
-    suffix="",
-    fmt=fmt,
-    dpi=dpi,
+    fmt="png",
+    dpi=300,
 ):
 
     ## Read invitro data from file
-    data = pd.read_csv(prop_fname)
+    data = pd.read_csv(invitro_data_csv)
     data = data.loc[data.Condition.str.contains("1250 cell/mm2")]
     data.days = data.days.astype(float)
     tmax_days = data.days.max()
@@ -60,17 +50,12 @@ def main(
     agg_data["r_prop_mm_std_norm"] = agg_data["r_prop_mm_std"] / data["r_prop_mm"].max()
 
     ## Read simulated data
-    run_dir = glob(os.path.join(sim_dir, "[0-9]*"))[0]
-    config_file = os.path.join(run_dir, "config.json")
-    results_file = os.path.join(run_dir, "results.hdf5")
+    run_dir = [d for d in sim_dir.glob("*") if d.joinpath("config.json").exists()]
 
-    with open(config_file, "r") as c:
-        config = json.load(c)
+    # Expression threshold
+    k = json.load(run_dir.joinpath("config.json").open("r"))["k"]
 
-        # Expression threshold
-        k = config["k"]
-
-    with h5py.File(results_file, "r") as f:
+    with h5py.File(run_dir.joinpath("results.hdf5"), "r") as f:
 
         # Time-points
         t = np.asarray(f["t"])
@@ -168,15 +153,12 @@ def main(
     )
 
     if save:
-
-        # Print update and save
-        _fpath = fpath + suffix + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(overlay, fpath + suffix, fmt=fmt, dpi=dpi)
+        _fpath = save_dir.joinpath(f"longtimescale_invitro_insilico_overlay.{fmt}")
+        print(f"Writing to: {_fpath.resolve().absolute()}")
+        hv.save(overlay, _fpath, fmt=fmt, dpi=dpi)
 
 
-main(
-    save=True,
-    pad=0.05,
-    sample_every=20,
-)
+if __name__ == "__main__":
+    main(
+        save=True,
+    )

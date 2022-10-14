@@ -36,29 +36,26 @@ def main(
     save_data: bool = False,
 ):
 
-    # Get image filenames
-    files = glob(os.path.join(image_dir, "*.tif*"))
-    files = [os.path.realpath(f) for f in files]
+    # Get images and filenames
+    files_B = sorted(image_dir.glob("*BFP*.tif*"))
+    files_G = sorted(image_dir.glob("*GFP*.tif*"))
 
-    # Select blue and green fluorescence images (BFP and GFP)
-    files_B = sorted([f for f in files if "BFP" in f])
-    files_G = sorted([f for f in files if "GFP" in f])
+    im_names_B = [f.stem for f in files_B]
+    im_names_G = [f.stem for f in files_G]
+    im_names = im_names_B + im_names_G
 
-    # Get unique name for each image
-    im_names = []
-    for f in (*files_B, *files_G):
-        end = os.path.split(f)[1]
-        im_names.append(end[: end.index(".")])
+    files_B_abs = [str(f.resolve().absolute()) for f in files_B]
+    files_G_abs = [str(f.resolve().absolute()) for f in files_G]
 
     # Get time points as days/hours
     t_hours = [float(imn[-6:-3]) for imn in im_names]
 
     # Load images and convert to image collections
     load_B = lambda f: io.imread(f).astype(np.uint8)[:, :, 2]
-    ims_B = io.ImageCollection(files_B, load_func=load_B)
+    ims_B = io.ImageCollection(files_B_abs, load_func=load_B)
 
     load_G = lambda f: io.imread(f).astype(np.uint8)[:, :, 1]
-    ims_G = io.ImageCollection(files_G, load_func=load_G)
+    ims_G = io.ImageCollection(files_G_abs, load_func=load_G)
 
     # Get images as Numpy array
     ims = list(ims_B) + list(ims_G)

@@ -218,7 +218,7 @@ def do_one_simulation(
             artifacts = []
 
             # Dump data to an HDF5 file
-            data_dump_fname = os.path.join(data_dir, "results.hdf5")
+            data_dump_fname = data_dir.joinpath("results.hdf5")
             with h5py.File(data_dump_fname, "w") as f:
                 f.create_dataset("t", data=t[::save_skip])
                 f.create_dataset("sender_idx", data=sender_idx)

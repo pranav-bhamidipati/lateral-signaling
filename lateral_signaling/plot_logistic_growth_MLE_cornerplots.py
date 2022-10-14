@@ -1,9 +1,7 @@
-import os
 import h5py
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 import lateral_signaling as lsig
 
@@ -13,21 +11,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-# To read
-data_dir = os.path.abspath("../data")
-MLE_dir = os.path.join(data_dir, "growth_curves_MLE")
-data_fname = os.path.join(MLE_dir, "growth_curves.csv")
-bs_reps_dump_fpath = os.path.join(
-    data_dir, "analysis", "growth_curve_bootstrap_replicates.hdf5"
+bs_reps_dump_fpath = lsig.analysis_dir.joinpath(
+    "growth_curve_bootstrap_replicates.hdf5"
 )
-
-# To write
-save_dir = os.path.abspath("../plots/tmp")
-corner_fname = lambda t: os.path.join(save_dir, f"MLE_bootstrap_cornerplot_{t}")
 
 
 def main(
+    bs_reps_dump_fpath=bs_reps_dump_fpath,
     figsize=(5, 5),
+    save_dir=lsig.plot_dir,
     save=False,
     dpi=300,
     fmt="png",
@@ -68,9 +60,8 @@ def main(
         plt.tight_layout()
 
         if save:
-
-            fname = corner_fname(t) + "." + fmt
-            print("Writing to:", fname)
+            fname = save_dir.joinpath(f"MLE_bootstrap_cornerplot_{t}.{fmt}")
+            print("Writing to:", fname.resolve().absolute())
             plt.savefig(fname, dpi=dpi, facecolor="w")
 
 

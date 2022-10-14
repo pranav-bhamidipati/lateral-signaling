@@ -1,3 +1,4 @@
+from pathlib import Path
 from uuid import uuid4
 import os
 from math import ceil
@@ -15,10 +16,10 @@ import h5py
 uid = str(uuid4())
 
 # Write to temporary (fast read/write) directory of choice
-data_dir = os.path.abspath(f"/tmp/{uid}")  # Use root temp dir (Linux/MacOS)
+data_dir = Path(f"/tmp/{uid}")  # Use root temp dir (Linux/MacOS)
 # data_dir = f"/home/pbhamidi/scratch/lateral_signaling/tmp/{uid}"  # Use scratch dir on compute cluster
 
-os.makedirs(data_dir, exist_ok=True)
+data_dir.mkdir(exist_ok=True)
 
 
 def do_one_simulation(
@@ -187,126 +188,10 @@ def do_one_simulation(
 
         artifacts = []
 
-        #        if animate or save_frames:
-        #
-        #            # Calculate cell positions over time
-        #            X_t = np.multiply.outer(1 / np.sqrt(rho_t), X)
-        #
-        #            # Get default plot options
-        #            plot_kw_S = deepcopy(lsig.plot_kwargs)
-        #            plot_kw_S["sender_idx"] = sender_idx
-        #
-        #            # Scalebar length
-        #            sbar_value = 125  # um
-        #            sbar_units  = "um"
-        #            plot_kw_S["scalebar"] = True
-        #            plot_kw_S["sbar_kwargs"]["fixed_value"] = sbar_value
-        #            plot_kw_S["sbar_kwargs"]["fixed_units"] = sbar_units
-        #
-        #            # Turn off scalebar text
-        #            plot_kw_S["sbar_kwargs"]["font_properties"]["weight"] = 0
-        #
-        #            # Axis limits
-        #            plot_kw_S["xlim"] = X_t[-1, :, 0].min(), X_t[-1, :, 1].max()
-        #            plot_kw_S["ylim"] = X_t[-1, :, 1].min(), X_t[-1, :, 1].max()
-        #
-        #            # Change default args for reporter
-        #            plot_kw_R = deepcopy(plot_kw_S)
-        #            plot_kw_R["cmap"] = cc.cm["kr"]
-        #            plot_kw_R["cbar_kwargs"]["label"] = "mCherry (AU)"
-        #
-        #            # Intensity range
-        #            vmin_S = 0.
-        #            vmax_S = float(S_t[:, tc_mask].max())
-        #            plot_kw_S["vmin"] = vmin_S
-        #            plot_kw_S["vmax"] = vmax_S
-        #            plot_kw_S["cbar_kwargs"]["ticks"] = [vmin_S, vmax_S]
-        #            plot_kw_S["cbar_kwargs"]["format"] = "%.1f"
-        #
-        #            vmin_R = 0.
-        #            vmax_R = float(R_t[:, tc_mask].max())
-        #            plot_kw_R["vmin"] = vmin_R
-        #            plot_kw_R["vmax"] = vmax_R
-        #            plot_kw_R["cbar_kwargs"]["ticks"] = [vmin_R, vmax_R]
-        #            plot_kw_R["cbar_kwargs"]["format"] = "%.1f"
-        #
-        #            # Frame titles and filenames
-        #            frame_title = lambda i: f"{t_days[i]:.2f} days"
-        #
-        #        if animate:
-        #
-        #            for i in range(2):
-        #
-        #                # Select data
-        #                E       = ("GFP", "mCherry")[i]
-        #                var_t   = (S_t, R_t)[i]
-        #                plot_kw = (plot_kw_S, plot_kw_R)[i]
-        #
-        #                # Make figure
-        #                fig, ax = plt.subplots(
-        #                    figsize=(3.5, 2),
-        #                )
-        #
-        #                # Path for video
-        #                fpath = os.path.join(data_dir, f"simulation_{E}.mp4")
-        #
-        #                # Make video
-        #                lsig.animate_hex_sheet(
-        #                    fpath=fpath,
-        #                    X_t=X_t,
-        #                    var_t=var_t,
-        #                    rho_t=rho_t,
-        #                    fig=fig,
-        #                    ax=ax,
-        #                    n_frames=n_frames,
-        #                    fps=fps,
-        #                    dpi=dpi,
-        #                    title_fun=frame_title,
-        #                    plot_kwargs=plot_kw,
-        #                )
-        #                plt.close()
-        #
-        #                # Add to Sacred artifacts
-        #                artifacts.append(fpath)
-        #
-        #        elif save_frames:
-        #
-        #            for i in range(2):
-        #
-        #                # Select data
-        #                E       = ("GFP", "mCherry")[i]
-        #                var_t   = (S_t, R_t)[i]
-        #                plot_kw = (plot_kw_S, plot_kw_R)[i]
-        #
-        #                for f in save_frames:
-        #
-        #                    # Plot frame
-        #                    fig, ax = plt.subplots(figsize=(3, 3))
-        #                    lsig.plot_hex_sheet(
-        #                        ax    = ax,
-        #                        X     = X_t[f],
-        #                        rho   = rho_t[f],
-        #                        var   = var_t[f],
-        #                        title = frame_title(f),
-        #                        **plot_kw
-        #                    )
-        #                    plt.tight_layout()
-        #
-        #                    # Save frame
-        #                    fname = f"{E}_frame_{f}" + "." + fmt
-        #                    fpath = os.path.join(data_dir, fname)
-        #                    print("Saving:", fpath)
-        #                    plt.savefig(fpath, dpi=dpi)
-        #                    plt.close()
-        #
-        #                    # Add to Sacred artifacts
-        #                    artifacts.append(fpath)
-
         if ex is not None:
 
             # Dump data to file
-            # data_dump_fname = os.path.join(data_dir, "results.json")
-            data_dump_fname = os.path.join(data_dir, "results.hdf5")
+            data_dump_fname = data_dir.joinpath("results.hdf5")
 
             # Dump data to an HDF5 file
             with h5py.File(data_dump_fname, "w") as f:
@@ -317,19 +202,6 @@ def do_one_simulation(
                 f.create_dataset("n_senders", data=n_senders)
                 f.create_dataset("S_t_rep", data=S_t_rep)
                 f.create_dataset("R_t_rep", data=R_t_rep)
-
-            # # Dump data to a JSON file
-            # data_dump_dict = {
-            # "t": t.tolist(),
-            # "X": X.tolist(),
-            # "sender_idx": float(sender_idx),
-            # "rho_t": rho_t.tolist(),
-            # "S_t": S_t.tolist(),
-            # "R_t": R_t.tolist(),
-            # }
-            # with open(data_dump_fname, "w") as f:
-            # print("Saving:", data_dump_fname)
-            # json.dump(data_dump_dict, f, indent=4)
 
             # Add data dump to Sacred
             artifacts.append(data_dump_fname)

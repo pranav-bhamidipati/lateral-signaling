@@ -1,5 +1,3 @@
-import os
-from glob import glob
 import json
 import h5py
 
@@ -16,18 +14,14 @@ from itertools import islice
 
 
 # Reading
-data_dir = os.path.abspath("../data/simulations")
-sacred_dir = os.path.join(data_dir, "20211201_singlespotphase/sacred")
-thresh_fpath = os.path.join(data_dir, "phase_threshold.json")
-
-# Writing
-save_dir = os.path.abspath("../plots/tmp")
-fname = os.path.join(save_dir, "phase_boundaries_3D_")
+sacred_dir = lsig.simulation_dir.joinpath("20211201_singlespotphase/sacred")
+thresh_fpath = lsig.simulation_dir.joinpath("phase_threshold.json")
 
 
 def main(
     figsize=(8, 8),
     xyz=["g_inv_days", "rho_max", "rho_0"],
+    save_dir=lsig.plot_dir,
     save=False,
     fmt="png",
     dpi=300,
@@ -35,25 +29,15 @@ def main(
 
     ## Read in and assemble data
     # Get threshold for v_init
-    with open(thresh_fpath, "r") as f:
-        threshs = json.load(f)
-        v_init_thresh = float(threshs["v_init_thresh"])
+    v_init_thresh = float(json.load(thresh_fpath.open("r"))["v_init_thresh"])
 
     # Read in phase metric data
-    run_dirs = glob(os.path.join(sacred_dir, "[0-9]*"))
-
-    # Store each run's data in a DataFrame
+    run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
     dfs = []
     for rd_idx, rd in enumerate(tqdm(run_dirs)):
 
-        _config_file = os.path.join(rd, "config.json")
-        _results_file = os.path.join(rd, "results.hdf5")
-
-        if (not os.path.exists(_config_file)) or (not os.path.exists(_results_file)):
-            continue
-
         # Get some info from the run configuration
-        with open(_config_file, "r") as c:
+        with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
 
             # Initial density, carrying capacity
@@ -64,7 +48,7 @@ def main(
             continue
 
         # Get remaining info from run's data dump
-        with h5py.File(_results_file, "r") as f:
+        with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
 
             # Phase metrics
             v_init = np.asarray(f["v_init_g"])
@@ -164,10 +148,8 @@ def main(
     ax.text(1.5, 5.3, 1.5, "Limited", "y", c="w", **text_kw)
 
     if save:
-        _fpath = str(fname)
-        if not _fpath.endswith(fmt):
-            _fpath += "." + fmt
-        print("Writing to:", _fpath)
+        _fpath = save_dir.joinpath(f"phase_boundaries_3D.{fmt}")
+        print(f"Writing to: {_fpath.resolve().absolute()}")
         plt.savefig(_fpath, dpi=dpi)
 
 

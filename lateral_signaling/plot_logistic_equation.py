@@ -1,43 +1,33 @@
-import lateral_signaling as lsig
-
-import os
 import json
-
 import numpy as np
-import os
-
+import matplotlib.pyplot as plt
 import holoviews as hv
 
 hv.extension("matplotlib")
 
-import matplotlib.pyplot as plt
+import lateral_signaling as lsig
 
 lsig.default_rcParams()
 
 
-mle_params_csv = os.path.abspath("../data/analysis/growth_parameters_MLE.csv")
-phase_examples_json = os.path.abspath("../data/simulations/phase_examples.json")
-
-save_dir = os.path.abspath("../plots/tmp")
-plot_prefix = os.path.join(save_dir, "logistic_equation")
+mle_params_csv = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
+phase_examples_json = lsig.simulation_dir.joinpath("phase_examples.json")
 
 
 def main(
     tmin=0.0,
     tmax=3.25,
     rho_crit=3.0,
-    plot_prefix=plot_prefix,
+    prefix="logistic_equation",
     phase_examples_json=phase_examples_json,
     figsize=(2.3, 2.0),
+    save_dir=lsig.plot_dir,
     save=False,
     fmt="png",
     dpi=300,
 ):
 
-    for fname in (mle_params_csv, phase_examples_json):
-        assert os.path.exists(fname), f"File does not exist: {fname}"
-
-    # Make an illustrative example of logistic growth with made-up parameters
+    # Make an illustrative example of logistic growth with exemplary parameters
     _tmin = 0
     _tmax = 5
     _t = np.linspace(_tmin, _tmax, 201)
@@ -75,35 +65,14 @@ def main(
 
     plt.tight_layout()
 
-    # example_curve = hv.Curve((t_, logistic_example)).opts(
-    #     linewidth=6,
-    #     c="k",
-    #     xticks=0,
-    #     xlabel="Time",
-    #     ylim=(0, None),
-    #     yticks=0,
-    #     ylabel="Density",
-    #     fontscale=2,
-    #     aspect=1.2,
-    # )
-    # example_rhomax = hv.HLine(10).opts(
-    #     linestyle="dashed",
-    #     c="k",
-    #     linewidth=3,
-    # )
-    # example_plot = example_curve * example_rhomax
-
     if save:
-        example_fname = f"{plot_prefix}_example.{fmt}"
-        print(f"Writing to: {example_fname}")
-
-        # hv.save(example_plot, example_fname, dpi=dpi, fmt=fmt)
-        plt.savefig(example_fname, format=fmt, dpi=dpi)
+        fname = save_dir.joinpath(f"{prefix}_example.{fmt}")
+        print(f"Writing to: {fname.resolve().absolute()}")
+        plt.savefig(fname, format=fmt, dpi=dpi)
 
     # Get parameters for an example from each phase of the signaling phase diagram (Figure 4)
-    with open(phase_examples_json, "r") as f:
+    with phase_examples_json.open("r") as f:
         j = json.load(f)
-        phase_names = j["name"]
         rho_0s = j["rho_0"]
         gs = j["g"]
 
@@ -113,8 +82,6 @@ def main(
     curve_data = np.array(
         [lsig.logistic(t, g, rho_0, rho_max) for g, rho_0 in zip(gs, rho_0s)]
     )
-
-    # t_crit = t[np.searchsorted(curve_data[phase_names.index("Limited")], rho_crit)]
 
     colors = lsig.cols_blue[::-1]
     opts = dict(
@@ -152,41 +119,10 @@ def main(
 
     plt.tight_layout()
 
-    # color_cycle = hv.Cycle(colors)
-    # hv_opts = dict(
-    #     xlabel="time",
-    #     xlim=(0, tmax),
-    #     xticks=0,
-    #     ylabel="density",
-    #     ylim=(0.5, 6.5),
-    #     yticks=0,
-    #     fontscale=2,
-    #     show_legend=False,
-    #     aspect=1.2,
-    #     color=color_cycle,
-    # )
-    #
-    # growth_curves = (
-    #     hv.Curve(data, kdims=["t"], vdims=["density", "case"])
-    #     .groupby("case")
-    #     .opts(
-    #         color=hv.Cycle(lsig.cols_blue[::-1]),
-    #         linewidth=6,
-    #     )
-    #     .overlay(
-    #         # ).options(
-    #         #     {"Curve": dict(color=cycle)}
-    #     )
-    #     .opts(
-    #     )
-    # )
-
     if save:
-        phase_examples_fname = f"{plot_prefix}_phase_examples.{fmt}"
-        print(f"Writing to: {phase_examples_fname}")
-
-        # hv.save(phase_examples_plot, phase_examples_fname, dpi=dpi, fmt=fmt)
-        plt.savefig(phase_examples_fname, format=fmt, dpi=dpi)
+        fname = save_dir.joinpath(f"{prefix}_phase_examples.{fmt}")
+        print(f"Writing to: {fname.resolve().absolute()}")
+        plt.savefig(fname, dpi=dpi)
 
 
 if __name__ == "__main__":

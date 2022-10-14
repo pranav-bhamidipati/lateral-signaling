@@ -14,7 +14,6 @@ sacred_dir = lsig.simulation_dir.joinpath("20220114_phase_perturbations/sacred")
 data_fname = lsig.data_dir.joinpath("single_spots/singlespot_timeseries.csv")
 
 save_dir = lsig.plot_dir
-# save_pfx   = os.path.join(save_dir, "density_perturbation_sqrtarea_")
 
 
 def main(

@@ -1,46 +1,31 @@
-import os
 import h5py
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 import lateral_signaling as lsig
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# To read
-data_dir           = os.path.abspath("../data")
-data_fname         = os.path.join(data_dir, "growth_curves_MLE/growth_curves.csv")
-bs_reps_dump_fpath = os.path.join(data_dir, "analysis/growth_curve_bootstrap_replicates.hdf5")
-mle_df_fpath       = os.path.join(data_dir, "analysis/growth_parameters_MLE.csv")
-
-# To write
-save_dir = os.path.abspath("../plots/tmp")
-pred_reg_fname = lambda t, r0: os.path.join(
-    save_dir, f"growth_regression_{t}_rho0_{r0/1250:.1f}"
+data_csv = lsig.data_dir.joinpath("growth_curves_MLE", "growth_curves.csv")
+bs_reps_dump_fpath = lsig.analysis_dir.joinpath(
+    "growth_curve_bootstrap_replicates.hdf5"
 )
-overlay_reg_fname = lambda t: os.path.join(
-    save_dir, f"growth_regression_overlay_{t}"
-)
-#overlay_reg_fname = lambda r0: os.path.join(
-#    save_dir, f"growth_regression_overlay_rho0_{r0/1250:.1f}"
-#)
 
-#colors = list(lsig.growthrate_colors)
 colors = [lsig.rgb2hex(rgb) for rgb in sns.color_palette()[:3]]
 
+
 def main(
-    param_names=["untreated", "FGF2", "RI"],
-    rho_0s=[1250., 2500., 5000.],  #cells / mm^2
+    rho_0s=[1250.0, 2500.0, 5000.0],  # cells / mm^2
     rho_0_labels=["1x", "2x", "4x"],
     percentiles=[68, 90],
     overlay_ptile=80,
     overlay_colors=colors,
-    overlay_markers=["o", "^", "s"],
+    overlay_markers=["o", "o", "o"],
     figsize=(5, 3),
     seed=2021,
+    save_dir=lsig.plot_dir,
     save=False,
     dpi=300,
     fmt="png",
@@ -50,56 +35,53 @@ def main(
     rg = np.random.default_rng(seed=seed)
 
     # Load experimental dataset
-    data_df = pd.read_csv(data_fname)
-
-    # Load best-fit MLE of parameters
-    mle_df = pd.read_csv(mle_df_fpath, index_col=0)
+    data_df = pd.read_csv(data_csv)
 
     # Load bootstrap MLEs of parameters
-    treatments   = []
+    treatments = []
     bs_reps_list = []
     with h5py.File(bs_reps_dump_fpath, "r") as f:
-        for s in f.keys():
-            t = s.split("_")[-1]
-
-            treatments.append(t)
-            bs_reps_list.append(np.asarray(f[s]))
+        for key, bs_reps in f.items():
+            treatments.append(key.split("_")[-1])
+            bs_reps_list.append(np.asarray(bs_reps))
 
     ## Set plotting options
     plot_kw = dict(
         xlabel="Days",
         ylabel=r"Cell density ($mm^{-2}$)",
         ylim=(0, 10000),
-        yticks=np.linspace(0, 10000, 9)
+        yticks=np.linspace(0, 10000, 9),
     )
 
     ## Plot predictive regression for all samples
     for i, t in enumerate(treatments):
-        
+
         growth_curve_data_list = []
-        bs_dens_t_list         = []
-        t_data_list            = []
+        bs_dens_t_list = []
+        t_data_list = []
 
         bs_mle = bs_reps_list[i]
-        _gs, _rms, _sigma  = bs_mle.T
-        
+        _gs, _rms, _sigma = bs_mle.T
+
         for r0 in rho_0s:
 
             # Experimental data
             growth_curve_data = data_df.loc[
-                (data_df["treatment"] == t) \
-                & (data_df["initial cell density (mm^-2)"] == r0), 
-                ["days_integer", "cell density (mm^-2)"]
+                (data_df["treatment"] == t)
+                & (data_df["initial cell density (mm^-2)"] == r0),
+                ["days_integer", "cell density (mm^-2)"],
             ].values
             t_data = growth_curve_data[:, 0]
             growth_curve_data_list.append(growth_curve_data)
             t_data_list.append(t_data)
 
             # Generate predictions using bootstrap MLEs of growth parameters
-            bs_dens_t = np.array([
-                lsig.logistic(_t, _gs, r0, _rms) + rg.normal(scale=_sigma)
-                for _t in t_data
-            ]).T
+            bs_dens_t = np.array(
+                [
+                    lsig.logistic(_t, _gs, r0, _rms) + rg.normal(scale=_sigma)
+                    for _t in t_data
+                ]
+            ).T
             bs_dens_t_list.append(bs_dens_t)
 
             # Get confidences for predictive regression
@@ -110,7 +92,7 @@ def main(
             )
 
             fig, ax = plt.subplots(figsize=figsize)
-            ax.set(**plot_kw);
+            ax.set(**plot_kw)
             lsig.plot_predictive_regression(
                 df_pred=df_pred,
                 data=growth_curve_data,
@@ -120,69 +102,67 @@ def main(
             plt.tight_layout()
 
             if save:
-                fname = pred_reg_fname(t, r0) + "." + fmt
-                print("Writing to:", fname)
+                fname = save_dir.joinpath(
+                    f"growth_regression_{t}_rho0_{r0/1250:.1f}.{fmt}"
+                )
+                print("Writing to:", fname.resolve().absolute())
                 plt.savefig(fname, dpi=dpi)
-            
+
             plt.close(fig)
 
         # Overlay all densities
         fig, ax = plt.subplots(figsize=figsize)
         ax.set(**plot_kw)
-        for i, (gc, bs, td) in enumerate(zip(
-            growth_curve_data_list, bs_dens_t_list, t_data_list
-        )):
-            
+        for i, (gc, bs, td) in enumerate(
+            zip(growth_curve_data_list, bs_dens_t_list, t_data_list)
+        ):
+
             df_pred = lsig.predictive_regression(
-                bs, td, percentiles=[overlay_ptile],
+                bs,
+                td,
+                percentiles=[overlay_ptile],
             )
-            
+
             _color = np.array([lsig.hex2rgb(overlay_colors[i])]) / 255
             _color_lite = np.hstack([_color, [[0.2]]])
             lsig.plot_predictive_regression(
-                df_pred=df_pred, 
-#                data=gc, 
+                df_pred=df_pred,
+                #                data=gc,
                 ax=ax,
                 colors=[_color_lite, _color],
                 median_lw=1,
-                median_kwargs=dict(label='_nolegend_'),
+                median_kwargs=dict(label="_nolegend_"),
             )
-            
-        for i, (gc, bs, td) in enumerate(zip(
-            growth_curve_data_list, bs_dens_t_list, t_data_list
-        )):
-            
+
+        for i, (gc, bs, td) in enumerate(
+            zip(growth_curve_data_list, bs_dens_t_list, t_data_list)
+        ):
+
             _color = np.array([lsig.hex2rgb(overlay_colors[i])]) / 255
             df_data = pd.DataFrame(data=gc, columns=["__data_x", "__data_y"])
             df_data = df_data.sort_values(by="__data_x")
             plt.scatter(
-                "__data_x", 
-                "__data_y", 
-                data=df_data, 
+                "__data_x",
+                "__data_y",
+                data=df_data,
                 c=_color,
                 s=15,
                 marker=overlay_markers[i],
                 label=rho_0_labels[i],
             )
-            
+
         plt.title(t)
-        plt.legend(
-            title="Plating density", bbox_to_anchor=(1, 0.5), loc="center left"
-        )
-#        plt.title(f"$\\rho_0={{{int(r0)}}}$")
+        plt.legend(title="Plating density", bbox_to_anchor=(1, 0.5), loc="center left")
+        #        plt.title(f"$\\rho_0={{{int(r0)}}}$")
         plt.tight_layout()
 
         if save:
-            fname = overlay_reg_fname(t) + "." + fmt
-            print("Writing to:", fname)
+            fname = save_dir.joinpath(f"growth_regression_overlay_{t}.{fmt}")
+            print("Writing to:", fname.resolve().absolute())
             plt.savefig(fname, dpi=dpi)
-        
-        plt.close(fig)
 
 
-main(
-    save=True,
-    overlay_markers=["o","o","o"],
-)
-
-
+if __name__ == "__main__":
+    main(
+        save=True,
+    )

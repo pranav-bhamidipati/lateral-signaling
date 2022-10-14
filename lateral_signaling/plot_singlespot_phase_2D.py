@@ -1,7 +1,6 @@
 import os
 from glob import glob
 import json
-from pathlib import Path
 import h5py
 
 import numpy as np
@@ -19,19 +18,14 @@ import lateral_signaling as lsig
 
 
 # Reading simulated data
-data_dir = os.path.abspath("../data/simulations/")
-sacred_dir = os.path.join(data_dir, "20211209_phase_2D/sacred")
-thresh_fpath = os.path.join(data_dir, "phase_threshold.json")
-examples_json = os.path.join(data_dir, "phase_examples.json")
-examples_dir = os.path.join(data_dir, "20211209_phase_examples/sacred")
+sacred_dir = lsig.simulation_dir.joinpath("20211209_phase_2D/sacred")
+examples_dir = lsig.simulation_dir.joinpath("20211209_phase_examples/sacred")
+thresh_fpath = lsig.simulation_dir.joinpath("phase_threshold.json")
+examples_json = lsig.simulation_dir.joinpath("phase_examples.json")
 
 # Reading growth parameter estimation data
 mle_fpath = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
 pert_clr_json = lsig.data_dir.joinpath("growth_curves_MLE", "perturbation_colors.json")
-
-# Writing
-save_dir = os.path.abspath("../plots/tmp")
-fpath_pfx = os.path.join(save_dir, "phase_diagram_2D_")
 
 
 def get_phase(actnum_t, v_init, v_init_thresh, rho_0):
@@ -67,9 +61,9 @@ def main(
     legend_bgcol="#bebebe",
     legend_width=0.8,
     legend_pt_ypos=0.5,
+    save_dir=lsig.plot_dir,
     save=False,
-    prefix=fpath_pfx,
-    suffix="",
+    prefix="phase_diagram_2D",
     fmt="png",
     dpi=300,
 ):
@@ -91,7 +85,7 @@ def main(
         v_init_thresh = float(threshs["v_init_thresh"])
 
     # Read in phase metric data
-    run_dirs = glob(os.path.join(sacred_dir, "[0-9]*"))
+    run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
 
     # Store each run's data and in a DataFrame
     dfs = []
@@ -99,14 +93,8 @@ def main(
     rho_0_min = 1.0
     for rd_idx, rd in enumerate(tqdm(run_dirs)):
 
-        _config_file = os.path.join(rd, "config.json")
-        _results_file = os.path.join(rd, "results.hdf5")
-
-        if (not os.path.exists(_config_file)) or (not os.path.exists(_results_file)):
-            continue
-
         # Get some info from the run configuration
-        with open(_config_file, "r") as c:
+        with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
 
             # Intrinsic growth rate, initial density, carrying capacity
@@ -125,7 +113,7 @@ def main(
             continue
 
         # Get remaining info from run's data dump
-        with h5py.File(_results_file, "r") as f:
+        with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
 
             t = np.asarray(f["t"])
 
@@ -255,8 +243,8 @@ def main(
 
     if save:
 
-        _fname = str(Path(save_dir).joinpath(prefix + "highlighted" + "." + fmt))
-        print(_fname)
+        _fname = save_dir.joinpath(f"{prefix}_highlighted.{fmt}")
+        print(f"Writing to: {_fname.resolve().absolute()}")
         plt.savefig(_fname, dpi=dpi)
 
     ## [Holoviews] Various versions of same phase diagram
@@ -337,34 +325,25 @@ def main(
     )
 
     if save:
-
-        fpath = prefix + "bare" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(phasediagram_bare, fpath, fmt=fmt, dpi=dpi)
-
-        fpath = prefix + "examples" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(phasediagram_ex, fpath, fmt=fmt, dpi=dpi)
-
-        fpath = prefix + "labeled" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(phasediagram_labeled, fpath, fmt=fmt, dpi=dpi)
+        for name, hvplot in [
+            ("bare", phasediagram_bare),
+            ("examples", phasediagram_ex),
+            ("labeled", phasediagram_labeled),
+        ]:
+            _fname = save_dir.joinpath(f"{prefix}_{name}.{fmt}")
+            print(f"Writing to: {_fname.resolve().absolute()}")
+            hv.save(hvplot, _fname, fmt=fmt, dpi=dpi)
 
     # Isolate aggregate data for examples
     ex_df = df.loc[df["example"].str.len() > 0]
 
     # Read data for phase examples
-    ex_dirs = glob(os.path.join(examples_dir, "[0-9]*"))
+    ex_dirs = [d for d in examples_dir.glob("*") if d.joinpath("config.json").exists()]
     ex_dfs = []
     for rd_idx, rd in enumerate(ex_dirs):
-        _config_file = os.path.join(rd, "config.json")
-        _results_file = os.path.join(rd, "results.hdf5")
 
         # Get some info from the run configuration
-        with open(_config_file, "r") as c:
+        with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
 
             # Expression threshold
@@ -375,7 +354,7 @@ def main(
             rho_0 = config["rho_0"]
 
         # Get remaining info from run's data dump
-        with h5py.File(_results_file, "r") as f:
+        with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
 
             # Time-course and density
             t = np.asarray(f["t"])
@@ -441,10 +420,9 @@ def main(
 
     if save:
 
-        fpath = prefix + "example_curves" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(examples_layout, fpath, fmt=fmt, dpi=dpi)
+        _fname = save_dir.joinpath(f"{prefix}_example_curves.{fmt}")
+        print(f"Writing to: {_fname.resolve().absolute()}")
+        hv.save(examples_layout, _fname, fmt=fmt, dpi=dpi)
 
     ## Plot maximum area of a signaling spot
 
@@ -539,11 +517,9 @@ def main(
     )
 
     if save:
-
-        fpath = prefix + "spot_size" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(spot_size_plot, fpath, fmt=fmt, dpi=dpi)
+        _fname = save_dir.joinpath(f"{prefix}_spot_size.{fmt}")
+        print(f"Writing to: {_fname.resolve().absolute()}")
+        hv.save(spot_size_plot, _fname, fmt=fmt, dpi=dpi)
 
     ## Make phase diagram with perturbations
     with open(pert_clr_json, "r") as f:
@@ -602,11 +578,9 @@ def main(
     )
 
     if save:
-
-        fpath = prefix + "perturbations" + suffix
-        _fpath = fpath + "." + fmt
-        print(f"Writing to: {_fpath}")
-        hv.save(pert_overlay, fpath, fmt=fmt, dpi=dpi)
+        _fname = save_dir.joinpath(f"{prefix}_perturbations.{fmt}")
+        print(f"Writing to: {_fname.resolve().absolute()}")
+        hv.save(pert_overlay, _fname, fmt=fmt, dpi=dpi)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,10 @@
 import os
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
 
-import lateral_signaling as lsig
+from lateral_signaling import data_dir, analysis_dir, data_to_hist
 
 
 # Fix RNG seed
@@ -19,23 +20,20 @@ def draw_bs_sample(data, samplesize=None):
 
 
 # Options/files/directories for reading
-data_dir = os.path.abspath("../data")
-FACS_dir = os.path.join(data_dir, "FACS", "perturbations")
-metadata_fname = os.path.join(FACS_dir, "metadata.csv")
+FACS_dir = data_dir.joinpath("FACS", "perturbations")
+metadata_fname = FACS_dir.joinpath("metadata.csv")
 
-# Options/files/directories for writing
-metadata_res_fname = os.path.join(
-    data_dir, "analysis", "FACS_perturbations_LLR_results.csv"
-)
+# Options/files/directories for writing results
+metadata_res_fname = analysis_dir.joinpath("FACS_perturbations_LLR_results.csv")
 
 # Local directory for fast read-write (used during parallelization)
-local_dir = os.path.abspath("/tmp/dask-worker-space")
+local_dir = Path("/tmp/dask-worker-space")
 
 # Read in metadata
 metadata = pd.read_csv(metadata_fname)
 
 # REad in data
-data = [pd.read_csv(os.path.join(FACS_dir, f)).squeeze() for f in metadata.filename]
+data = [pd.read_csv(FACS_dir.joinpath(f)).squeeze() for f in metadata.filename]
 
 # Get indices of reference distributions
 OFF_idx = metadata.State.str.contains("OFF").values.nonzero()[0][0]
@@ -61,7 +59,7 @@ min_sample_size = np.min([d.size for d in data])
 bs_rep_size = min_sample_size
 
 # Get histogram (# observations in each bin) for each sample
-data_hists = np.array([lsig.data_to_hist(d.values, nbins)[0] for d in data])
+data_hists = np.array([data_to_hist(d.values, nbins)[0] for d in data])
 
 # Add 1 to every bin to avoid div by 0. Then normalize and take the logarithm
 data_hists_pdf = (data_hists + 1) / np.sum(data_hists + 1, axis=1, keepdims=True)
@@ -87,7 +85,7 @@ def get_one_bs_llr(d, samplesize, OFF_logpdf, ON_logpdf):
     bs = draw_bs_sample(data=d, samplesize=bs_rep_size)
 
     # Bin into histogram
-    bs_hist = lsig.data_to_hist(bs, nbins)[0]
+    bs_hist = data_to_hist(bs, nbins)[0]
 
     # Calculate log-likelihood ratio (LLR)
     log_like_OFF = np.sum(bs_hist * OFF_hist_logpdf)

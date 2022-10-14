@@ -1,5 +1,5 @@
+from pathlib import Path
 from uuid import uuid4
-import os
 from math import ceil
 from copy import deepcopy
 import numpy as np
@@ -8,16 +8,15 @@ import matplotlib.pyplot as plt
 import colorcet as cc
 import h5py
 
-# import json
 
 # Use a unique directory name for this run
 uid = str(uuid4())
 
 # Write to temporary (fast read/write) directory of choice
-data_dir = os.path.abspath(f"/tmp/{uid}")  # Use root temp dir (Linux/MacOS)
+data_dir = Path(f"/tmp/{uid}")  # Use root temp dir (Linux/MacOS)
 # data_dir = f"/home/pbhamidi/scratch/lateral_signaling/tmp/{uid}"  # Use scratch dir on compute cluster
 
-os.makedirs(data_dir, exist_ok=True)
+data_dir.mkdir(exist_ok=True)
 
 
 def do_one_simulation(
@@ -220,7 +219,7 @@ def do_one_simulation(
                 )
 
                 # Path for video
-                fpath = os.path.join(data_dir, f"simulation_{E}.mp4")
+                fpath = data_dir.joinpath(f"simulation_{E}.mp4")
 
                 # Make video
                 lsig.animate_hex_sheet(
@@ -264,9 +263,8 @@ def do_one_simulation(
                     plt.tight_layout()
 
                     # Save frame
-                    fname = f"{E}_frame_{f}" + "." + fmt
-                    fpath = os.path.join(data_dir, fname)
-                    print("Saving:", fpath)
+                    fpath = data_dir.joinpath(f"{E}_frame_{f}.{fmt}")
+                    print("Writing to:", fpath.resolve().absolute())
                     plt.savefig(fpath, dpi=dpi)
                     plt.close()
 
@@ -276,8 +274,7 @@ def do_one_simulation(
         if ex is not None:
 
             # Dump data to file
-            # data_dump_fname = os.path.join(data_dir, "results.json")
-            data_dump_fname = os.path.join(data_dir, "results.hdf5")
+            data_dump_fname = data_dir.joinpath("results.hdf5")
 
             # Dump data to an HDF5 file
             with h5py.File(data_dump_fname, "w") as f:
