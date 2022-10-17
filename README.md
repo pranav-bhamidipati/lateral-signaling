@@ -1,5 +1,7 @@
 # Synthetic signal propagation using synNotch receptors: data analysis and simulation
 
+Run an interactive example here: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/40c38a0?labpath=lateral_signaling%2Fexample.ipynb)
+
 This package contains custom code used to run data analysis and plotting for the manuscript:
 
     Control of spatio-temporal patterning via cell density in a multicellular synthetic gene circuit
