@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 save_dir = lsig.temp_plot_dir
 save_prefix = save_dir.joinpath("spatiotemporal_signaling")
@@ -68,7 +68,7 @@ def main(
 
         bg_alpha = 0.35
         bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
-        light_bg_clr = lsig.rgb2hex(lsig.kgy(0.7)[:3]) + bg_hex
+        light_bg_clr = lsig.viz.rgb2hex(lsig.viz.kgy(0.7)[:3]) + bg_hex
 
         rho_space = np.logspace(-1, 1, 501)
         mean_ss = lsig.get_steady_state_mean(rho_space)
@@ -165,7 +165,7 @@ def main(
 
         bg_alpha = 0.35
         bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
-        light_bg_clr = lsig.rgb2hex(lsig.kgy(0.7)[:3]) + bg_hex
+        light_bg_clr = lsig.viz.rgb2hex(lsig.viz.kgy(0.7)[:3]) + bg_hex
         colors = plt.get_cmap("gray")(np.linspace(0.1, 0.9, _nx_sample))
         xlim = (x.min(), x.max())
         ylim = (0, rho_max + 0.5)
@@ -381,7 +381,7 @@ def main(
 
         bg_alpha = 0.35
         bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
-        light_bg_clr = lsig.rgb2hex(lsig.kgy(0.7)[:3]) + bg_hex
+        light_bg_clr = lsig.viz.rgb2hex(lsig.viz.kgy(0.7)[:3]) + bg_hex
         xmin = x.min()
         xmax = x.max()
         ymin = 0

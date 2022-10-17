@@ -195,7 +195,7 @@ def main(
         y="velocity_mmptau",
     )
 
-    lsig.default_rcParams(
+    lsig.viz.default_rcParams(
         SMALL_SIZE=SMALL_SIZE, MEDIUM_SIZE=MEDIUM_SIZE, BIGGER_SIZE=BIGGER_SIZE
     )
 
@@ -289,7 +289,7 @@ def main(
     ylim = ymin - pad * (ymax - ymin), ymax + pad * (ymax - ymin)
 
     # Styling
-    ccycle = lsig.sample_cycle(cc.gray[:150], conds.size)
+    ccycle = lsig.viz.sample_cycle(cc.gray[:150], conds.size)
     lstyle = hv.Cycle(["solid", "dashed", "dotted"])
     mcycle = hv.Cycle(["o", "s", "^"])
 

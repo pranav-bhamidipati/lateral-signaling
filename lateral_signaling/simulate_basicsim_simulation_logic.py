@@ -164,7 +164,7 @@ def do_one_simulation(
         X_t = np.multiply.outer(1 / np.sqrt(rho_t), X)
 
         # Get default plot options
-        plot_kw_S = deepcopy(lsig.plot_kwargs)
+        plot_kw_S = deepcopy(lsig.viz.plot_kwargs)
         plot_kw_S["sender_idx"] = sender_idx
 
         # Scalebar length
@@ -222,7 +222,7 @@ def do_one_simulation(
                 fpath = data_dir.joinpath(f"simulation_{E}.mp4")
 
                 # Make video
-                lsig.animate_hex_sheet(
+                lsig.viz.animate_hex_sheet(
                     fpath=fpath,
                     X_t=X_t,
                     var_t=var_t,
@@ -252,7 +252,7 @@ def do_one_simulation(
 
                     # Plot frame
                     fig, ax = plt.subplots(figsize=(3, 3))
-                    lsig.plot_hex_sheet(
+                    lsig.viz.plot_hex_sheet(
                         ax=ax,
                         X=X_t[f],
                         rho=rho_t[f],

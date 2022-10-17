@@ -75,7 +75,7 @@ def main(
     lp_corners = lsig.get_lp_corners(src, dst, lp_width)
 
     # Set scalebar parameters (modify from defaults)
-    sbar_kw = deepcopy(lsig.sbar_kwargs)
+    sbar_kw = deepcopy(lsig.viz.sbar_kwargs)
     dx = lp_length_mm / np.linalg.norm(src - dst)  # width of each pixel
     sbar_kw.update(
         dict(
@@ -96,7 +96,7 @@ def main(
     for i, ax in enumerate(axs.flat):
 
         # Plot image
-        cmap_ = (cc.cm["kbc"], lsig.kgy)[i // cols]
+        cmap_ = (cc.cm["kbc"], lsig.viz.kgy)[i // cols]
         ax.imshow(
             ims[i],
             cmap=cmap_,

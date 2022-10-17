@@ -26,7 +26,7 @@ import holoviews as hv
 
 hv.extension("matplotlib")
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 
 image_dir = lsig.data_dir.joinpath("imaging/signaling_gradient")
@@ -108,7 +108,7 @@ def main(
         mean_BFP_first = lp_data["first_BFP_image_mean_fluor"]
 
     # Set scalebar parameters (modify from defaults)
-    sbar_kw = deepcopy(lsig.sbar_kwargs)
+    sbar_kw = deepcopy(lsig.viz.sbar_kwargs)
     sbar_kw.update(
         dict(
             units="mm",
@@ -127,7 +127,7 @@ def main(
     for i, ax in enumerate(axs.flat):
 
         # Plot image
-        cmap_ = (cc.cm["kbc"], lsig.kgy)[i // cols]
+        cmap_ = (cc.cm["kbc"], lsig.viz.kgy)[i // cols]
         ax.imshow(
             ims[i],
             cmap=cmap_,
@@ -228,10 +228,10 @@ def main(
     # mean_dens_yval = lsig.normalize(mean_dens, min_dens, max_dens)
     # plt.hlines(mean_dens_yval, *plt.xlim(), colors="k", linewidth=2)
 
-    rho_OFF_yval = lsig.normalize(lsig.phase_params.rho_OFF, min_dens, max_dens)
+    rho_OFF_yval = lsig.normalize(lsig.rho_crit_high, min_dens, max_dens)
     plt.hlines(rho_OFF_yval, *plt.xlim(), colors="k", linewidth=1)
 
-    rho_ON_yval = lsig.normalize(lsig.phase_params.rho_ON, min_dens, max_dens)
+    rho_ON_yval = lsig.normalize(lsig.rho_crit_low, min_dens, max_dens)
     plt.hlines(rho_ON_yval, *plt.xlim(), colors="k", linewidth=1)
 
     # scan_dens_yval = lsig.normalize(np.arange(1, 6), min_dens, max_dens)

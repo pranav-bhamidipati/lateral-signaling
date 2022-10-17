@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import lateral_signaling as lsig
 
 sacred_dir = lsig.simulation_dir.joinpath("20211201_singlespotphase/sacred")
-thresh_fpath = lsig.simulation_dir.joinpath("phase_threshold.json")
 
 
 def main(
@@ -26,11 +25,8 @@ def main(
     dpi=300,
 ):
 
-    # Get threshold for v_init
-    with open(thresh_fpath, "r") as f:
-        threshs = json.load(f)
-        v_init_thresh = float(threshs["v_init_thresh"])
-
+    v_init_thresh = lsig.simulation_params.v_init_thresh
+    
     # Read in phase metric data
     run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
 
@@ -155,7 +151,7 @@ def main(
     plt.vlines(
         v_init_thresh,
         *plt.gca().get_ylim(),
-        color=lsig.darker_gray,
+        color=lsig.viz.darker_gray,
         lw=2,
         linestyles="dashed",
     )
@@ -164,7 +160,7 @@ def main(
         5000,
         r"$v_{\mathrm{thresh}}$",
         fontsize=16,
-        color=lsig.darker_gray,
+        color=lsig.viz.darker_gray,
     )
 
     plt.xlabel(r"$v_{init}$", fontsize=16)
@@ -207,5 +203,5 @@ def main(
 
 if __name__ == "__main__":
     main(
-        save=True,
+        # save=True,
     )

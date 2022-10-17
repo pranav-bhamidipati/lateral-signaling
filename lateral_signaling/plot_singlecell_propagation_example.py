@@ -93,9 +93,9 @@ def main(
     colors = tuple(
         np.array(
             [
-                lsig.hexa2hex(lsig._gfp_green, 0.5),
-                lsig._receiver_red,
-                lsig._gfp_green,
+                lsig.viz.hexa2hex(lsig.viz._gfp_green, 0.5),
+                lsig.viz._receiver_red,
+                lsig.viz._gfp_green,
             ]
         )[SRT_idx]
     )
@@ -103,14 +103,14 @@ def main(
     ## Make plot
     tau_lines = [
         hv.VLine(v).opts(
-            c=lsig.gray,
+            c=lsig.viz.gray,
             linewidth=1,
             linestyle="dashed",
         )
         for v in np.arange(t_wpast[npast - step_delay], t_wpast.max(), delay)
     ]
     t0_line = hv.VLine(0).opts(
-        c=lsig.black,
+        c=lsig.viz.black,
         linewidth=1,
     )
     curves = [

@@ -1,52 +1,61 @@
-import h5py
-from tqdm import tqdm
-import numpy as np
 import pandas as pd
-import lateral_signaling as lsig
-lsig.default_rcParams()
+from lateral_signaling import data_dir, analysis_dir, area_to_radius
+
+
+def _draw_one_bootstrap_median_value(rg, values, labels, _=None):
+    return pd.Series(rg.permutation(values)).groupby(labels).median()
 
 
 def main(
-    data_csv=lsig.data_dir.joinpath("aggregation/ligand_aggregation_data.csv"),
+    data_csv=data_dir.joinpath("aggregation", "ligand_aggregation_data.csv"),
     seed=2021,
-    n_bs_reps = int(1e7),
-    sizes = None,
-    save_dir=lsig.data_dir.joinpath("analysis"),
-    save_data=False,
+    n_bs_reps=int(1e7),
+    progress=True,
+    save_dir=analysis_dir,
+    save=False,
 ):
+    from tqdm import tqdm
+    from functools import partial
+    from psutil import cpu_count
+
+    # from tqdm import trange
+    import numpy as np
+    import multiprocessing as mp
+
     rg = np.random.default_rng(seed=seed)
-    
+
+    categories = ["1x", "2x", "4x"]
+
     df = pd.read_csv(data_csv)
-    
-    df["Density"] = pd.Categorical(df["Density"], ordered=True)
-    categories = df.Density.cat.categories
-    n_cats = len(categories)
-    df["Diameter_um"] = 2 * lsig.area_to_radius(df.Area_um2.values)
+    df["Density"] = pd.Categorical(df["Density"], ordered=True, categories=categories)
+    df = df.sort_values("Density")
+    labels = df.Density
 
-    
-    def _draw_one_bootstrap_median(i, rep):
-        bs_rep = rg.choice(data_list[i], sizes[i], replace=True)
-        return np.median(bs_rep)
-    
-    data_list = [g.values for _, g in df.groupby("Density")["Diameter_um"]]
-    if sizes is None:
-        sizes = [d.size for d in data_list]
-    
-    bs_medians = np.zeros((n_cats, n_bs_reps), dtype=np.float64)
-    pbar = tqdm(total=n_cats * n_bs_reps)
-    for i in range(n_cats):
-        for rep in range(n_bs_reps):
-            bs_medians[i, rep] = _draw_one_bootstrap_median(i, rep)
-            pbar.update(1)
+    diameters = 2 * area_to_radius(df.Area_um2.values)
 
-    if save_data:
-        save_file = save_dir.joinpath("ligand_aggregation_bootstrap_replicates.hdf5")
-        with h5py.File(save_file, "w") as f:
-            for cat, median_data in zip(categories, bs_medians):
-                f.create_dataset(cat, data=median_data)
-            
+    prog = tqdm if progress else lambda a, *_: a
+    results = []
+    get_bs_rep = partial(_draw_one_bootstrap_median_value, rg, diameters, labels)
+
+    with mp.Pool(cpu_count(logical=True)) as pool:
+        for result in prog(
+            pool.imap_unordered(get_bs_rep, range(n_bs_reps), chunksize=20),
+            total=n_bs_reps,
+        ):
+            results.append(result)
+
+    bs_medians = pd.DataFrame({i: bs for i, bs in enumerate(results)}).T
+    bs_medians.columns = categories
+
+    if save:
+        save_csv = save_dir.joinpath("ligand_aggregation_bootstrap_medians.csv")
+        print("Writing to:", save_csv.resolve().absolute())
+        bs_medians.to_csv(save_csv, index=False)
+
 
 if __name__ == "__main__":
     main(
-        save_data=True,
+        seed=2021,
+        n_bs_reps=int(1e7),
+        save=True,
     )

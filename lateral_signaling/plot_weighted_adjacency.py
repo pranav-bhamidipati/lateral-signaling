@@ -70,8 +70,8 @@ def main(
 
         # Plot cell as polygons
         ax.fill(
-            lsig._hex_x + x,
-            lsig._hex_y + y,
+            lsig.viz._hex_x + x,
+            lsig.viz._hex_y + y,
             fc=(0, 0, 0, 0),
             ec="k",
         )

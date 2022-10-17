@@ -88,7 +88,7 @@ def main(
         ]
 
         # Get default kwargs for plotting
-        plot_kwargs = deepcopy(lsig.plot_kwargs)
+        plot_kwargs = deepcopy(lsig.viz.plot_kwargs)
         plot_kwargs["sender_idx"] = sender_idx
 
         # Get axis limits
@@ -96,7 +96,7 @@ def main(
         plot_kwargs["ylim"] = X_t[-1, :, 1].min(), X_t[-1, :, 1].max()
 
         # Set some args for colorbar
-        plot_kwargs["cmap"] = lsig.kgy
+        plot_kwargs["cmap"] = lsig.viz.kgy
         plot_kwargs["cbar_aspect"] = 8
         plot_kwargs["cbar_kwargs"]["shrink"] = 0.7
         plot_kwargs["cbar_kwargs"]["format"] = "%.2f"
@@ -144,7 +144,7 @@ def main(
 
                 # Plot frame of animation
                 ax.clear()
-                lsig.plot_hex_sheet(ax=ax, **var_kw, **static_kw)
+                lsig.viz.plot_hex_sheet(ax=ax, **var_kw, **static_kw)
 
             # Make colorbars if they don't exist
             if not colorbars:

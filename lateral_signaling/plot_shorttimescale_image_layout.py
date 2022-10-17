@@ -84,10 +84,10 @@ def main(
     # Zoom in to a factor of `zoom` (to emphasize ROI)
     zoom = 0.7
 
-    lsig.default_rcParams()
+    lsig.viz.default_rcParams()
 
     # Get default kwargs for plotting
-    plot_kwargs = deepcopy(lsig.plot_kwargs)
+    plot_kwargs = deepcopy(lsig.viz.plot_kwargs)
     plot_kwargs["sender_idx"] = sender_idx
 
     # Turn on scalebar
@@ -108,7 +108,7 @@ def main(
     plot_kwargs["vmax"] = S_ts[:, : (plot_frames.max() + 1), ns_mask].max()
 
     # some args for colorscale
-    plot_kwargs["cmap"] = lsig.kgy
+    plot_kwargs["cmap"] = lsig.viz.kgy
     plot_kwargs["cbar_aspect"] = 8
     plot_kwargs["colorbar"] = False
 
@@ -136,7 +136,7 @@ def main(
         )
 
         # Plot cell sheet
-        lsig.plot_hex_sheet(
+        lsig.viz.plot_hex_sheet(
             ax=ax,
             X=Xs[row],
             var=S_ts[row, plot_frames[col]],

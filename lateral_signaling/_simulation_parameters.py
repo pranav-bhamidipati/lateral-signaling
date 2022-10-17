@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Iterable
+from warnings import warn
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class SimulationParameters:
     rows: int
     cols: int
     dde_args: Iterable
+    v_init_thresh: float
 
     @classmethod
     def from_json(cls, params_json: Path):

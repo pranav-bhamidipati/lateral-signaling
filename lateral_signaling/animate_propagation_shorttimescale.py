@@ -124,7 +124,7 @@ def main(
         )
 
         # Get default kwargs for plotting
-        kw = deepcopy(lsig.plot_kwargs)
+        kw = deepcopy(lsig.viz.plot_kwargs)
         kw["sender_idx"] = sender_idx
 
         # Turn on scalebar
@@ -141,7 +141,7 @@ def main(
         kw["vmax"] = S_ts[:, :, ns_mask].max()
 
         # some args for colorbar
-        kw["cmap"] = lsig.kgy
+        kw["cmap"] = lsig.viz.kgy
         kw["cbar_aspect"] = 8
         kw["cbar_kwargs"] = dict(shrink=0.9, label="GFP (AU)", format="%.2f")
 
@@ -198,7 +198,7 @@ def main(
                 ax.clear()
 
                 # Plot cell sheet
-                lsig.plot_hex_sheet(
+                lsig.viz.plot_hex_sheet(
                     ax=ax,
                     **var_kw,
                     **hex_static_kw,

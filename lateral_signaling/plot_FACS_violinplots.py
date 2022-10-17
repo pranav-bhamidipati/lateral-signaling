@@ -7,7 +7,7 @@ import seaborn as sns
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 
 FACS_dir = lsig.data_dir.joinpath("FACS", "perturbations")
@@ -152,7 +152,7 @@ def main(
             x="Condition",
             y="Median",
             data=violin_median_df,
-            color=lsig.black,
+            color=lsig.viz.black,
             s=50,
             edgecolor="k",
             linewidth=1,

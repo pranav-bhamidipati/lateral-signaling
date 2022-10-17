@@ -16,7 +16,6 @@ import lateral_signaling as lsig
 data_dir = Path("../data/simulations/")
 log_sacred_dir = Path("sacred")
 lin_sacred_dir = data_dir.joinpath("20211209_phase_2D/sacred")
-thresh_fpath = data_dir.joinpath("phase_threshold.json")
 
 # Writing
 save_dir = Path("../plots/tmp")
@@ -54,7 +53,6 @@ def make_plots_linear_rho_0(
     figsize=(3, 3),
     well_figsize=(2, 2),
     ny=201,
-    thresh_fpath=thresh_fpath,
     sacred_dir=lin_sacred_dir,
     save_dir=save_dir,
     prefix="phase_diagram_2D_lin",
@@ -65,10 +63,7 @@ def make_plots_linear_rho_0(
     **kwargs,
 ):
 
-    # Get threshold for v_init
-    with thresh_fpath.open("r") as f:
-        threshs = json.load(f)
-        v_init_thresh = float(threshs["v_init_thresh"])
+    v_init_thresh = lsig.simulation_params.v_init_thresh
 
     # Read in phase metric data
     data_dirs = list(sacred_dir.glob("[0-9]*"))
@@ -139,7 +134,7 @@ def make_plots_linear_rho_0(
     rho_0_range = rho_0_space[-1] - rho_0_space[0]
 
     # Colors for phase regions
-    phase_colors = lsig.cols_blue[::-1]
+    phase_colors = lsig.viz.cols_blue[::-1]
     phase_cmap = mpl.colors.ListedColormap(phase_colors)
 
     # Plot phase diagram
@@ -269,7 +264,7 @@ def make_well_with_GFP_SS(
 
     gradient = plt.imshow(
         np.ones((nx, nx)) * SS_y[:, np.newaxis],
-        cmap=lsig.kgy,
+        cmap=lsig.viz.kgy,
         extent=(-rad, rad, ymin, ymax),
         origin="lower",
     )
@@ -340,7 +335,6 @@ def make_plots_logarithmic_rho_0(
     nscan=101,
     ny=201,
     well_ylim=(0, 1),
-    thresh_fpath=thresh_fpath,
     sacred_dir=log_sacred_dir,
     save_dir=save_dir,
     prefix="phase_diagram_2D_log",
@@ -351,10 +345,7 @@ def make_plots_logarithmic_rho_0(
     **kwargs,
 ):
 
-    # Get threshold for v_init
-    with thresh_fpath.open("r") as f:
-        threshs = json.load(f)
-        v_init_thresh = float(threshs["v_init_thresh"])
+    v_init_thresh = lsig.simulation_params.v_init_thresh
 
     # Read in phase metric data
     data_dirs = list(sacred_dir.glob("[0-9]*"))
@@ -438,7 +429,7 @@ def make_plots_logarithmic_rho_0(
     rho_0_range = rho_0_space[-1] - rho_0_space[0]
 
     # Colors for phase regions
-    phase_colors = lsig.cols_blue[::-1]
+    phase_colors = lsig.viz.cols_blue[::-1]
     phase_cmap = mpl.colors.ListedColormap(phase_colors)
 
     # Calculate level sets for critical densities
@@ -456,8 +447,8 @@ def make_plots_logarithmic_rho_0(
 
     g_scan = np.linspace(g_space[0], g_space[-1], nscan)
     g_scan_inv_days = lsig.g_to_units(g_scan)
-    rho_ON = lsig.phase_params.rho_ON
-    rho_OFF = lsig.phase_params.rho_OFF
+    rho_ON = lsig.rho_crit_low
+    rho_OFF = lsig.rho_crit_high
 
     for i, (phase_col, grad_t) in enumerate(time_dict.items()):
 

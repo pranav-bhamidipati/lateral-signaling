@@ -7,7 +7,7 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 
 FACS_dir = lsig.data_dir.joinpath("FACS", "perturbations")

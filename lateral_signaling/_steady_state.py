@@ -156,9 +156,13 @@ def _initialize(_ss_sacred_dir):
     )
 
     return (
-        _get_steady_state_mean,
-        _get_steady_state_std,
-        _get_steady_state_replicates,
-        _get_steady_state_ci_lo,
-        _get_steady_state_ci_hi,
-    ), {"rho_ON": crit_rho_lo, "rho_OFF": crit_rho_hi}
+        (
+            _get_steady_state_mean,
+            _get_steady_state_std,
+            _get_steady_state_replicates,
+            _get_steady_state_ci_lo,
+            _get_steady_state_ci_hi,
+        ),
+        crit_rho_lo,
+        crit_rho_hi,
+    )

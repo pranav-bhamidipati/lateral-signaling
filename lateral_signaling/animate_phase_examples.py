@@ -128,7 +128,7 @@ def main(
         )
 
         # Get default kwargs for plotting
-        plot_kwargs = deepcopy(lsig.plot_kwargs)
+        plot_kwargs = deepcopy(lsig.viz.plot_kwargs)
         plot_kwargs["sender_idx"] = sender_idx
 
         # Get axis limits
@@ -142,7 +142,7 @@ def main(
         plot_kwargs["vmax"] = S_t_run[:, :, ns_mask].max()
 
         # Set some args for colorbar
-        plot_kwargs["cmap"] = lsig.kgy
+        plot_kwargs["cmap"] = lsig.viz.kgy
         plot_kwargs["cbar_aspect"] = 8
         plot_kwargs["cbar_kwargs"] = dict(
             shrink=0.7,
@@ -256,7 +256,7 @@ def main(
 
                 # Plot cell sheet
                 if row == 0:
-                    lsig.plot_hex_sheet(
+                    lsig.viz.plot_hex_sheet(
                         ax=ax,
                         title=example_names[col],
                         **var_kw,

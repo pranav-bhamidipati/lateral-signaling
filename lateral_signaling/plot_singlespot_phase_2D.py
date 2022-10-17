@@ -20,7 +20,6 @@ import lateral_signaling as lsig
 # Reading simulated data
 sacred_dir = lsig.simulation_dir.joinpath("20211209_phase_2D/sacred")
 examples_dir = lsig.simulation_dir.joinpath("20211209_phase_examples/sacred")
-thresh_fpath = lsig.simulation_dir.joinpath("phase_threshold.json")
 examples_json = lsig.simulation_dir.joinpath("phase_examples.json")
 
 # Reading growth parameter estimation data
@@ -79,10 +78,7 @@ def main(
         ex_ylabel = ex_dict["label_y"]
         ex_params = np.array([ex_xval, ex_yval]).T
 
-    # Get threshold for v_init
-    with open(thresh_fpath, "r") as f:
-        threshs = json.load(f)
-        v_init_thresh = float(threshs["v_init_thresh"])
+    v_init_thresh = lsig.simulation_params.v_init_thresh
 
     # Read in phase metric data
     run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
@@ -187,7 +183,7 @@ def main(
     y_range = ylim[1] - ylim[0]
 
     # Colors for phase regions
-    phase_colors = lsig.cols_blue[::-1]
+    phase_colors = lsig.viz.cols_blue[::-1]
 
     data = df.pivot(columns="g_inv_days", index="rho_0", values="phase")
     g_wt = df.loc[np.isclose(df["g"].values, 1.0), "g_inv_days"].values[0]
@@ -214,7 +210,8 @@ def main(
         data,
         origin="lower",
         cmap=mpl.colors.ListedColormap(
-            phase_colors + [lsig.blend_hex(c, lsig.white, 0.5) for c in phase_colors],
+            phase_colors
+            + [lsig.viz.blend_hex(c, lsig.viz.white, 0.5) for c in phase_colors],
             name="phase",
         ),
         aspect=_aspect,
@@ -256,7 +253,7 @@ def main(
         xticks=(0.5, 1.0, 1.5),
         ylabel=r"Init. density (x $1250\,\mathrm{mm}^{-2}$)",
         yticks=(0, 1, 2, 3, 4, 5, 6),
-        hooks=[lsig.remove_RT_spines],
+        hooks=[lsig.viz.remove_RT_spines],
         fontscale=1.0,
         show_legend=False,
         aspect=((xlim[1] - xlim[0]) / dg) / ((ylim[1] - ylim[0]) / dr),
@@ -442,7 +439,7 @@ def main(
     df["marker_size"] = marker_scale * df[marker_dim + "_trunc"] / area_ceiling
 
     # Make background versions of phase colors
-    phase_bgcolors = lsig.hexa2hex(phase_colors, bg_alpha).tolist()
+    phase_bgcolors = lsig.viz.hexa2hex(phase_colors, bg_alpha).tolist()
     bare_kw["color"] = hv.Cycle(phase_bgcolors)
 
     # Set options for plotting
@@ -549,7 +546,7 @@ def main(
         marker="o",
         color="color",
         s=55,
-        ec=lsig.black,
+        ec=lsig.viz.black,
     )
     err_kw = dict(
         # linewidth=3,

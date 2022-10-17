@@ -17,7 +17,7 @@ import holoviews as hv
 
 hv.extension("matplotlib")
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 image_dir = lsig.data_dir.joinpath("imaging", "signaling_gradient")
 img_analysis_dir = lsig.analysis_dir.joinpath("signaling_gradient")
@@ -27,6 +27,7 @@ circle_data_path = lsig.analysis_dir.joinpath("roi_circle_data.csv")
 lp_params_path = lsig.analysis_dir.joinpath("line_profile.json")
 
 save_dir = img_analysis_dir
+
 
 def main(
     image_dir: Path = image_dir,

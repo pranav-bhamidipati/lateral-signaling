@@ -6,7 +6,7 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 metadata_with_results_csv = lsig.analysis_dir.joinpath(
     "FACS_perturbations_LLR_results.csv"
@@ -128,7 +128,7 @@ def main(
     llr_scatterplot = (
         (llr_segments * llr_points * llr_xaxis * llr_overlines * llr_group_text)
         .opts(
-            hooks=[lsig.remove_RT_spines],
+            hooks=[lsig.viz.remove_RT_spines],
         )
         .opts(
             xlim=xlim,

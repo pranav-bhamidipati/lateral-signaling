@@ -15,7 +15,6 @@ from itertools import islice
 
 # Reading
 sacred_dir = lsig.simulation_dir.joinpath("20211201_singlespotphase/sacred")
-thresh_fpath = lsig.simulation_dir.joinpath("phase_threshold.json")
 
 
 def main(
@@ -27,10 +26,9 @@ def main(
     dpi=300,
 ):
 
-    ## Read in and assemble data
-    # Get threshold for v_init
-    v_init_thresh = float(json.load(thresh_fpath.open("r"))["v_init_thresh"])
+    v_init_thresh = lsig.simulation_params.v_init_thresh
 
+    ## Read in and assemble data
     # Read in phase metric data
     run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
     dfs = []
@@ -77,7 +75,7 @@ def main(
     df["phase"] = (df.v_init > v_init_thresh).astype(int) * (
         1 + (df.n_act_fin > 0).astype(int)
     )
-    df["color"] = np.array(lsig.cols_blue)[df.phase]
+    df["color"] = np.array(lsig.viz.cols_blue)[df.phase]
 
     ## Plot phase boundaries in 3D
     # Phase pairs to plot - (X, Y, Z) correspond to (0,1,2)
@@ -88,7 +86,7 @@ def main(
     ]
 
     # Colors for phase regions
-    phase_colors = lsig.cols_blue[::-1]
+    phase_colors = lsig.viz.cols_blue[::-1]
 
     # Rotation vectors - optionally used for better triangulation
     #   when a part of the phase boundary is orthogonal to XY plane

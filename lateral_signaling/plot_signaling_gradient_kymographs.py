@@ -107,7 +107,7 @@ def main(
     gfp_kymo = hv.Overlay(
         [
             hv.Image(gfp_norm, bounds=bounds,).opts(
-                cmap=lsig.kgy,
+                cmap=lsig.viz.kgy,
                 #        clabel="GFP (norm.)",
                 clabel="",
                 **gfpimage_opts,

@@ -87,7 +87,7 @@ def main(
     plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
     # Get default kwargs for plotting
-    plot_kwargs = deepcopy(lsig.plot_kwargs)
+    plot_kwargs = deepcopy(lsig.viz.plot_kwargs)
     plot_kwargs["sender_idx"] = sender_idx
 
     # Turn on scalebar
@@ -108,7 +108,7 @@ def main(
     vmax_R = vmax_R_scale * R_t[plot_frames][:, ns_mask].max()
 
     # some args for colorscale
-    cmap_S = lsig.kgy
+    cmap_S = lsig.viz.kgy
     cmap_R = cc.cm["kr"]
     plot_kwargs["cbar_aspect"] = 8
     plot_kwargs["colorbar"] = False
@@ -163,7 +163,7 @@ def main(
         update_var_kw(row, col)
 
         # Plot cell sheet
-        lsig.plot_hex_sheet(
+        lsig.viz.plot_hex_sheet(
             ax=ax,
             **var_kw,
             **kw,

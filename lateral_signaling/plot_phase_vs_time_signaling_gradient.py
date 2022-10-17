@@ -8,13 +8,10 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
-sim_dir = Path("../data/simulations")
-sacred_dir = sim_dir.joinpath("20220818_phase_linrho/sacred")
+sacred_dir = lsig.simulation_dir.joinpath("20220818_phase_linrho/sacred")
 # sacred_dir = Path("./sacred")
-# sacred_dir = sim_dir.joinpath("20211209_phase_2D/sacred")
-save_dir = Path("../plots/tmp")
 
 
 def main(
@@ -22,20 +19,18 @@ def main(
     grad_lo=2.0,
     grad_hi=5.0,
     figsize=(3, 3),
-    sim_dir=sim_dir,
+    sim_dir=lsig.simulation_dir,
     sacred_dir=sacred_dir,
-    save_dir=save_dir,
+    save_dir=lsig.plot_dir,
     save=False,
     dpi=300,
     fmt="png",
     bg_color="w",
     atol=1e-6,
 ):
-
-    with sim_dir.joinpath("phase_threshold.json").open("r") as f:
-        j = json.load(f)
-        v_init_thresh = j["v_init_thresh"]
-
+    
+    v_init_thresh = lsig.simulation_params.v_init_thresh
+    
     data_dirs = list(sacred_dir.glob("[0-9]*"))
     data_dirs = [d for d in data_dirs if d.joinpath("config.json").exists()]
     d0 = data_dirs[0]
@@ -93,15 +88,7 @@ def main(
     
     phase_t = init_rho_0[:, np.newaxis] * (deactivated_t + 2 * activated_t)
 
-    # g_inv_days = lsig.mle_params.g_inv_days
-    # t_OFF_days = lsig.get_t_OFF(g_inv_days, rho_space)
-    # t_ON_days = lsig.get_t_ON(g_inv_days, rho_space)
-    # turns_ON = (t_OFF_days > 0).astype(int)
-    # # turns_OFF_t = (actnum_t_rho_0[:, :-step_delay] > 0).astype(int)
-    # turned_OFF_t = np.greater.outer(t_OFF_days + delay_days, t_days).astype(int)
-    # phase_t = turns_ON[:, np.newaxis] + turned_OFF_t 
-
-    phase_cmap = mpl.colors.ListedColormap(lsig.cols_blue[::-1])
+    phase_cmap = mpl.colors.ListedColormap(lsig.viz.cols_blue[::-1])
 
     dr = rho_space[1] - rho_space[0]
     dt = t_days[1] - t_days[0]
@@ -142,13 +129,6 @@ def main(
         fname = save_dir.joinpath(f"phase_vs_t_spatialgradient").with_suffix(f".{fmt}")
         print(f"Writing to: {fname.resolve().absolute()}")
         plt.savefig(fname, dpi=dpi, facecolor=bg_color)
-
-    print()
-    
-    #####
-    ## Run the same expreiment with low density also, scanning through rho_0
-    ##  on a log-scale.
-    ## Make a comparable plot with "error bars" at multiple time-points
 
 
 if __name__ == "__main__":

@@ -72,7 +72,7 @@ def main(
     yticks = (0, 0.1, 0.2, 0.3, 0.4)
 
     # Set colors/linestyles/markers
-    ccycle = lsig.sample_cycle(lsig.yob[1:], conds.size)
+    ccycle = lsig.viz.sample_cycle(lsig.viz.yob[1:], conds.size)
 
     # Other options
     opts = dict(
@@ -161,7 +161,7 @@ def main(
     )
 
     mean_max_segs = hv.Segments(mean_max_arr,).opts(
-        color=lsig.cols_blue[-2],
+        color=lsig.viz.cols_blue[-2],
         linewidth=4,
     )
 

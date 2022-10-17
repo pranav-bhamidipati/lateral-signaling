@@ -26,7 +26,7 @@ data_csv = lsig.data_dir.joinpath(
 def main(
     sim_dir=sim_dir,
     data_csv=data_csv,
-    colors=lsig.growthrate_colors,
+    colors=lsig.viz.growthrate_colors,
     pad=0.05,
     sample_every=5,
     save_dir=lsig.plot_dir,

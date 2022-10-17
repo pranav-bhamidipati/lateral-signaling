@@ -15,10 +15,9 @@ hv.extension("matplotlib")
 import lateral_signaling as lsig
 
 # Reading
-data_dir = Path("../data/simulations")
-sacred_dir = data_dir.joinpath("20211201_singlespotphase/sacred")
-thresh_fpath = data_dir.joinpath("phase_threshold.json")
-slices_fpath = data_dir.joinpath("phase_slices.json")
+sim_dir = lsig.simulation_dir
+sacred_dir = sim_dir.joinpath("20211201_singlespotphase/sacred")
+slices_fpath = sim_dir.joinpath("phase_slices.json")
 
 
 def main(
@@ -41,10 +40,7 @@ def main(
         slice_x = slices["x"]
         slice_y = slices["y"]
 
-    # Get threshold for v_init
-    with open(thresh_fpath, "r") as f:
-        threshs = json.load(f)
-        v_init_thresh = float(threshs["v_init_thresh"])
+    v_init_thresh = lsig.simulation_params.v_init_thresh
 
     # Read in phase metric data
     run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
@@ -146,11 +142,11 @@ def main(
     }
 
     # Colors for phase regions
-    phase_colors = lsig.cols_blue[::-1]
+    phase_colors = lsig.viz.cols_blue[::-1]
 
     # Options for different plot types
     kw = dict(
-        hooks=[lsig.remove_RT_spines],
+        hooks=[lsig.viz.remove_RT_spines],
         fontscale=1.0,
         show_legend=False,
         marker="s",

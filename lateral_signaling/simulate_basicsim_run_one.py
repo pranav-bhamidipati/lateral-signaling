@@ -8,7 +8,7 @@ from lateral_signaling import mle_params
 _rho_max = float(mle_params.rho_max_ratio)
 
 # Set up Sacred experiment
-ex = sacred.Experiment("lateral_signaling_examples")
+ex = sacred.Experiment("lateral_signaling_basic")
 sacred_storage_dir = Path(
     "./sacred"  # Store locally
     # "/home/pbhamidi/scratch/lateral_signaling/sacred"  # Caltech HPC scratch (fast read-write)

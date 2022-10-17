@@ -8,12 +8,10 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
-sim_dir = Path("../data/simulations")
-# sacred_dir = sim_dir.joinpath("20220819_phase_logrho/sacred")
-sacred_dir = Path("sacred")
-save_dir = Path("../plots/tmp")
+sacred_dir = lsig.simulation_dir.joinpath("20220819_phase_logrho/sacred")
+# sacred_dir = Path("./sacred")
 
 
 def main(
@@ -22,18 +20,13 @@ def main(
     grad_hi=3.0,
     rho_min=0.0,
     figsize=(3, 3),
-    sim_dir=sim_dir,
     sacred_dir=sacred_dir,
-    save_dir=save_dir,
+    save_dir=lsig.plot_dir,
     save=False,
     dpi=300,
     fmt="png",
     bg_color="w",
 ):
-
-    with sim_dir.joinpath("phase_threshold.json").open("r") as f:
-        j = json.load(f)
-        v_init_thresh = j["v_init_thresh"]
 
     data_dirs = list(sacred_dir.glob("[0-9]*"))
     data_dirs = [d for d in data_dirs if d.joinpath("config.json").exists()]
@@ -99,7 +92,7 @@ def main(
 
     # phase_t = deactivated_t + 2 * activated_t  # * init_rho_0[:, np.newaxis]
 
-    phase_cmap = mpl.colors.ListedColormap(lsig.cols_blue[::-1])
+    phase_cmap = mpl.colors.ListedColormap(lsig.viz.cols_blue[::-1])
 
     dt = t_days[1] - t_days[0]
     extent_t = (t_days[0] - dt / 2, t_days[-1] + dt / 2)
@@ -183,7 +176,7 @@ def main(
 
     plt.imshow(
         SS_t,
-        cmap=lsig.kgy,
+        cmap=lsig.viz.kgy,
         aspect="auto",
         origin="lower",
         extent=(*extent_t, *extent_r),

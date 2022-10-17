@@ -63,7 +63,7 @@ def main(
         linewidth=1.5,
     )
 
-    lsig.default_rcParams(
+    lsig.viz.default_rcParams(
         SMALL_SIZE=SMALL_SIZE, MEDIUM_SIZE=MEDIUM_SIZE, BIGGER_SIZE=BIGGER_SIZE
     )
 

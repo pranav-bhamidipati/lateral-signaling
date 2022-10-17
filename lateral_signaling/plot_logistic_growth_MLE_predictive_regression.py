@@ -13,7 +13,7 @@ bs_reps_dump_fpath = lsig.analysis_dir.joinpath(
     "growth_curve_bootstrap_replicates.hdf5"
 )
 
-colors = [lsig.rgb2hex(rgb) for rgb in sns.color_palette()[:3]]
+colors = [lsig.viz.rgb2hex(rgb) for rgb in sns.color_palette()[:3]]
 
 
 def main(
@@ -85,7 +85,7 @@ def main(
             bs_dens_t_list.append(bs_dens_t)
 
             # Get confidences for predictive regression
-            df_pred = lsig.predictive_regression(
+            df_pred = lsig.viz.predictive_regression(
                 bs_dens_t,
                 t_data,
                 percentiles=percentiles,
@@ -93,7 +93,7 @@ def main(
 
             fig, ax = plt.subplots(figsize=figsize)
             ax.set(**plot_kw)
-            lsig.plot_predictive_regression(
+            lsig.viz.plot_predictive_regression(
                 df_pred=df_pred,
                 data=growth_curve_data,
                 ax=ax,
@@ -117,15 +117,15 @@ def main(
             zip(growth_curve_data_list, bs_dens_t_list, t_data_list)
         ):
 
-            df_pred = lsig.predictive_regression(
+            df_pred = lsig.viz.predictive_regression(
                 bs,
                 td,
                 percentiles=[overlay_ptile],
             )
 
-            _color = np.array([lsig.hex2rgb(overlay_colors[i])]) / 255
+            _color = np.array([lsig.viz.hex2rgb(overlay_colors[i])]) / 255
             _color_lite = np.hstack([_color, [[0.2]]])
-            lsig.plot_predictive_regression(
+            lsig.viz.plot_predictive_regression(
                 df_pred=df_pred,
                 #                data=gc,
                 ax=ax,
@@ -138,7 +138,7 @@ def main(
             zip(growth_curve_data_list, bs_dens_t_list, t_data_list)
         ):
 
-            _color = np.array([lsig.hex2rgb(overlay_colors[i])]) / 255
+            _color = np.array([lsig.viz.hex2rgb(overlay_colors[i])]) / 255
             df_data = pd.DataFrame(data=gc, columns=["__data_x", "__data_y"])
             df_data = df_data.sort_values(by="__data_x")
             plt.scatter(

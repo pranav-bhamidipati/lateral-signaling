@@ -7,7 +7,7 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 
 mle_params_csv = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
@@ -83,7 +83,7 @@ def main(
         [lsig.logistic(t, g, rho_0, rho_max) for g, rho_0 in zip(gs, rho_0s)]
     )
 
-    colors = lsig.cols_blue[::-1]
+    colors = lsig.viz.cols_blue[::-1]
     opts = dict(
         xlabel="Time",
         xlim=(0, tmax),
@@ -112,7 +112,7 @@ def main(
         t.min(),
         t.max(),
         linestyles="dotted",
-        colors=lsig.gray,
+        colors=lsig.viz.gray,
         linewidth=3.0,
     )
     plt.text(0.8 * (tmax - tmin), rho_crit + 0.5, r"$\rho_\mathrm{crit}$")

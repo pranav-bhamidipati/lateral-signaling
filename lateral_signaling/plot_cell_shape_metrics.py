@@ -13,7 +13,7 @@ import seaborn as sns
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 data_fname = lsig.analysis_dir.joinpath("FACS_brightfield/cell_shape_metrics.csv")
 save_dir = lsig.plot_dir
@@ -62,8 +62,6 @@ def main(
     circ_data = [g[1].circularity.values for g in aggdf.groupby("density")]
     area_data = [g[1].area.values for g in aggdf.groupby("density")]
     perim_data = [g[1].perimeter.values for g in aggdf.groupby("density")]
-
-    lsig.default_rcParams()
 
     # Line/marker plotting options
     colors = plt.get_cmap("gray")(np.linspace(0, 0.7, 4))[::-1]
@@ -274,7 +272,7 @@ def main(
         #            x="Condition",
         #            y="Median",
         #            data=violin_median_df,
-        #            color=lsig.black,
+        #            color=lsig.viz.black,
         #            s=50,
         #            edgecolor="k",
         #            linewidth=1,

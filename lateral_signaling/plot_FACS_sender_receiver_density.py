@@ -5,7 +5,7 @@ import seaborn as sns
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 FACS_dir = lsig.data_dir.joinpath("FACS")
 
@@ -150,7 +150,7 @@ def main(
         bw=0.05,
     )
     scatter_opts = dict(
-        color=lsig.black,
+        color=lsig.viz.black,
         s=35,
         edgecolor="k",
         linewidth=1,

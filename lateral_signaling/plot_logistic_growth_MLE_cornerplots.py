@@ -5,7 +5,7 @@ import pandas as pd
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 import matplotlib.pyplot as plt
 import seaborn as sns

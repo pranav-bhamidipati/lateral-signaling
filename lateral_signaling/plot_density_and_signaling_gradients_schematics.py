@@ -12,7 +12,7 @@ import matplotlib.collections as coll
 
 import lateral_signaling as lsig
 
-lsig.default_rcParams()
+lsig.viz.default_rcParams()
 
 mle_csv = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
 im_png = Path("./culture_well.png")
@@ -86,7 +86,7 @@ def main(
     nt=201,
     g=1.0,
     figsize2=(6, 2.5),
-    cmap=lsig.kgy,
+    cmap=lsig.viz.kgy,
     nt_sample=4,
     nx=201,
     dt_days=0.6,

@@ -1,7 +1,8 @@
 data
 scratch/
 HPC_data/
-sim_data/
+simulations/
+analysis/
 plots/
 old_plots/
 stan_output/
