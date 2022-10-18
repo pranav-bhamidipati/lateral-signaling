@@ -29,12 +29,13 @@ PathLike = TypeVar("PathLike", str, bytes, Path, os.PathLike, None)
 ### These paths are set during the `conda` environment creation.
 ### You can change them manually by re-defining the environment
 ### variable or edit `environment.yml` and rebuild the env.
-data_dir = Path(os.getenv("LSIG_DATA_DIR"))
+__dir = Path(__file__).parent
+data_dir = __dir.joinpath(os.getenv("LSIG_DATA_DIR")).resolve().absolute()
 analysis_dir = data_dir.joinpath("analysis")
-# analysis_dir = Path(os.getenv("LSIG_ANALYSIS_DIR"))
-simulation_dir = Path(os.getenv("LSIG_SIMULATION_DIR"))
-plot_dir = Path(os.getenv("LSIG_PLOTTING_DIR"))
-temp_plot_dir = Path(os.getenv("LSIG_TEMPPLOTTING_DIR"))
+# analysis_dir = __dir.joinpath(os.getenv("LSIG_ANALYSIS_DIR")).resolve().absolute()
+simulation_dir = __dir.joinpath(os.getenv("LSIG_SIMULATION_DIR")).resolve().absolute()
+plot_dir = __dir.joinpath(os.getenv("LSIG_PLOTTING_DIR")).resolve().absolute()
+temp_plot_dir = __dir.joinpath(os.getenv("LSIG_TEMPPLOTTING_DIR")).resolve().absolute()
 
 if not data_dir.exists():
     warnings.warn(
@@ -44,26 +45,30 @@ if not data_dir.exists():
     )
 
 if not plot_dir.exists():
-    print(f"Creating directory for plotting results: {plot_dir.resolve()}")
-    plot_dir.mkdir()
+    warnings.warn(
+        f"Invalid path to directory `plot_dir` for plotting outputs: "
+        f"'{plot_dir.resolve().absolute()}'. "
+    )
 
 if not temp_plot_dir.exists():
-    print(f"Creating directory for plotting results: {temp_plot_dir.resolve()}")
-    temp_plot_dir.mkdir()
+    warnings.warn(
+        f"Invalid path to directory `temp_plot_dir` for plotting outputs: "
+        f"'{temp_plot_dir.resolve().absolute()}'. "
+    )
 
 if not simulation_dir.exists():
-    simulation_dir = Path("./sacred")
-    print(
-        f"Simulation results directory does not exist. Creating one: {simulation_dir.resolve()}"
+    warnings.warn(
+        f"Invalid path to directory `simulation_dir` containing simulation"
+        f"configurations and outputs: "
+        f"'{simulation_dir.resolve().absolute()}'"
     )
-    simulation_dir.mkdir()
 
 if not analysis_dir.exists():
-    analysis_dir = Path("../analysis")
-    print(
-        f"Analysis results directory does not exist. Creating one: {analysis_dir.resolve()}"
+    warnings.warn(
+        f"Invalid path to directory `analysis_dir` for data analysis outputs:"
+
+        f"'{analysis_dir}'"
     )
-    analysis_dir.mkdir()
 
 
 ######################################################################
