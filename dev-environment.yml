@@ -7,18 +7,30 @@ dependencies:
   - pandas=1.*
   - scipy=1.7.*
   - scikit-image
+  - scikit-learn
   - numba
   - dask=2021.*
   - colorcet
   - holoviews=1.*
   - matplotlib=3.4.*
   - seaborn=0.*
+  - selenium=3.*
+    #  - phantomjs
+    #  - pillow
   - h5py=3.*
+  - pytables=3.*
   - conda-forge::tqdm=4.*
+  - conda-forge::imageio=2.22.*
   - conda-forge::openpiv=0.*
+    #  - conda-forge::ffmpeg
   - conda-forge::imageio-ffmpeg
   - conda-forge::firefox
   - conda-forge::geckodriver
+    #  - conda-forge::python-chromedriver-binary
+#  - conda-forge::ipywidgets
+  - conda-forge::shapely=1.*
+  - conda-forge::descartes=1.*
+  - conda-forge::dask-jobqueue=0.*
   - conda-forge::nodejs
   - conda-forge::jupyterlab
   - conda-forge::ipympl
@@ -27,10 +39,15 @@ dependencies:
     - sacred
     - psutil
     - bebi103==0.1.8
+      #    - chromedriver-binary-auto
     - matplotlib-scalebar==0.*
     - statannotations
+    - statsmodels
+    - corner
+    - cmocean
     - ipywidgets
     - blackcellmagic
+    - dask-labextension
 
 variables:
   LSIG_DATA_DIR: "../data"
