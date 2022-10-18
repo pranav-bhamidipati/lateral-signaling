@@ -13,7 +13,8 @@ This package contains custom code used to run data analysis and plotting for the
 ### Supplementary data
 To use this package, please also download the supplementary data, which contains experimental data and pre-run simulation outputs.
 
-    [download link to follow]
+    # Temporary download link. Substitute FILE_ID = 11YUNGWajpYoAeQphOeWnuQzNesV17XMH
+    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
 
 ## Package setup
 
