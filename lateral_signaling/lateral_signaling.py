@@ -11,7 +11,6 @@ from typing import OrderedDict, TypeVar
 import warnings
 from pathlib import Path
 from math import ceil
-from sklearn.tree import DecisionTreeClassifier
 
 import tqdm
 import numpy as np
