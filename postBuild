@@ -8,6 +8,6 @@ mkdir plots/tmp
 mkdir data
 
 pip install --no-input gdown
-gdown 1L2CRS9cyrWNCZ68SQhSMQLdt9_J8544g -O data.tar.gz
+gdown 11YUNGWajpYoAeQphOeWnuQzNesV17XMH -O data.tar.gz
 tar xf data.tar.gz --directory=data
 rm data.tar.gz
