@@ -1,6 +1,8 @@
 # Synthetic signal propagation using synNotch receptors: data analysis and simulation
 
-Run the interactive example here (lateral_signaling/example.ipynb): [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/40c38a0?labpath=lateral_signaling%2Fexample.ipynb)
+Run an interactive example: 
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/v0.1.0?labpath=lateral_signaling%2Fexample.ipynb)
 
 This package contains custom code used to run data analysis and plotting for the manuscript:
 
@@ -11,7 +13,8 @@ This package contains custom code used to run data analysis and plotting for the
 ### Supplementary data
 To use this package, please also download the supplementary data, which contains experimental data and pre-run simulation outputs.
 
-    [download link to follow]
+    # Temporary download link. Substitute FILE_ID = 11YUNGWajpYoAeQphOeWnuQzNesV17XMH
+    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
 
 ## Package setup
 
