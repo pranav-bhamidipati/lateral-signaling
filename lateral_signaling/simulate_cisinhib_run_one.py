@@ -2,7 +2,7 @@ from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
 from simulate_basicsim_simulation_logic import do_one_simulation
-from lateral_signaling import mle_params
+from lateral_signaling import mle_params, simulation_dir
 
 # Growth parameter(s)
 _rho_max = float(mle_params.rho_max_ratio)
@@ -17,8 +17,7 @@ sacred_storage_dir.mkdir(exist_ok=True)
 ex.observers.append(FileStorageObserver(sacred_storage_dir))
 
 # Get path to default simulation parameters
-data_dir = Path("../data/simulations")
-params_json = data_dir.joinpath("sim_parameters.json")
+params_json = simulation_dir.joinpath("sim_parameters.json")
 ex.add_config(str(params_json.resolve()))
 ex.add_config(rho_max=_rho_max)
 

@@ -1,11 +1,10 @@
+import json
 from pathlib import Path
+from unittest import defaultTestLoader
 import sacred
 from sacred.observers import FileStorageObserver
 from simulate_phase_simulation_logic import do_one_simulation
-from lateral_signaling import mle_params
-
-# Growth parameter(s)
-_rho_max = float(mle_params.rho_max_ratio)
+from lateral_signaling import mle_params, simulation_dir
 
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_phase")
@@ -16,16 +15,14 @@ sacred_storage_dir = Path(
 sacred_storage_dir.mkdir(exist_ok=True)
 ex.observers.append(FileStorageObserver(sacred_storage_dir))
 
-# Set default simulation parameters
-data_dir = Path("../data/simulations")
-params_json = data_dir.joinpath("sim_parameters.json")
-ex.add_config(str(params_json.resolve()))
-ex.add_config(
-    rho_max=_rho_max,
-    n_reps=5,
-    nt_t_save=100,
-    progress=False,
+# Set default simulation parameters, modified for phase calculation
+default_params_json = simulation_dir.joinpath("sim_parameters.json")
+phase_params_json = simulation_dir.joinpath("phase_parameters.json")
+phase_config = json.laod(default_params_json.open("r")).update(
+    json.load(phase_params_json).open("r")
 )
+ex.add_config(**phase_config)
+ex.add_config(rho_max=float(mle_params.rho_max_ratio))
 
 
 @ex.automain

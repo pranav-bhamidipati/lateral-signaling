@@ -3,10 +3,7 @@ from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
 from simulate_steadystate_simulation_logic import do_one_simulation
-from lateral_signaling import mle_params
-
-# Growth parameter(s)
-_rho_max = float(mle_params.rho_max_ratio)
+from lateral_signaling import mle_params, simulation_dir
 
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_steady_state")
@@ -18,15 +15,14 @@ sacred_storage_dir.mkdir(exist_ok=True)
 ex.observers.append(FileStorageObserver(str(sacred_storage_dir)))
 
 # Set default simulation parameters, modified for the steady state case
-data_dir = Path("../data/simulations")
-default_params_json = data_dir.joinpath("sim_parameters.json")
-steady_state_params_json = data_dir.joinpath("steadystate_parameters.json")
+default_params_json = simulation_dir.joinpath("sim_parameters.json")
+steady_state_params_json = simulation_dir.joinpath("steadystate_parameters.json")
 
 steady_state_config = json.load(default_params_json.open("r")).update(
     json.load(steady_state_params_json.open("r"))
 )
 ex.add_config(**steady_state_config)
-ex.add_config(rho_max=_rho_max)
+ex.add_config(rho_max=float(mle_params.rho_max_ratio))
 
 
 @ex.automain
