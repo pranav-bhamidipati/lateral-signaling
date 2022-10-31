@@ -1,18 +1,19 @@
 # Synthetic signal propagation using synNotch receptors: data analysis and simulation
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/v0.1.0?labpath=lateral_signaling%2Fexample.ipynb)
-Supplementary Data: [![DOI](https://data.caltech.edu/badge/DOI/10.22002/q8n10-tsk03.svg)](https://doi.org/10.22002/q8n10-tsk03)
-
 This package contains custom code used to run data analysis and plotting for the manuscript:
 
     Control of spatio-temporal patterning via cell density in a multicellular synthetic gene circuit
     Marco Santorelli, Pranav S. Bhamidipati, Andriu Kavanagh, Victoria A. MacKrell, Trusha Sondkar, Matt Thomson, Leonardo Morsut
     bioRxiv 2022.10.04.510900; doi: https://doi.org/10.1101/2022.10.04.510900
 
-Run an interactive example using the Binder tag above!
+Run an interactive example: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/v0.2.0-pr?labpath=lateral_signaling%2Fexample.ipynb)
+
 
 ### Supplementary data
-To use this package, please also download the supplementary data [here](https://doi.org/10.22002/q8n10-tsk03). (`data_minimal` and `data` are identical except for a couple of large simulation results folders).
+
+[![DOI](https://data.caltech.edu/badge/DOI/10.22002/q8n10-tsk03.svg)](https://doi.org/10.22002/q8n10-tsk03)
+
+To use this package, please also download the supplementary data (click the badge above). (`data_minimal` and `data` are identical except for a couple of large simulation results folders).
 
 ## Package setup
 
