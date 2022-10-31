@@ -1,8 +1,7 @@
 # Synthetic signal propagation using synNotch receptors: data analysis and simulation
 
-Run an interactive example: 
-
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/v0.1.0?labpath=lateral_signaling%2Fexample.ipynb)
+Supplementary Data: [![DOI](https://data.caltech.edu/badge/DOI/10.22002/q8n10-tsk03.svg)](https://doi.org/10.22002/q8n10-tsk03)
 
 This package contains custom code used to run data analysis and plotting for the manuscript:
 
@@ -10,11 +9,10 @@ This package contains custom code used to run data analysis and plotting for the
     Marco Santorelli, Pranav S. Bhamidipati, Andriu Kavanagh, Victoria A. MacKrell, Trusha Sondkar, Matt Thomson, Leonardo Morsut
     bioRxiv 2022.10.04.510900; doi: https://doi.org/10.1101/2022.10.04.510900
 
-### Supplementary data
-To use this package, please also download the supplementary data, which contains experimental data and pre-run simulation outputs.
+Run an interactive example using the Binder tag above!
 
-    # Temporary download link. Substitute FILE_ID = 11YUNGWajpYoAeQphOeWnuQzNesV17XMH
-    https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+### Supplementary data
+To use this package, please also download the supplementary data [here](https://doi.org/10.22002/q8n10-tsk03). (`data_minimal` and `data` are identical except for a couple of large simulation results folders).
 
 ## Package setup
 
@@ -69,11 +67,7 @@ Then, you can access the interactive notebook by running `jupyter notebook` or `
 
 ### 3. Download supplementary data
 
-Using `wget` or another such tool, download the supplementary data for this project into the cloned repo.
-
-    [download link to follow]
-
-[//]: # (Not available yet. Should upload to Zenodo or such, right?)
+Download the [supplementary data](https://doi.org/10.22002/q8n10-tsk03) for this project and extract into a folder named `data`.
 
 ### 4. (Optional) Folders for results output
 
