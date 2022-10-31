@@ -13,7 +13,7 @@ lsig.viz.default_rcParams()
 
 def main(
     data_csv=lsig.data_dir.joinpath("aggregation/ligand_aggregation_data.csv"),
-    figsize=(3, 3),
+    figsize=(3.5, 3),
     save_dir=lsig.plot_dir,
     save=False,
     dpi=300,
@@ -25,12 +25,8 @@ def main(
     df = pd.read_csv(data_csv)
     df["Density"] = pd.Categorical(df["Density"], ordered=True, categories=order)
 
-    # df["Diameter_um"] = 2 * lsig.area_to_radius(df.Area_um2.values)
-    # x = "Density"
-    # y = "Diameter_um"
-
     x = "Density"
-    y = "Area"
+    y = "Area_um2"
 
     fig = plt.figure(figsize=figsize)
 
@@ -41,6 +37,8 @@ def main(
 
     annotator.configure(test="Mann-Whitney", text_format="star", loc="outside")
     annotator.apply_and_annotate()
+
+    plt.ylabel("Area of GFP\naggregate ($\mathrm{\mu m}^2$)")
 
     sns.despine()
     plt.tight_layout()
