@@ -18,9 +18,8 @@ ex.observers.append(FileStorageObserver(str(sacred_storage_dir)))
 default_params_json = simulation_dir.joinpath("sim_parameters.json")
 steady_state_params_json = simulation_dir.joinpath("steadystate_parameters.json")
 
-steady_state_config = json.load(default_params_json.open("r")).update(
-    json.load(steady_state_params_json.open("r"))
-)
+steady_state_config = json.load(default_params_json.open("r"))
+steady_state_config.update(json.load(steady_state_params_json.open("r")))
 ex.add_config(**steady_state_config)
 ex.add_config(rho_max=float(mle_params.rho_max_ratio))
 
