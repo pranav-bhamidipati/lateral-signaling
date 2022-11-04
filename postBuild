@@ -15,7 +15,7 @@ mkdir data
 
 
 # From CaltechDATA repository
-LSIG_DOI='q8n10-tsk03' \
+LSIG_DOI='q8n10-tsk03'
 wget \
     --user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36' \
     "https://data.caltech.edu/records/$LSIG_DOI/files/2022-10-31_data_minimal.tar.gz?download=1" \
