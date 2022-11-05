@@ -8,7 +8,6 @@ This package contains custom code used to run data analysis and plotting for the
 
 Run an interactive example: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/v0.2.0-pr3?labpath=lateral_signaling%2Fexample.ipynb)
 
-
 ### Supplementary data
 
 [![DOI](https://data.caltech.edu/badge/DOI/10.22002/q8n10-tsk03.svg)](https://doi.org/10.22002/q8n10-tsk03)
