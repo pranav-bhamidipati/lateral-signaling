@@ -5,7 +5,6 @@ set -ex
 mkdir lateral_signaling/sacred
 mkdir plots
 mkdir plots/tmp
-mkdir data
 
 ## Download data sets
 
@@ -21,5 +20,5 @@ wget \
     --user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36' \
     "https://data.caltech.edu/records/$LSIG_DOI/files/2022-10-31_data_minimal.tar.gz?download=1"
 
-tar xf data.tar.gz --directory=data
+tar xf data.tar.gz
 rm data.tar.gz
