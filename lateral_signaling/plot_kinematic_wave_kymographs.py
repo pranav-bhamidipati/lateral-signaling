@@ -57,30 +57,31 @@ def main(
     # Get wave velocities and mean velocity
     velocities = np.diff(median_position)
     vbar = np.abs(velocities.mean())
+    vbar_sd = np.std(velocities)
 
     ## Make kymographs of fluorescence over time
 
     # Plot kymographs as images
     bounds = (t_days.min() - 0.5, position.min(), t_days.max() + 0.5, position.max())
     gfpimage_opts = dict(
-        colorbar=True,
-        #        cbar_ticks=[(0, "0"), (1, "1")],
-        cbar_ticks=0,
-        cbar_width=0.05,
-        cbar_padding=-0.13,
+        # colorbar=True,
+        # #        cbar_ticks=[(0, "0"), (1, "1")],
+        # cbar_ticks=0,
+        # cbar_width=0.05,
+        # cbar_padding=-0.13,
     )
     bfpimage_opts = dict(
-        colorbar=True,
-        #    cbar_ticks=[(0, "0"), (1, "1")],
-        cbar_ticks=0,
-        cbar_width=0.1,
+        # colorbar=True,
+        # #    cbar_ticks=[(0, "0"), (1, "1")],
+        # cbar_ticks=0,
+        # cbar_width=0.1,
     )
     plot_opts = dict(
         xlabel="Day",
         xticks=tuple(t_days),
         yticks=(0, 1, 2, 3, 4),
         ylabel="Position (mm)",
-        aspect=0.6,
+        aspect=0.75,
         fontscale=1.2,
     )
     gfp_kymo = hv.Overlay(
@@ -100,14 +101,14 @@ def main(
                 linewidth=1,
             ),
             hv.Text(
-                2.8,
-                4.25,
+                5.25,
+                4.2,
                 r"$\bar{\mathit{v}} = "
-                + f"{vbar:.2f}"
+                + f"{vbar:.2f} \pm {vbar_sd:.2f}"
                 + r"$"
                 + "\n"
-                + r"$mm\, day^{-1}$",
-                halign="left",
+                + r"mm/day",
+                halign="right",
                 fontsize=12,
             ).opts(c="w"),
         ]
@@ -135,5 +136,5 @@ def main(
 if __name__ == "__main__":
     main(
         save_dir=lsig.temp_plot_dir,
-        # save = True,
+        save=True,
     )
