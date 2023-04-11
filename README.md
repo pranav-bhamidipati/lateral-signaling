@@ -3,11 +3,10 @@
 This package contains custom code used to run data analysis and plotting for the manuscript:
 
     Control of spatio-temporal patterning via cell density in a multicellular synthetic gene circuit
-    Marco Santorelli, Pranav S. Bhamidipati, Andriu Kavanagh, Victoria A. MacKrell, Trusha Sondkar, Matt Thomson, Leonardo Morsut
+    *Marco Santorelli, *Pranav S. Bhamidipati, Dominik Schildknecht, Andriu Kavanagh, Victoria A. MacKrell, Trusha Sondkar, Matt Thomson, Leonardo Morsut
     bioRxiv 2022.10.04.510900; doi: https://doi.org/10.1101/2022.10.04.510900
 
-Run an interactive example: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/v0.2.0-pr?labpath=lateral_signaling%2Fexample.ipynb)
-
+Run an interactive example: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/pranav-bhamidipati/lateral-signaling/v0.2.0?labpath=lateral_signaling%2Fexample.ipynb)
 
 ### Supplementary data
 
