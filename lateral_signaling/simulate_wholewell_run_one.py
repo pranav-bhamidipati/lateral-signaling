@@ -23,9 +23,8 @@ whole_well_params_json = simulation_dir.joinpath("wholewell_parameters.json")
 _rho_max = float(mle_params.rho_max_ratio)
 
 # Set default experimental configuration, modified for the whole well case
-whole_well_config = json.load(default_params_json.open("r")).update(
-    whole_well_params_json.open("r")
-)
+whole_well_config = json.load(default_params_json.open("r"))
+whole_well_config.update(json.load(whole_well_params_json.open("r")))
 ex.add_config(**whole_well_config)
 ex.add_config(rho_max=_rho_max)
 

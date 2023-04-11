@@ -18,9 +18,8 @@ ex.observers.append(FileStorageObserver(sacred_storage_dir))
 # Set default simulation parameters, modified for phase calculation
 default_params_json = simulation_dir.joinpath("sim_parameters.json")
 phase_params_json = simulation_dir.joinpath("phase_parameters.json")
-phase_config = json.laod(default_params_json.open("r")).update(
-    json.load(phase_params_json).open("r")
-)
+phase_config = json.load(default_params_json.open("r"))
+phase_config.update(json.load(phase_params_json).open("r"))
 ex.add_config(**phase_config)
 ex.add_config(rho_max=float(mle_params.rho_max_ratio))
 

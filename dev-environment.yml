@@ -27,10 +27,10 @@ dependencies:
   - conda-forge::firefox
   - conda-forge::geckodriver
     #  - conda-forge::python-chromedriver-binary
-#  - conda-forge::ipywidgets
-  - conda-forge::shapely=1.*
-  - conda-forge::descartes=1.*
-  - conda-forge::dask-jobqueue=0.*
+  #  - conda-forge::ipywidgets
+  # - conda-forge::shapely=1.*
+  # - conda-forge::descartes=1.*
+  # - conda-forge::dask-jobqueue=0.*
   - conda-forge::nodejs
   - conda-forge::jupyterlab
   - conda-forge::ipympl
@@ -38,13 +38,13 @@ dependencies:
   - pip:
     - sacred
     - psutil
-    - bebi103==0.1.8
+    # - bebi103==0.1.8
       #    - chromedriver-binary-auto
     - matplotlib-scalebar==0.*
     - statannotations
-    - statsmodels
-    - corner
-    - cmocean
+    # - statsmodels
+    # - corner
+    # - cmocean
     - ipywidgets
     - blackcellmagic
     - dask-labextension
