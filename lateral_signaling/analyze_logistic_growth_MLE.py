@@ -1,15 +1,14 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-import os
+# import os
 import h5py
 
+from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 import scipy.optimize
-import scipy.stats as st
+# import scipy.stats as st
+from tqdm import tqdm
 
-import bebi103
+# import bebi103
 
 from lateral_signaling import data_dir, analysis_dir, logistic
 
@@ -96,6 +95,174 @@ def gen_logistic_data(params, t, rho_0s, size, rg):
     return [t, gen_rho, rho_0s]
 
 
+#### NOTE: THe below two functions were copied from the bebi103 package
+####  developed by Justin Bois. The package import was a bit heavy
+####  and much of the package has now been deprecated, so I copied the
+####  functions directly.
+
+
+def _draw_bs_reps_mle(
+    mle_fun,
+    gen_fun,
+    data,
+    mle_args=(),
+    gen_args=(),
+    size=1,
+    progress_bar=False,
+    rg=None,
+):
+    """This function was copied from the `bebi103` package developed by Justin Bois.
+    
+    Draw parametric bootstrap replicates of maximum likelihood
+    estimator.
+
+    Parameters
+    ----------
+    mle_fun : function
+        Function with call signature `mle_fun(data, *mle_args)` that
+        computes a MLE for the parameters
+    gen_fun : function
+        Function to randomly draw a new data set out of the model
+        distribution parametrized by the MLE. Must have call
+        signature `gen_fun(params, *gen_args, size, rg)`. Note
+        that `size` in as an argument in this function relates to the
+        number of data you will generate, which is always equal to
+        len(data). This is not the same as the `size` argument of
+        `_draw_bs_reps_mle()`, which is the number of bootstrap
+        replicates you wish to draw.
+    data : Numpy array, possibly multidimensional
+        Array of measurements. The first index should index repeat of
+        experiment. E.g., if the data consist of n (x, y) pairs, `data`
+        should have shape (n, 2).
+    mle_args : tuple, default ()
+        Arguments to be passed to `mle_fun()`.
+    gen_args : tuple, default ()
+        Arguments to be passed to `gen_fun()`.
+    size : int, default 1
+        Number of bootstrap replicates to draw.
+    progress_bar : bool, default False
+        Whether or not to display progress bar.
+    rg : numpy.random.Generator instance, default None
+        RNG to be used in bootstrapping. If None, the default
+        Numpy RNG is used with a fresh seed based on the clock.
+
+    Returns
+    -------
+    output : numpy array
+        Bootstrap replicates of MLEs.
+    """
+
+    if rg is None:
+        rg = np.random.default_rng()
+
+    params = mle_fun(data, *mle_args)
+
+    if progress_bar:
+        iterator = tqdm(range(size))
+    else:
+        iterator = range(size)
+
+    params = mle_fun(data, *mle_args)
+
+    return np.array(
+        [
+            mle_fun(gen_fun(params, *gen_args, size=len(data), rg=rg), *mle_args)
+            for _ in iterator
+        ]
+    )
+
+
+def draw_bs_reps_mle(
+    mle_fun,
+    gen_fun,
+    data,
+    mle_args=(),
+    gen_args=(),
+    size=1,
+    n_jobs=1,
+    progress_bar=False,
+    rg=None,
+):
+    """This function was copied from the `bebi103` package developed by Justin Bois.
+    
+    Draw bootstrap replicates of maximum likelihood estimator.
+
+    Parameters
+    ----------
+    mle_fun : function
+        Function with call signature `mle_fun(data, *mle_args)` that
+        computes a MLE for the parameters.
+    gen_fun : function
+        Function to randomly draw a new data set out of the model
+        distribution parametrized by the MLE. Must have call
+        signature `gen_fun(params, *gen_args, size, rg)`. Note
+        that `size` as an argument in this function relates to the
+        number of data you will generate, which is always equal to
+        len(data). This is not the same as the `size` argument of
+        `draw_bs_reps_mle()`, which is the number of bootstrap
+        replicates you wish to draw.
+    data : Numpy array, possibly multidimensional
+        Array of measurements. The first index should index repeat of
+        experiment. E.g., if the data consist of n (x, y) pairs, `data`
+        should have shape (n, 2).
+    mle_args : tuple, default ()
+        Arguments to be passed to `mle_fun()`.
+    gen_args : tuple, default ()
+        Arguments to be passed to `gen_fun()`.
+    size : int, default 1
+        Number of bootstrap replicates to draw.
+    n_jobs : int, default 1
+        Number of cores to use in drawing bootstrap replicates.
+    progress_bar : bool, default False
+        Whether or not to display progress bar.
+    rg : numpy.random.Generator instance, default None
+        RNG to be used in bootstrapping. If None, the default
+        Numpy RNG is used with a fresh seed based on the clock.
+
+    Returns
+    -------
+    output : numpy array
+        Bootstrap replicates of MLEs.
+    """
+    # Just call the original function if n_jobs is 1 (no parallelization)
+    if n_jobs == 1:
+        return _draw_bs_reps_mle(
+            mle_fun,
+            gen_fun,
+            data,
+            mle_args=mle_args,
+            gen_args=gen_args,
+            size=size,
+            progress_bar=progress_bar,
+            rg=rg,
+        )
+
+    if rg is not None:
+        raise RuntimeError(
+            "You are attempting to draw replicates in parallel with a specified random"
+            " number generator (`rg` is not `None`). Each of the sets of replicates"
+            " drawn in parallel will be the same since the random number generator is"
+            " not reseeded for each thread. When running in parallel, you  must have"
+            " `rg=None`."
+        )
+
+    # Set up sizes of bootstrap replicates for each core, making sure we
+    # get all of them, even if sizes % n_jobs != 0
+    sizes = [size // n_jobs for _ in range(n_jobs)]
+    sizes[-1] += size - sum(sizes)
+
+    # Build arguments
+    arg_iterable = [
+        (mle_fun, gen_fun, data, mle_args, gen_args, s, progress_bar, None)
+        for s in sizes
+    ]
+
+    with Pool(n_jobs) as pool:
+        result = pool.starmap(_draw_bs_reps_mle, arg_iterable)
+
+    return np.concatenate(result)
+
+
 def main(
     seed=2021,
     param_names=["untreated", "FGF2", "RI"],
@@ -170,7 +337,8 @@ def main(
         mle_results = logistic_mle_lstq(data)
 
         # Bootstrap replicates of maximum likelihood estimation
-        bs_reps = bebi103.bootstrap.draw_bs_reps_mle(
+        # bs_reps = bebi103.bootstrap.draw_bs_reps_mle(
+        bs_reps = draw_bs_reps_mle(
             logistic_mle_lstq,
             gen_logistic_data,
             data=data,

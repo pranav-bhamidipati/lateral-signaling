@@ -26,7 +26,7 @@ dependencies:
   - pip:
     - sacred
     - psutil
-    - bebi103==0.1.8
+    # - bebi103==0.1.8
     - matplotlib-scalebar==0.*
     - statannotations
     - ipywidgets
