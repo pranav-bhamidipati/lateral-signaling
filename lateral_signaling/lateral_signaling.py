@@ -102,6 +102,11 @@ _growth_params_error = (
     f"WARNING: Estimates of growth parameters not found in specified location:"
     f"    {_growth_params_csv.resolve().absolute()}"
 )
+_default_growth_params = dict(
+    rho_max_ratio=5.869478948933416, 
+    rho_max_inv_mm2=7336.848686166771, 
+    g_inv_days=0.6160221865205395,
+)
 
 try:
     assert _growth_params_csv.exists(), f"File does not exist: {_growth_params_csv}"
@@ -112,6 +117,8 @@ try:
 except Exception as e:
     if isinstance(e, AssertionError):
         warnings.warn(_growth_params_error)
+        warnings.warn(f"Defaulting to a previously identified set of growth parameters: {_default_growth_params}")
+        mle_params = gp.MLEGrowthParams(_default_growth_params)
     else:
         raise
 
