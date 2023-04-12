@@ -31,9 +31,9 @@ PathLike = TypeVar("PathLike", str, bytes, Path, os.PathLike, None)
 __dir = Path(__file__).parent
 data_dir = __dir.joinpath(os.getenv("LSIG_DATA_DIR"), "../data").resolve().absolute()
 # analysis_dir = __dir.joinpath(os.getenv("LSIG_ANALYSIS_DIR", ../data/analysis)).resolve().absolute()
-simulation_dir = __dir.joinpath(os.getenv("LSIG_SIMULATION_DIR", ../data/simulations)).resolve().absolute()
-plot_dir = __dir.joinpath(os.getenv("LSIG_PLOTTING_DIR", ../figures)).resolve().absolute()
-temp_plot_dir = __dir.joinpath(os.getenv("LSIG_TEMPPLOTTING_DIR", ../figures/tmp)).resolve().absolute()
+simulation_dir = __dir.joinpath(os.getenv("LSIG_SIMULATION_DIR", "../data/simulations")).resolve().absolute()
+plot_dir = __dir.joinpath(os.getenv("LSIG_PLOTTING_DIR", "../figures")).resolve().absolute()
+temp_plot_dir = __dir.joinpath(os.getenv("LSIG_TEMPPLOTTING_DIR", "../figures/tmp")).resolve().absolute()
 
 analysis_dir = data_dir.joinpath("analysis")
 
