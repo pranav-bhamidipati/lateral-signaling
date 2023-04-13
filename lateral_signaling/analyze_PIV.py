@@ -102,7 +102,7 @@ def main(
 
     from lateral_signaling import vround
 
-    im_files = np.array(list(load_dir.glob(f"*.{img_fmt}")))
+    im_files = np.array(sorted(load_dir.glob(f"*.{img_fmt}")))
     im_filenames = np.array([f.name for f in im_files])
     image_stacks = np.array([io.imread(str(f)) for f in im_files])
 
