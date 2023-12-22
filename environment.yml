@@ -3,9 +3,9 @@ name: lateral_signaling
 
 dependencies:
   - python=3.9.*
-  - numpy=1.19.*
+  - numpy
   - pandas=1.*
-  - scipy=1.7.*
+  - scipy
   - scikit-image
   - numba
   - dask=2021.*
