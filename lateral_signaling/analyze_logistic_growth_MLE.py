@@ -1,53 +1,19 @@
-# import os
+from datetime import datetime
+from typing import Optional
+from functools import partial
 import h5py
-
 from multiprocessing import Pool
 import numpy as np
 import pandas as pd
+from pathlib import Path
+from numba import njit
 import scipy.optimize
-# import scipy.stats as st
 from tqdm import tqdm
-
-# import bebi103
 
 from lateral_signaling import data_dir, analysis_dir, logistic
 
 
-# Locs for reading
-data_fname = data_dir.joinpath("growth_curves_MLE", "growth_curves.csv")
-
-# Locs for writing
-bs_reps_dump_fpath = analysis_dir.joinpath("growth_curve_bootstrap_replicates.hdf5")
-mle_df_fpath = analysis_dir.joinpath("growth_parameters_MLE.csv")
-
-## Define functions for MLE of parameters and bootstrapping
-
-## Set initial guesses for param vals
-initial_guesses = np.array(
-    [
-        1.0,  # Intrinsic proliferation rate (days ^ -1)
-        5000,  # Carrying capacity (mm ^ -2)
-    ]
-)
-
-## Set explicit bounds on parameter values
-# Proliferation rate bounds (days^-1)
-prolif_min = 0.0
-prolif_max = 20.0
-
-# Carrying capcity bounds
-cc_min = 1e2
-cc_max = 2e5
-
-# Package for scipy least_squares function
-arg_bounds = [
-    [prolif_min, cc_min],
-    [prolif_max, cc_max],
-]
-
-# Define functions for MLE procedure on logistic equation
-
-
+@njit
 def logistic_resid(params, t, rhos, rho_0s):
     """
     Residual for a logistic growth model as a function of
@@ -60,351 +26,259 @@ def logistic_resid(params, t, rhos, rho_0s):
     return rhos - means
 
 
-def logistic_mle_lstq(data, method="trf"):
-    """
-    Compute MLE for carrying capacity, intrinsic
-    prolif. rate, and RMSD of the logistic growth model.
-    """
+@njit
+def rms(vals):
+    return np.sqrt(np.mean(vals**2))
 
-    t, rhos, rho_0s = data
+
+def compute_least_squares_logistic_mle(t, rho, rho_0, initial_guesses):
+    """Compute MLE for carrying capacity, intrinsic prolif. rate, and RMSD of the
+    logistic growth model."""
 
     # Get the maximum likelihood estimate (MLE) parameters
     res = scipy.optimize.least_squares(
-        logistic_resid,
-        initial_guesses,
-        args=(t, rhos, rho_0s),
-        method=method,
-        bounds=arg_bounds,
+        logistic_resid, initial_guesses, args=(t, rho, rho_0)
     )
 
     # Get residuals using MLE parameters
-    resid = logistic_resid(res.x, t, rhos, rho_0s)
+    resid = logistic_resid(res.x, t, rho, rho_0)
 
     # Compute root-mean-squared deviation (RMSD)
-    sigma_mle = np.sqrt(np.mean(resid ** 2))
+    sigma_mle = rms(resid)
 
-    return tuple([*res.x, sigma_mle])
-
-
-def gen_logistic_data(params, t, rho_0s, size, rg):
-    """Generate a new logistic growth data set given parameters."""
-    g, rho_max, sigma = params
-    mus = logistic(t, g, rho_0s, rho_max)
-    gen_rho = np.maximum(rg.normal(mus, sigma), 0)
-
-    return [t, gen_rho, rho_0s]
+    # Return MLE parameters and RMSD
+    g, rho_max = res.x
+    return g, rho_max, sigma_mle
 
 
-#### NOTE: THe below two functions were copied from the bebi103 package
-####  developed by Justin Bois. The package import was a bit heavy
-####  and much of the package has now been deprecated, so I copied the
-####  functions directly.
+#### NOTE: THe below functions were modified from the bebi103 package
+####  developed by Justin Bois, which has now been deprecated.
 
 
-def _draw_bs_reps_mle(
-    mle_fun,
-    gen_fun,
-    data,
-    mle_args=(),
-    gen_args=(),
-    size=1,
-    progress_bar=False,
-    rg=None,
+@njit
+def bootstrap_by_residuals(y_fit, residuals, rg: np.random.Generator):
+    """Produces a bootsrap sample of dependent variables using the best-fit values and residuals
+    from a model. Resamples the residuals from the best fit."""
+    bs_indices = rg.integers(0, len(residuals), size=len(residuals))
+    return y_fit + residuals[bs_indices]
+
+
+def bootstrap_logistic_mle(
+    rho_fit,
+    residuals,
+    t,
+    rho_0,
+    initial_guesses,
+    seed=None,
+    task_id=0,
 ):
-    """This function was copied from the `bebi103` package developed by Justin Bois.
-    
-    Draw parametric bootstrap replicates of maximum likelihood
-    estimator.
+    """Draw a bootstrap replicate of maximum likelihood estimator for logistic growth. Uses
+    `bootstrap_by_residuals()` to resample residuals from the best-fit model.
 
     Parameters
     ----------
-    mle_fun : function
-        Function with call signature `mle_fun(data, *mle_args)` that
-        computes a MLE for the parameters
-    gen_fun : function
-        Function to randomly draw a new data set out of the model
-        distribution parametrized by the MLE. Must have call
-        signature `gen_fun(params, *gen_args, size, rg)`. Note
-        that `size` in as an argument in this function relates to the
-        number of data you will generate, which is always equal to
-        len(data). This is not the same as the `size` argument of
-        `_draw_bs_reps_mle()`, which is the number of bootstrap
-        replicates you wish to draw.
-    data : Numpy array, possibly multidimensional
-        Array of measurements. The first index should index repeat of
-        experiment. E.g., if the data consist of n (x, y) pairs, `data`
-        should have shape (n, 2).
-    mle_args : tuple, default ()
-        Arguments to be passed to `mle_fun()`.
-    gen_args : tuple, default ()
-        Arguments to be passed to `gen_fun()`.
-    size : int, default 1
-        Number of bootstrap replicates to draw.
-    progress_bar : bool, default False
-        Whether or not to display progress bar.
-    rg : numpy.random.Generator instance, default None
-        RNG to be used in bootstrapping. If None, the default
-        Numpy RNG is used with a fresh seed based on the clock.
+    rho_fit : array-like
+        Best-fit values of the dependent variable.
+    residuals : array-like
+        Residuals from the best-fit model.
+    t : array-like
+        Independent variable.
+    rho_0 : array-like
+        Initial values of the dependent variable.
+    initial_guesses : array-like
+        Initial guesses for the parameters of the model.
+    seed : int, optional
+        Seed for the random number generator.
 
     Returns
     -------
-    output : numpy array
-        Bootstrap replicates of MLEs.
+    g : float
+        Best-fit value of the intrinsic proliferation rate.
+    rho_max : float
+        Best-fit value of the carrying capacity.
+    sigma : float
+        Best-fit value of the RMSD (i.e. the standard deviation of the residuals)
     """
-
-    if rg is None:
-        rg = np.random.default_rng()
-
-    params = mle_fun(data, *mle_args)
-
-    if progress_bar:
-        iterator = tqdm(range(size))
-    else:
-        iterator = range(size)
-
-    params = mle_fun(data, *mle_args)
-
-    return np.array(
-        [
-            mle_fun(gen_fun(params, *gen_args, size=len(data), rg=rg), *mle_args)
-            for _ in iterator
-        ]
+    if seed is None:
+        seed = np.random.SeedSequence().entropy
+    rg = np.random.default_rng([seed, task_id])
+    rho_bs = bootstrap_by_residuals(rho_fit, residuals, rg)
+    return compute_least_squares_logistic_mle(
+        t, rho_bs, rho_0, initial_guesses=initial_guesses
     )
 
 
-def draw_bs_reps_mle(
-    mle_fun,
-    gen_fun,
-    data,
-    mle_args=(),
-    gen_args=(),
-    size=1,
-    n_jobs=1,
+def draw_logistic_mle_boostraps(
+    rho_fit,
+    residuals,
+    t,
+    rho_0,
+    initial_guesses,
+    n_bootstrap=1,
+    n_procs=1,
+    seed=None,
     progress_bar=False,
-    rg=None,
+    chunksize=1,
 ):
-    """This function was copied from the `bebi103` package developed by Justin Bois.
-    
-    Draw bootstrap replicates of maximum likelihood estimator.
+    draw_one_bootstrap = partial(
+        bootstrap_logistic_mle, rho_fit, residuals, t, rho_0, initial_guesses, seed
+    )
 
-    Parameters
-    ----------
-    mle_fun : function
-        Function with call signature `mle_fun(data, *mle_args)` that
-        computes a MLE for the parameters.
-    gen_fun : function
-        Function to randomly draw a new data set out of the model
-        distribution parametrized by the MLE. Must have call
-        signature `gen_fun(params, *gen_args, size, rg)`. Note
-        that `size` as an argument in this function relates to the
-        number of data you will generate, which is always equal to
-        len(data). This is not the same as the `size` argument of
-        `draw_bs_reps_mle()`, which is the number of bootstrap
-        replicates you wish to draw.
-    data : Numpy array, possibly multidimensional
-        Array of measurements. The first index should index repeat of
-        experiment. E.g., if the data consist of n (x, y) pairs, `data`
-        should have shape (n, 2).
-    mle_args : tuple, default ()
-        Arguments to be passed to `mle_fun()`.
-    gen_args : tuple, default ()
-        Arguments to be passed to `gen_fun()`.
-    size : int, default 1
-        Number of bootstrap replicates to draw.
-    n_jobs : int, default 1
-        Number of cores to use in drawing bootstrap replicates.
-    progress_bar : bool, default False
-        Whether or not to display progress bar.
-    rg : numpy.random.Generator instance, default None
-        RNG to be used in bootstrapping. If None, the default
-        Numpy RNG is used with a fresh seed based on the clock.
+    # The (seed, task_id) pair is used to seed the random number generator
+    # for each bootstrap replicate.
+    task_ids = range(n_bootstrap)
+    if n_procs == 1:
+        if progress_bar:
+            task_ids = tqdm(
+                task_ids, total=n_bootstrap, desc="Drawing bootstrap replicates"
+            )
+        return np.array([draw_one_bootstrap(task_id) for task_id in task_ids])
 
-    Returns
-    -------
-    output : numpy array
-        Bootstrap replicates of MLEs.
-    """
-    # Just call the original function if n_jobs is 1 (no parallelization)
-    if n_jobs == 1:
-        return _draw_bs_reps_mle(
-            mle_fun,
-            gen_fun,
-            data,
-            mle_args=mle_args,
-            gen_args=gen_args,
-            size=size,
-            progress_bar=progress_bar,
-            rg=rg,
-        )
+    else:
+        bootstrap_mles = []
+        if progress_bar:
+            pbar = tqdm(total=n_bootstrap, desc="Drawing bootstrap replicates")
 
-    if rg is not None:
-        raise RuntimeError(
-            "You are attempting to draw replicates in parallel with a specified random"
-            " number generator (`rg` is not `None`). Each of the sets of replicates"
-            " drawn in parallel will be the same since the random number generator is"
-            " not reseeded for each thread. When running in parallel, you  must have"
-            " `rg=None`."
-        )
+        with Pool(n_procs) as pool:
+            for mle in pool.imap_unordered(
+                draw_one_bootstrap, task_ids, chunksize=chunksize
+            ):
+                bootstrap_mles.append(mle)
+                if progress_bar:
+                    pbar.update()
+            pbar.close()
 
-    # Set up sizes of bootstrap replicates for each core, making sure we
-    # get all of them, even if sizes % n_jobs != 0
-    sizes = [size // n_jobs for _ in range(n_jobs)]
-    sizes[-1] += size - sum(sizes)
-
-    # Build arguments
-    arg_iterable = [
-        (mle_fun, gen_fun, data, mle_args, gen_args, s, progress_bar, None)
-        for s in sizes
-    ]
-
-    with Pool(n_jobs) as pool:
-        result = pool.starmap(_draw_bs_reps_mle, arg_iterable)
-
-    return np.concatenate(result)
+        return np.array(bootstrap_mles)
 
 
 def main(
-    seed=2021,
-    param_names=["untreated", "FGF2", "RI"],
+    data_fname,
+    seed=2022,
+    n_bootstrap=1_000_000,
+    n_procs=1,
     CI_pct=90,
-    n_bs_reps=1000000,
-    n_jobs=32,
+    initial_guesses=np.array(
+        [
+            1.0,  # Intrinsic proliferation rate (days ^ -1)
+            5000,  # Carrying capacity (mm ^ -2)
+        ]
+    ),
+    reference_treatment="10% FBS",
+    reference_density_inv_mm2=1250.0,
+    chunksize=100,
+    treatment_names: Optional[list[str]] = None,
     progress_bar=True,
     save=False,
-    fmt="png",
-    dpi=300,
+    save_dir=Path(analysis_dir),
 ):
-
-    # Set RNG seed
-    rg = np.random.default_rng(seed=seed)
-
     # Read in data and sort rows
+    print("Reading in data from:", Path(data_fname).resolve())
     df = pd.read_csv(data_fname)
-    df.treatment = pd.Categorical(df.treatment, categories=param_names)
-    df = df.sort_values(
-        by=["treatment", "initial cell density (mm^-2)", "days_integer", "replicate"]
-    ).reset_index(drop=True)
+    df["treatment"] = pd.Categorical(df["treatment"], categories=treatment_names)
+    if treatment_names is None:
+        treatment_names = np.array(df["treatment"].unique().tolist())
+    df["time (days)"] = df["time (days)"].astype(int)
 
-    # Unpack conditions and density data
-    conds = []
-    rhos = []
-
-    for i, grp in enumerate(df.groupby(["initial cell density (mm^-2)", "treatment"])):
-
-        # Unpack
-        _rho_0, _cond = grp[0]
-
-        # Store init density and drug condition
-        conds.append(grp[0])
-
-        # Get density data in chronological order
-        d = grp[1].sort_values("time (days)")
-        rhos.append(d["cell density (mm^-2)"].values)
-
-    rhos = np.asarray(rhos)
-
-    # Get number of samples, unique conditions, and replicates of conditions
-    nsamp = df.shape[0]
-    ncond = len(conds)
-    nrep = df.replicate.unique().size
-    ntreat = df.treatment.unique().size
-    ndens = df["initial cell density (mm^-2)"].unique().size
-
-    ## Perform MLE on samples in each drug treatment
+    # Perform MLE separately for each drug treatment
+    print(f"Performing MLE for {len(treatment_names)} treatments...")
     mle_results_list = []
     bs_reps_list = []
-
-    for treatment in param_names:
-
+    for i, treatment in enumerate(treatment_names):
+        print(f"({i+1}/{len(treatment_names)}) Treatment {treatment}...")
         # Isolate samples for this treatment
-        data = (
-            df.loc[df["treatment"] == treatment]
-            .sort_values(["initial cell density (mm^-2)", "days_integer", "replicate"])
-            .pivot(
-                index=["initial cell density (mm^-2)"],
-                columns=["replicate", "days_integer"],
-                values=["cell density (mm^-2)"],
-            )
-        )
+        treatment_data = df.loc[df["treatment"] == treatment]
 
         # Get data for MLE fitting
-        t = np.tile([tup[2] for tup in data.columns], data.shape[0])
-        rho_0s = np.repeat(data.index.values, data.shape[1])
-        rhos = data.values.flatten()
-        data = [t, rhos, rho_0s]
+        t = treatment_data["time (days)"].values
+        rho = treatment_data["cell density (mm^-2)"].values
+        rho_0 = treatment_data["initial cell density (mm^-2)"].values
 
         # Get least-squares estimate of MLE
-        mle_results = logistic_mle_lstq(data)
+        mle_results = compute_least_squares_logistic_mle(
+            t, rho, rho_0, initial_guesses=initial_guesses
+        )
+        g_mle, rho_max_mle, sigma_mle = mle_results
+        print("MLE results:")
+        print(f"\tg (days^-1): {g_mle:.3e}")
+        print(f"\trho_max (mm^-2): {rho_max_mle:.3e}")
+        print(f"\tsigma (mm^-2): {sigma_mle:.3e}")
+        print()
 
         # Bootstrap replicates of maximum likelihood estimation
-        # bs_reps = bebi103.bootstrap.draw_bs_reps_mle(
-        bs_reps = draw_bs_reps_mle(
-            logistic_mle_lstq,
-            gen_logistic_data,
-            data=data,
-            mle_args=(),
-            gen_args=(t, rho_0s),
-            size=n_bs_reps,
-            n_jobs=n_jobs,
+        print(f"\tDrawing {n_bootstrap} bootstrap replicates of MLE...")
+        rho_fit = logistic(t, g_mle, rho_0, rho_max_mle)
+        residuals = rho - rho_fit
+        bootstrap_mles = draw_logistic_mle_boostraps(
+            rho_fit,
+            residuals,
+            t,
+            rho_0,
+            initial_guesses=initial_guesses,
+            n_bootstrap=n_bootstrap,
+            n_procs=n_procs,
+            seed=seed,
             progress_bar=progress_bar,
+            chunksize=chunksize,
         )
+        print()
 
         # Store results
         mle_results_list.append(mle_results)
-        bs_reps_list.append(bs_reps)
+        bs_reps_list.append(bootstrap_mles)
 
     ## Package results of MLE into dataframe
-    # Quantities to save
-    mle_columns = [
-        "treatment",
-        "g_inv_days",
-        "rho_max_inv_mm2",
-        "sigma_inv_mm2",
-        f"g_inv_days_{int(CI_pct)}CI_lo",
-        f"rho_max_inv_mm2_{int(CI_pct)}CI_lo",
-        f"sigma_inv_mm2_{int(CI_pct)}CI_lo",
-        f"g_inv_days_{int(CI_pct)}CI_hi",
-        f"rho_max_inv_mm2_{int(CI_pct)}CI_hi",
-        f"sigma_inv_mm2_{int(CI_pct)}CI_hi",
-        "g_ratio",
-        "rho_max_ratio",
-        "doubling_time_days",
-        "doubling_time_hours",
-    ]
-
     # Compute confidence intervals
     CI_bounds = 50 - CI_pct / 2, 50 + CI_pct / 2
     conf_ints = np.array(
-        [np.percentile(_bsr, CI_bounds, axis=0).flatten() for _bsr in bs_reps_list]
+        [np.percentile(bs, CI_bounds, axis=0).flatten() for bs in bs_reps_list]
     ).T
 
     # Package MLE of params
-    mle_results = np.asarray(mle_results_list).T
+    g_inv_days, rho_max_inv_mm2, sigma_inv_mm2 = zip(*mle_results_list)
 
     # MLE in dimensionless units
-    mle_ratios = mle_results[:2] / np.array([[mle_results[0, 0]], [1250]])
+    g_inv_days = np.array(g_inv_days)
+    g_ratio = (
+        g_inv_days / g_inv_days[(treatment_names == reference_treatment).nonzero()]
+    )
+    rho_max_inv_mm2 = np.array(rho_max_inv_mm2)
+    rho_max_ratio = rho_max_inv_mm2 / reference_density_inv_mm2
 
     # MLE of doubling time
-    doubling_time_days = np.log(2) / mle_results[:1]
+    doubling_time_days = np.log(2) / g_inv_days
     doubling_time_hours = doubling_time_days * 24
 
     # Package into dataframe
-    conditions = np.array(param_names)[np.newaxis, :]
-    mle_data = np.block(
-        [
-            [conditions],
-            [mle_results],
-            [conf_ints],
-            [mle_ratios],
-            [doubling_time_days],
-            [doubling_time_hours],
-        ]
+    mle_data = {
+        "treatment": treatment_names,
+        "g_inv_days": g_inv_days,
+        "rho_max_inv_mm2": rho_max_inv_mm2,
+        "sigma_inv_mm2": sigma_inv_mm2,
+        "g_ratio": g_ratio,
+        "rho_max_ratio": rho_max_ratio,
+        "doubling_time_days": doubling_time_days,
+        "doubling_time_hours": doubling_time_hours,
+    } | dict(
+        zip(
+            [
+                f"g_inv_days_{int(CI_pct)}CI_lo",
+                f"rho_max_inv_mm2_{int(CI_pct)}CI_lo",
+                f"sigma_inv_mm2_{int(CI_pct)}CI_lo",
+                f"g_inv_days_{int(CI_pct)}CI_hi",
+                f"rho_max_inv_mm2_{int(CI_pct)}CI_hi",
+                f"sigma_inv_mm2_{int(CI_pct)}CI_hi",
+            ],
+            conf_ints,
+        )
     )
-    mle_df = pd.DataFrame(
-        data=dict(zip(mle_columns, mle_data)),
-    )
+    mle_df = pd.DataFrame(mle_data)
 
     if save:
+        today = datetime.today().strftime("%y%m%d")
+        bs_reps_dump_fpath = save_dir.joinpath(
+            f"{today}_growth_curve_bootstrap_replicates.hdf5"
+        )
+        mle_df_fpath = save_dir.joinpath(f"{today}_growth_parameters_MLE.csv")
 
         # Save MLE of parameters
         print("Writing to:", mle_df_fpath)
@@ -413,11 +287,21 @@ def main(
         # Save bootstrap replicates
         print("Writing to:", bs_reps_dump_fpath)
         with h5py.File(bs_reps_dump_fpath, "w") as f:
-            for n, bsr in zip(param_names, bs_reps_list):
+            for n, bsr in zip(treatment_names, bs_reps_list):
                 f.create_dataset("bs_reps_" + n, data=bsr)
 
 
-main(
-    seed=2021,
-    save=True,
-)
+if __name__ == "__main__":
+    # data_fname = data_dir.joinpath("growth_curves_MLE", "growth_curves.csv")
+    data_fname = Path(
+        data_dir.joinpath("growth_curves_MLE", "231219_growth_curves.csv")
+    )
+
+    main(
+        data_fname,
+        n_procs=13,
+        seed=2023,
+        # n_bootstrap=10_000,
+        chunksize=1000,
+        save=True,
+    )
