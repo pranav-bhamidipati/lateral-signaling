@@ -31,9 +31,19 @@ PathLike = TypeVar("PathLike", str, bytes, Path, os.PathLike, None)
 __dir = Path(__file__).parent
 data_dir = __dir.joinpath(os.getenv("LSIG_DATA_DIR"), "../data").resolve().absolute()
 # analysis_dir = __dir.joinpath(os.getenv("LSIG_ANALYSIS_DIR", ../data/analysis)).resolve().absolute()
-simulation_dir = __dir.joinpath(os.getenv("LSIG_SIMULATION_DIR", "../data/simulations")).resolve().absolute()
-plot_dir = __dir.joinpath(os.getenv("LSIG_PLOTTING_DIR", "../figures")).resolve().absolute()
-temp_plot_dir = __dir.joinpath(os.getenv("LSIG_TEMPPLOTTING_DIR", "../figures/tmp")).resolve().absolute()
+simulation_dir = (
+    __dir.joinpath(os.getenv("LSIG_SIMULATION_DIR", "../data/simulations"))
+    .resolve()
+    .absolute()
+)
+plot_dir = (
+    __dir.joinpath(os.getenv("LSIG_PLOTTING_DIR", "../figures")).resolve().absolute()
+)
+temp_plot_dir = (
+    __dir.joinpath(os.getenv("LSIG_TEMPPLOTTING_DIR", "../figures/tmp"))
+    .resolve()
+    .absolute()
+)
 
 analysis_dir = data_dir.joinpath("analysis")
 
@@ -66,81 +76,59 @@ if not simulation_dir.exists():
 if not analysis_dir.exists():
     warnings.warn(
         f"Invalid path to directory `analysis_dir` for data analysis outputs:"
-
         f"'{analysis_dir}'"
     )
 
 
-######################################################################
-##########  LOAD DATASETS AT IMPORT-TIME #############################
-######################################################################
+####################################################################
+##########  SET DATASETS INTERACTIVELY #############################
+####################################################################
+
+
+import _simulation_parameters as sp
+import _growth_parameters as gp
+import _steady_state as ss
 
 ### Parameters used for simulation of the system
-_simulation_params_json = simulation_dir.joinpath("sim_parameters.json")
-_simulation_params_error = (
-    f"WARNING: Parameters used for simulation not found in specified location:"
-    f"    {_simulation_params_json.resolve().absolute()}"
-)
+simulation_params = sp.SimulationParameters.empty()
 
-try:
-    assert (
-        _simulation_params_json.exists()
-    ), f"File does not exist: {_simulation_params_json}"
-    import _simulation_parameters as sp
 
-    simulation_params = sp.SimulationParameters.from_json(_simulation_params_json)
+def set_simulation_params(
+    simulation_params_json: PathLike = simulation_dir.joinpath("sim_parameters.json"),
+):
+    """Set simulation parameters from a JSON file."""
+    simulation_params = sp.SimulationParameters.update_from_json(simulation_params_json)
 
-except Exception as e:
-    if isinstance(e, AssertionError):
-        warnings.warn(_simulation_params_error)
-    else:
-        raise
 
 ### Wild-type growth parameters are read from file
-_growth_params_csv = analysis_dir.joinpath("growth_parameters_MLE.csv")
-_growth_params_error = (
-    f"WARNING: Estimates of growth parameters not found in specified location:"
-    f"    {_growth_params_csv.resolve().absolute()}"
-)
-_default_growth_params = dict(
-    rho_max_ratio=5.869478948933416, 
-    rho_max_inv_mm2=7336.848686166771, 
-    g_inv_days=0.6160221865205395,
-)
+mle_params = gp.MLEGrowthParams.empty()
 
-try:
-    assert _growth_params_csv.exists(), f"File does not exist: {_growth_params_csv}"
-    import _growth_parameters as gp
 
-    mle_params = gp.MLEGrowthParams.from_csv(_growth_params_csv)
+def set_growth_params(
+    growth_params_csv: PathLike = analysis_dir.joinpath(
+        "231221_growth_parameters_MLE.csv"
+    ),
+):
+    """Set growth parameters from a CSV file."""
+    gp.MLEGrowthParams.update_from_csv(growth_params_csv)
 
-except Exception as e:
-    if isinstance(e, AssertionError):
-        warnings.warn(_growth_params_error)
-        warnings.warn(f"Defaulting to a previously identified set of growth parameters: {_default_growth_params}")
-        mle_params = gp.MLEGrowthParams(_default_growth_params)
-    else:
-        raise
 
-### Steady-state expression is computed from simulations
+### Steady-state expression is inferred empirically from simulations
+# Define dummy functions for steady-state expression
+get_steady_state_mean = lambda *args, **kwargs: np.nan
+get_steady_state_std = lambda *args, **kwargs: np.nan
+get_steady_state_reps = lambda *args, **kwargs: np.nan
+get_steady_state_ci_lo = lambda *args, **kwargs: np.nan
+get_steady_state_ci_hi = lambda *args, **kwargs: np.nan
+get_steady_state_ci = lambda *args, **kwargs: (np.nan, np.nan)
+rho_crit_low = np.nan
+rho_crit_high = np.nan
 
-# This directory contains simulation results for steady-state expression
-_ss_sacred_dir = simulation_dir.joinpath("20221006_steadystate/sacred")
 
-# If you want to run the steady-state sim in the local folder and use
-# those results instead, uncomment this:
-# _ss_sacred_dir = Path("./sacred")
-
-_steady_state_error = (
-    f"Simulations for steady-state approximation and critical density calculation not "
-    f"found in directory:"
-    f"    {_ss_sacred_dir.resolve().absolute()}"
-)
-
-try:
-    assert _ss_sacred_dir.exists(), f"Directory does not exist: {_ss_sacred_dir}"
-    import _steady_state as ss
-
+def set_steady_state_data(
+    ss_sacred_dir: PathLike = simulation_dir.joinpath("20221006_steadystate/sacred"),
+):
+    """Set steady-state expression data from a directory of Sacred simulations."""
     (
         (
             _get_steady_state_mean,
@@ -151,7 +139,7 @@ try:
         ),
         rho_crit_low,
         rho_crit_high,
-    ) = ss._initialize(_ss_sacred_dir)
+    ) = ss._initialize(ss_sacred_dir)
     get_steady_state_mean = numba.vectorize(_get_steady_state_mean)
     get_steady_state_std = numba.vectorize(_get_steady_state_std)
     get_steady_state_reps = numba.vectorize(_get_steady_state_replicates)
@@ -162,36 +150,6 @@ try:
         return get_steady_state_ci_lo(rho, conf_int), get_steady_state_ci_hi(
             rho, conf_int
         )
-
-except Exception as e:
-    if isinstance(e, IndexError) or isinstance(e, AssertionError):
-
-        def get_steady_state_mean(*args, **kwargs):
-            raise FileNotFoundError(_steady_state_error)
-
-        def get_steady_state_std(*args, **kwargs):
-            raise FileNotFoundError(_steady_state_error)
-
-        def get_steady_state_reps(*args, **kwargs):
-            raise FileNotFoundError(_steady_state_error)
-
-        def get_steady_state_ci_lo(*args, **kwargs):
-            raise FileNotFoundError(_steady_state_error)
-
-        def get_steady_state_ci_hi(*args, **kwargs):
-            raise FileNotFoundError(_steady_state_error)
-
-        def get_steady_state_ci(*args, **kwargs):
-            raise FileNotFoundError(_steady_state_error)
-
-        rho_crit_low = None
-        rho_crit_high = None
-
-    if isinstance(e, AssertionError):
-        warnings.warn(_steady_state_error)
-
-    else:
-        raise
 
 
 ######################################################################
@@ -241,7 +199,6 @@ def receiver_rhs(
     S_delay,
     gamma_R,
 ):
-
     # Get signaling as a function of density
     beta = beta_func(rho, *beta_args)
 
@@ -249,7 +206,7 @@ def receiver_rhs(
     S_bar = beta * (Adj @ S_delay)
 
     # Calculate dR/dt
-    dR_dt = alpha * (S_bar ** p) / (k ** p + S_bar ** p) - R
+    dR_dt = alpha * (S_bar**p) / (k**p + S_bar**p) - R
     dR_dt[sender_idx] = 0
 
     return dR_dt
@@ -284,7 +241,7 @@ def signal_rhs(
     # Calculate dE/dt
     dS_dt = (
         lambda_
-        + alpha * (S_bar ** p) / (k ** p + (delta * S_delay) ** p + S_bar ** p)
+        + alpha * (S_bar**p) / (k**p + (delta * S_delay) ** p + S_bar**p)
         - S
     )
 
@@ -311,7 +268,6 @@ def reporter_rhs(
     S_delay,
     gamma_R,
 ):
-
     # Get signaling as a function of density
     beta = beta_func(rho, *beta_args)
 
@@ -320,7 +276,7 @@ def reporter_rhs(
 
     # Calculate dR/dt
     dR_dt = (
-        alpha * (S_bar ** p) / (k ** p + (delta * S_delay) ** p + S_bar ** p) - R
+        alpha * (S_bar**p) / (k**p + (delta * S_delay) ** p + S_bar**p) - R
     ) * gamma_R
 
     dR_dt[sender_idx] = 0
@@ -553,7 +509,7 @@ def get_lp_corners(src, dst, width):
     pslope = -(dst[0] - src[0]) / (dst[1] - src[1])
 
     # Get increments in x and y direction
-    dx = width / (2 * np.sqrt(1 + pslope ** 2))
+    dx = width / (2 * np.sqrt(1 + pslope**2))
     dy = pslope * dx
 
     # Add/subtract increments from each point
@@ -612,14 +568,14 @@ def verts_to_circle(xy):
     u, v = x - xbar, y - ybar
 
     # Calculate sums used in estimate
-    Suu = np.sum(u ** 2)
+    Suu = np.sum(u**2)
     Suv = np.sum(u * v)
-    Svv = np.sum(v ** 2)
+    Svv = np.sum(v**2)
 
-    Suuu = np.sum(u ** 3)
-    Suuv = np.sum((u ** 2) * v)
-    Suvv = np.sum(u * (v ** 2))
-    Svvv = np.sum(v ** 3)
+    Suuu = np.sum(u**3)
+    Suuv = np.sum((u**2) * v)
+    Suvv = np.sum(u * (v**2))
+    Svvv = np.sum(v**3)
 
     # Package sums into form Aw = b
     A = np.array([[Suu, Suv], [Suv, Svv]])
@@ -639,7 +595,7 @@ def verts_to_circle(xy):
 
     # Calculate center and radius
     xy_c = uv_c + np.array([xbar, ybar])
-    R = np.sqrt((uv_c ** 2).sum() + (Suu + Svv) / N)
+    R = np.sqrt((uv_c**2).sum() + (Suu + Svv) / N)
 
     return xy_c, R
 
@@ -648,7 +604,11 @@ def verts_to_circle(xy):
 
 
 @numba.njit
-def t_to_units(dimless_time, ref_growth_rate=mle_params.g_inv_days):
+def _t_to_units(dimless_time, ref_growth_rate):
+    return dimless_time / ref_growth_rate
+
+
+def t_to_units(dimless_time, ref_growth_rate=None):
     """Convert dimensionless time to real units for a growth process.
 
     Returns
@@ -671,11 +631,17 @@ def t_to_units(dimless_time, ref_growth_rate=mle_params.g_inv_days):
         Defaults to the growth rate of wild-type transceivers in units of
         inverse days.
     """
-    return dimless_time / ref_growth_rate
+    if ref_growth_rate is None:
+        ref_growth_rate = mle_params.g_inv_days
+    return _t_to_units(dimless_time, ref_growth_rate)
 
 
 @numba.njit
-def g_to_units(dimless_growth_rate, ref_growth_rate=mle_params.g_inv_days):
+def _g_to_units(dimless_growth_rate, ref_growth_rate):
+    return dimless_growth_rate * ref_growth_rate
+
+
+def g_to_units(dimless_growth_rate, ref_growth_rate=None):
     """Convert dimensionless growth rate to real units for a growth process.
 
     Returns
@@ -697,7 +663,9 @@ def g_to_units(dimless_growth_rate, ref_growth_rate=mle_params.g_inv_days):
         over a time of `1 / growth_rate`.
         Defaults to 7.28398176e-01 days.
     """
-    return dimless_growth_rate * ref_growth_rate
+    if ref_growth_rate is None:
+        ref_growth_rate = mle_params.g_inv_days
+    return _g_to_units(dimless_growth_rate, ref_growth_rate)
 
 
 @numba.njit
@@ -766,7 +734,7 @@ def hexagon_side_to_area(side):
         Length of side
 
     """
-    return 3 * np.sqrt(3) / 2 * side ** 2
+    return 3 * np.sqrt(3) / 2 * side**2
 
 
 @numba.vectorize
@@ -836,15 +804,23 @@ def get_DDE_rhs(func, *func_args):
     return rhs
 
 
-def get_t_ON(g, rho_0, rho_max=mle_params.rho_max_ratio, rho_crit_low=rho_crit_low):
+def get_t_ON(g, rho_0, rho_max=None, rho_crit_low=None):
     """Return the time at which signaling will turn ON/OFF. Based on the
     logistic growth equation and a supplied threshold value."""
+    if rho_max is None:
+        rho_max = mle_params.rho_max_ratio
+    if rho_crit_low is None:
+        rho_crit_low = rho_crit_low
     return logistic_inv(rho_crit_low, g, rho_0, rho_max)
 
 
-def get_t_OFF(g, rho_0, rho_max=mle_params.rho_max_ratio, rho_crit_high=rho_crit_high):
+def get_t_OFF(g, rho_0, rho_max=None, rho_crit_high=None):
     """Return the time at which signaling will turn ON/OFF. Based on the
     logistic growth equation and a supplied threshold value."""
+    if rho_max is None:
+        rho_max = mle_params.rho_max_ratio
+    if rho_crit_high is None:
+        rho_crit_high = rho_crit_high
     return logistic_inv(rho_crit_high, g, rho_0, rho_max)
 
 
@@ -894,7 +870,6 @@ def integrate_DDE(
         iterator = tqdm.tqdm(iterator)
 
     for step in iterator:
-
         # Get past E
         E_delay = past_func(E_save, step)
 
@@ -951,12 +926,10 @@ def integrate_DDE_varargs(
 
     # Coax variable arguments into appropriate iterable type
     if varargs_type.startswith("1darray"):
-
         # Make variable args a 2D array of appropriate shape
         vvals = np.atleast_2d(var_vals).T
 
     elif varargs_type.startswith("list"):
-
         # Just make sure it's a list
         if type(var_vals) != "list":
             vvals = list(var_vals)
@@ -975,7 +948,6 @@ def integrate_DDE_varargs(
         iterator = tqdm.tqdm(iterator)
 
     for step in iterator:
-
         # Get past E
         E_delay = past_func(E_save, step)
 
@@ -1010,7 +982,7 @@ def beta_rho_two_sided(rho, m):
 
 @numba.njit
 def beta_rho_with_low_density(rho, m, q):
-    return np.where(rho < 1, rho ** q, np.exp(-m * (rho - 1)))
+    return np.where(rho < 1, rho**q, np.exp(-m * (rho - 1)))
 
 
 _beta_function_dictionary = OrderedDict(

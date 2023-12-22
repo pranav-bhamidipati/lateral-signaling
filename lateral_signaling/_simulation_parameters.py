@@ -2,7 +2,6 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Iterable
-from warnings import warn
 
 
 @dataclass(frozen=True)
@@ -34,3 +33,14 @@ class SimulationParameters:
         with params_json.open("r") as f:
             j = json.load(f)
         return cls(**j)
+
+    @classmethod
+    def empty(cls):
+        kws = cls.__dataclass_fields__.keys()
+        return cls(**{kw: None for kw in kws})
+
+    def update_from_json(self, params_json: Path):
+        with params_json.open("r") as f:
+            j = json.load(f)
+        for k, v in j.items():
+            setattr(self, k, v)
