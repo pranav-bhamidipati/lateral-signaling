@@ -26,6 +26,9 @@ import holoviews as hv
 
 hv.extension("matplotlib")
 
+lsig.set_simulation_params()
+lsig.set_growth_params()
+lsig.set_steady_state_data()
 lsig.viz.default_rcParams()
 
 

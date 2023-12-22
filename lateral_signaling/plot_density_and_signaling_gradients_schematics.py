@@ -12,6 +12,8 @@ import matplotlib.collections as coll
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+lsig.set_steady_state_data()
 lsig.viz.default_rcParams()
 
 mle_csv = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")

@@ -2,10 +2,12 @@ from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
 from simulate_singlecell_simulation_logic import do_one_simulation
-from lateral_signaling import mle_params, simulation_dir
+import lateral_signaling as lsig
+ 
+lsig.set_growth_params()
 
 # Growth parameter(s)
-_rho_max = mle_params.rho_max_ratio
+_rho_max = lsig.mle_params.rho_max_ratio
 
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_single_cell_example")
@@ -17,7 +19,7 @@ sacred_storage_dir.mkdir(exist_ok=True)
 ex.observers.append(FileStorageObserver(sacred_storage_dir))
 
 # Set default simulation parameters
-params_json = simulation_dir.joinpath("sim_parameters.json")
+params_json = lsig.simulation_dir.joinpath("sim_parameters.json")
 ex.add_config(str(params_json.resolve()))
 ex.add_config(rho_max=_rho_max)
 

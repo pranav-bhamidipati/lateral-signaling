@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+lsig.set_growth_params()
+lsig.set_steady_state_data()
 lsig.viz.default_rcParams()
 
 sacred_dir = lsig.simulation_dir.joinpath("20220819_phase_logrho/sacred")
@@ -27,7 +30,6 @@ def main(
     fmt="png",
     bg_color="w",
 ):
-
     data_dirs = list(sacred_dir.glob("[0-9]*"))
     data_dirs = [d for d in data_dirs if d.joinpath("config.json").exists()]
     d0 = data_dirs[0]
@@ -52,7 +54,6 @@ def main(
     actnum_ts = []
     v_inits = []
     for d in data_dirs:
-
         with open(d.joinpath("config.json"), "r") as f:
             j = json.load(f)
             rho_0 = j["rho_0"]
@@ -148,7 +149,7 @@ def main(
     plt.ylabel(r"$\rho_0$")
     yticks = np.arange(-2, 1)
     # yticklabels = 2 ** yticks
-    yticklabels = [fr"$10^{{{i}}}$" for i in yticks]
+    yticklabels = [rf"$10^{{{i}}}$" for i in yticks]
     plt.yticks(ticks=yticks, labels=yticklabels)
 
     # t_OFF_days = lsig.get_t_OFF(lsig.mle_params.g_inv_days, rho_space)
@@ -222,7 +223,7 @@ def main(
     plt.ylabel(r"$\rho_0$")
     yticks = np.arange(-2, 1)
     # yticklabels = 2 ** yticks
-    yticklabels = [fr"$10^{{{i}}}$" for i in yticks]
+    yticklabels = [rf"$10^{{{i}}}$" for i in yticks]
     plt.yticks(ticks=yticks, labels=yticklabels)
 
     plt.tight_layout()

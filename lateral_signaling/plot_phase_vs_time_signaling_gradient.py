@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
 lsig.viz.default_rcParams()
 
 sacred_dir = lsig.simulation_dir.joinpath("20220818_phase_linrho/sacred")

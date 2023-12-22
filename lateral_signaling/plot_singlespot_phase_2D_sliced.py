@@ -14,6 +14,8 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+
 # Reading
 sim_dir = lsig.simulation_dir
 sacred_dir = sim_dir.joinpath("20211201_singlespotphase/sacred")
@@ -29,7 +31,6 @@ def main(
     fmt="png",
     dpi=300,
 ):
-
     ## Read in and assemble data
     # Get threshold for v_init
     with open(slices_fpath, "r") as f:
@@ -48,7 +49,6 @@ def main(
     # Store each run's data in a DataFrame
     dfs = []
     for rd_idx, rd in enumerate(tqdm(run_dirs)):
-
         # Get some info from the run configuration
         with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
@@ -64,7 +64,6 @@ def main(
 
         # Get remaining info from run's data dump
         with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
-
             # Phase metrics
             v_init = np.asarray(f["v_init_g"])
             n_act_fin = np.asarray(f["n_act_fin_g"])

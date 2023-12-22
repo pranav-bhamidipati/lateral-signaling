@@ -82,12 +82,14 @@ def main(
 # Below is only executed by the master node
 if __name__ == "__main__":
 
-    from lateral_signaling import mle_params
     import numpy as np
+    import lateral_signaling as lsig
+    
+    lsig.set_growth_params()
 
     main(
         start=0.01,
-        end=mle_params.rho_max_ratio,
+        end=lsig.mle_params.rho_max_ratio,
         size=25,
         scale="geom",
         g_space=np.linspace(0.1, 2.5, 25).tolist(),

@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import lateral_signaling as lsig
 from itertools import islice
 
+lsig.set_simulation_params()
 
 # Reading
 sacred_dir = lsig.simulation_dir.joinpath("20211201_singlespotphase/sacred")
@@ -25,7 +26,6 @@ def main(
     fmt="png",
     dpi=300,
 ):
-
     v_init_thresh = lsig.simulation_params.v_init_thresh
 
     ## Read in and assemble data
@@ -33,7 +33,6 @@ def main(
     run_dirs = [d for d in sacred_dir.glob("*") if d.joinpath("config.json").exists()]
     dfs = []
     for rd_idx, rd in enumerate(tqdm(run_dirs)):
-
         # Get some info from the run configuration
         with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
@@ -47,7 +46,6 @@ def main(
 
         # Get remaining info from run's data dump
         with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
-
             # Phase metrics
             v_init = np.asarray(f["v_init_g"])
             n_act_fin = np.asarray(f["n_act_fin_g"])
@@ -189,7 +187,6 @@ def get_phase_boundary_idx(
 
     # Iterate over axes
     for axis in range(3):
-
         # Get the i and j axes (indices on the plane
         #    perpendicular to the current axis)
         _i_axis = (axis + 1) % 3
@@ -227,7 +224,6 @@ def get_phase_boundary_idx(
 
 
 def get_phase_boundary_pts(bounds, *grid_axes):
-
     # Make a new bounds object on the other side of the boundary
     bounds1 = bounds
     bounds2 = ([], [], [])
@@ -267,7 +263,6 @@ def plot_phase_boundaries_3D(
     xtlabs=(),
     **kw,
 ):
-
     # Unpack axis variables
     x, y, z = xyz
 
@@ -292,7 +287,6 @@ def plot_phase_boundaries_3D(
     ax3d.elev = elev
 
     for i, (p1, p2) in enumerate(phase_pairs):
-
         # Get boundary indices from gridded data
         bounds = get_phase_boundary_idx(dgrid, p1, p2)
 
@@ -306,7 +300,6 @@ def plot_phase_boundaries_3D(
         #   rotation before triangulation can improve the quality of the projection.
         #   I tried random rotations until one produced a good triangulation.
         if i in rot_idx:
-
             # Find which rotation vector to use
             j = np.nonzero(np.asarray(rot_idx) == i)[0][0]
 
@@ -351,7 +344,6 @@ def plot_phase_boundaries_3D(
 
 
 if __name__ == "__main__":
-
     main(
         save=True,
     )

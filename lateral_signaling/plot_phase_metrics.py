@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+
 sacred_dir = lsig.simulation_dir.joinpath("20211201_singlespotphase/sacred")
 
 
@@ -24,7 +26,7 @@ def main(
     fmt="png",
     dpi=300,
 ):
-
+    
     v_init_thresh = lsig.simulation_params.v_init_thresh
     
     # Read in phase metric data

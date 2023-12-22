@@ -3,7 +3,9 @@ from pathlib import Path
 import sacred
 from sacred.observers import FileStorageObserver
 from simulate_wholewell_simulation_logic import do_one_simulation
-from lateral_signaling import simulation_dir, mle_params
+import lateral_signaling as lsig
+
+lsig.set_growth_params()
 
 # Set up Sacred experiment
 ex = sacred.Experiment("lateral_signaling_whole_well")
@@ -17,10 +19,10 @@ sacred_storage_dir.mkdir(exist_ok=True)
 ex.observers.append(FileStorageObserver(str(sacred_storage_dir)))
 
 # Get simulation parameters
-default_params_json = simulation_dir.joinpath("sim_parameters.json")
-whole_well_params_json = simulation_dir.joinpath("wholewell_parameters.json")
+default_params_json = lsig.simulation_dir.joinpath("sim_parameters.json")
+whole_well_params_json = lsig.simulation_dir.joinpath("wholewell_parameters.json")
 
-_rho_max = float(mle_params.rho_max_ratio)
+_rho_max = float(lsig.mle_params.rho_max_ratio)
 
 # Set default experimental configuration, modified for the whole well case
 whole_well_config = json.load(default_params_json.open("r"))

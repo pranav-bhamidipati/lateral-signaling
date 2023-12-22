@@ -7,10 +7,10 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
+lsig.set_growth_params()
 lsig.viz.default_rcParams()
 
 
-mle_params_csv = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
 phase_examples_json = lsig.simulation_dir.joinpath("phase_examples.json")
 
 
@@ -26,7 +26,6 @@ def main(
     fmt="png",
     dpi=300,
 ):
-
     # Make an illustrative example of logistic growth with exemplary parameters
     _tmin = 0
     _tmax = 5

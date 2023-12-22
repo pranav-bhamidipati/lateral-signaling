@@ -11,6 +11,8 @@ import matplotlib as mpl
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+lsig.set_steady_state_data()
 
 # Reading simulated data
 data_dir = Path("../data/simulations/")

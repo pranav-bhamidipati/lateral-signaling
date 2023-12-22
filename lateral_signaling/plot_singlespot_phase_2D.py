@@ -16,6 +16,8 @@ import matplotlib as mpl
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+
 
 # Reading simulated data
 sacred_dir = lsig.simulation_dir.joinpath("20211209_phase_2D/sacred")
@@ -28,7 +30,6 @@ pert_clr_json = lsig.data_dir.joinpath("growth_curves_MLE", "perturbation_colors
 
 
 def get_phase(actnum_t, v_init, v_init_thresh, rho_0):
-
     # If activation doesn't happen immediately, signaling is attenuated
     if (v_init < v_init_thresh) and (rho_0 > 1.0):
         return 0
@@ -36,7 +37,6 @@ def get_phase(actnum_t, v_init, v_init_thresh, rho_0):
     # Find time-point where activation first happens
     activate_idx = lsig.first_nonzero(actnum_t)
     if activate_idx != -1:
-
         # If there's deactivation, signaling was limited
         deactivate_idx = lsig.first_zero(actnum_t[activate_idx:])
         if deactivate_idx != -1:
@@ -66,7 +66,6 @@ def main(
     fmt="png",
     dpi=300,
 ):
-
     ## Read in and assemble data
     # Get phase example values
     with open(examples_json, "r") as f:
@@ -88,7 +87,6 @@ def main(
     rho_0_max = 0.0
     rho_0_min = 1.0
     for rd_idx, rd in enumerate(tqdm(run_dirs)):
-
         # Get some info from the run configuration
         with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
@@ -110,7 +108,6 @@ def main(
 
         # Get remaining info from run's data dump
         with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
-
             t = np.asarray(f["t"])
 
             # Number of activated cells and density vs. time
@@ -239,7 +236,6 @@ def main(
     plt.yticks([])
 
     if save:
-
         _fname = save_dir.joinpath(f"{prefix}_highlighted.{fmt}")
         print(f"Writing to: {_fname.resolve().absolute()}")
         plt.savefig(_fname, dpi=dpi)
@@ -338,7 +334,6 @@ def main(
     ex_dirs = [d for d in examples_dir.glob("*") if d.joinpath("config.json").exists()]
     ex_dfs = []
     for rd_idx, rd in enumerate(ex_dirs):
-
         # Get some info from the run configuration
         with rd.joinpath("config.json").open("r") as c:
             config = json.load(c)
@@ -352,7 +347,6 @@ def main(
 
         # Get remaining info from run's data dump
         with h5py.File(rd.joinpath("results.hdf5"), "r") as f:
-
             # Time-course and density
             t = np.asarray(f["t"])
             t_days = lsig.t_to_units(t)
@@ -416,7 +410,6 @@ def main(
     examples_layout = hv.Layout(example_plots).opts(**layout_kw).cols(3)
 
     if save:
-
         _fname = save_dir.joinpath(f"{prefix}_example_curves.{fmt}")
         print(f"Writing to: {_fname.resolve().absolute()}")
         hv.save(examples_layout, _fname, fmt=fmt, dpi=dpi)
@@ -484,7 +477,9 @@ def main(
         vdims=["rho_0", "marker_size"],
     ).opts(s="marker_size", **marker_kw)
 
-    legend_bg = hv.Polygons(legend_verts,).opts(
+    legend_bg = hv.Polygons(
+        legend_verts,
+    ).opts(
         edgecolor="k",
         linewidth=1,
         facecolor=legend_bgcol,
@@ -581,7 +576,6 @@ def main(
 
 
 if __name__ == "__main__":
-
     main(
         save=True,
     )

@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+lsig.set_steady_state_data()
 lsig.viz.default_rcParams()
 
 save_dir = lsig.plot_dir
@@ -18,7 +20,6 @@ def main(
     dpi=300,
     fmt="png",
 ):
-
     rho_crit_lo = lsig.rho_crit_low
     rho_crit_hi = lsig.rho_crit_high
 
@@ -40,7 +41,6 @@ def main(
     ]
 
     for i, (yvals, title, ylabel, plot_crits) in enumerate(plot_data):
-
         ax = fig.add_subplot(2, 1, i + 1)
 
         ax.spines["right"].set_visible(False)

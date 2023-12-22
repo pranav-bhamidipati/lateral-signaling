@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 
 import lateral_signaling as lsig
 
+lsig.set_simulation_params()
+lsig.set_growth_params()
+lsig.set_steady_state_data()
 lsig.viz.default_rcParams()
 
 save_dir = lsig.temp_plot_dir
@@ -13,7 +16,7 @@ save_prefix = save_dir.joinpath("spatiotemporal_signaling")
 @numba.njit
 def get_rho_x_0(x, psi, rho_bar):
     """Number density of cells at time zero."""
-    return np.log(psi) / (psi - 1) * rho_bar * psi ** x
+    return np.log(psi) / (psi - 1) * rho_bar * psi**x
 
 
 @numba.njit
@@ -65,7 +68,6 @@ def main(
     ligand_colors = density_colors = plt.get_cmap("gray")(np.linspace(0.0, 0.75, nt))
 
     def make_steady_state_v_density_plots():
-
         bg_alpha = 0.35
         bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
         light_bg_clr = lsig.viz.rgb2hex(lsig.viz.kgy(0.7)[:3]) + bg_hex
@@ -279,7 +281,6 @@ def main(
         rho_bar,
         time_xy,
     ):
-
         # Solve logistic eqn to get density vs space, over time
         rho_x_t = get_rho_x_t(x, t_x, psi, rho_bar, rho_max)
 
@@ -378,7 +379,6 @@ def main(
         time_xy,
         bias=0.05,
     ):
-
         bg_alpha = 0.35
         bg_hex = hex(int(bg_alpha * 256)).split("x")[-1]
         light_bg_clr = lsig.viz.rgb2hex(lsig.viz.kgy(0.7)[:3]) + bg_hex
