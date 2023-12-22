@@ -12,7 +12,7 @@ class MLEGrowthParams:
     g_inv_days: float
 
     @classmethod
-    def from_csv(cls, params_csv: PathLike, reference_treatment: str = "untreated"):
+    def from_csv(cls, params_csv: PathLike, reference_treatment: str = "10% FBS"):
         df = pd.read_csv(params_csv, index_col="treatment")
         rho_max = df.loc[reference_treatment, "rho_max_ratio"]
         rho_max_inv_mm2 = df.loc[reference_treatment, "rho_max_inv_mm2"]
