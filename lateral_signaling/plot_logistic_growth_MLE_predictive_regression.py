@@ -119,9 +119,12 @@ def main(
             plt.tight_layout()
 
             if save:
+                from datetime import datetime
+
+                today = datetime.today().strftime("%y%m%d")
                 tsave = fix_name_for_saving(t)
                 fname = save_dir.joinpath(
-                    f"growth_regression_{tsave}_rho0_{r0/1250:.1f}.{fmt}"
+                    f"{today}_growth_regression_{tsave}_rho0_{r0/1250:.1f}.{fmt}"
                 )
                 print("Writing to:", fname.resolve().absolute())
                 plt.savefig(fname, dpi=dpi)
@@ -178,8 +181,13 @@ def main(
             plt.tight_layout()
 
             if save:
+                from datetime import datetime
+
+                today = datetime.today().strftime("%y%m%d")
                 tsave = fix_name_for_saving(t)
-                fname = save_dir.joinpath(f"growth_regression_overlay_{tsave}.{fmt}")
+                fname = save_dir.joinpath(
+                    f"{today}_growth_regression_overlay_{tsave}.{fmt}"
+                )
                 print("Writing to:", fname.resolve().absolute())
                 plt.savefig(fname, dpi=dpi)
 
@@ -229,5 +237,5 @@ if __name__ == "__main__":
         growth_curve_data_csv=growth_curve_data_csv,
         bootstrap_mle_replicates_hdf=bs_mle_reps_hdf,
         save=True,
-        save_plotting_data=True,
+        # save_plotting_data=True,
     )

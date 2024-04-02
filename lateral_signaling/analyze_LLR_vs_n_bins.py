@@ -194,12 +194,10 @@ if __name__ == "__main__":
 
     FACS_dir = lsig.data_dir.joinpath("FACS/2024_mESC_and_L929")
     # metadata_res_csv = lsig.analysis_dir.joinpath(
-    #     # "240326_metadata_L929_LLR_results.csv"
-    #     "240327_metadata_L929_LLR_results.csv"
+    #     "240402_metadata_L929_LLR_results.csv"
     # )
     metadata_res_csv = lsig.analysis_dir.joinpath(
-        # "240326_metadata_mESC_LLR_results.csv"
-        "240327_metadata_mESC_LLR_results.csv"
+        "240402_metadata_mESC_LLR_results.csv"
     )
 
     main(

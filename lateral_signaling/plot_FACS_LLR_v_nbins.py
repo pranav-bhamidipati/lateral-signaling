@@ -27,6 +27,7 @@ def main(
     log=True,
     min_decision_bound=-np.inf,
     max_decision_bound=np.inf,
+    plot_code="l",
     figsize=(4, 3.5),
     save_dir=lsig.plot_dir,
     transparent=True,
@@ -42,12 +43,7 @@ def main(
     idx_for_plots = []
     for mdata in metadatas:
         if "subplot" in mdata.columns:
-            idx_to_plot = mdata["subplot"].str.contains("d").values.nonzero()[0]
-            nplot = idx_to_plot.size
-            _permute = np.arange(nplot)
-            _permute[1:] += 6
-            _permute[-6:] = np.arange(1, 7)
-            idx_to_plot = idx_to_plot[_permute]
+            idx_to_plot = mdata["subplot"].str.contains(plot_code).values.nonzero()[0]
         else:
             idx_to_plot = np.arange(len(mdata))
         idx_for_plots.append(idx_to_plot)
@@ -192,36 +188,38 @@ def main(
 
 if __name__ == "__main__":
 
-    # FACS_dir = lsig.data_dir.joinpath("FACS/perturbations")
-    # metadata_csvs = [
-    #     lsig.analysis_dir.joinpath("FACS_perturbations_LLR_results.csv"),
-    # ]
-    # LLR_v_nbins_hdfs = [
-    #     lsig.analysis_dir.joinpath("FACS_perturbations_LLR_vs_nbins.hdf5")
-    # ]
-    # min_decision_bound = 300
-    # max_decision_bound = 600
-    # log = False
-
-    FACS_dir = lsig.data_dir.joinpath("FACS/2024_mESC_and_L929")
+    FACS_dir = lsig.data_dir.joinpath("FACS/perturbations")
     metadata_csvs = [
-        lsig.analysis_dir.joinpath("240326_metadata_L929_LLR_results.csv"),
-        lsig.analysis_dir.joinpath("240326_metadata_mESC_LLR_results.csv"),
+        lsig.analysis_dir.joinpath("FACS_perturbations_LLR_results.csv"),
     ]
     LLR_v_nbins_hdfs = [
-        lsig.analysis_dir.joinpath("240326_metadata_L929_LLR_results_vs_nbins.hdf5"),
-        lsig.analysis_dir.joinpath("240326_metadata_mESC_LLR_results_vs_nbins.hdf5"),
+        lsig.analysis_dir.joinpath("FACS_perturbations_LLR_vs_nbins.hdf5")
     ]
-    min_decision_bound = 1.5
-    max_decision_bound = 4.5
-    log = True
+    min_decision_bound = 300
+    max_decision_bound = 600
+    log = False
+    nbins_used = 1000
+
+    # FACS_dir = lsig.data_dir.joinpath("FACS/2024_mESC_and_L929")
+    # metadata_csvs = [
+    #     lsig.analysis_dir.joinpath("240402_metadata_L929_LLR_results.csv"),
+    #     lsig.analysis_dir.joinpath("240402_metadata_mESC_LLR_results.csv"),
+    # ]
+    # LLR_v_nbins_hdfs = [
+    #     lsig.analysis_dir.joinpath("240402_metadata_L929_LLR_results_vs_nbins.hdf5"),
+    #     lsig.analysis_dir.joinpath("240402_metadata_mESC_LLR_results_vs_nbins.hdf5"),
+    # ]
+    # min_decision_bound = 1.5
+    # max_decision_bound = 4.5
+    # log = True
+    # nbins_used = 1000
 
     main(
         metadata_csvs=metadata_csvs,
         LLR_v_nbins_hdfs=LLR_v_nbins_hdfs,
         FACS_dir=FACS_dir,
         undo_log=False,
-        nbins_used=1000,
+        nbins_used=nbins_used,
         min_decision_bound=min_decision_bound,
         max_decision_bound=max_decision_bound,
         log=log,
