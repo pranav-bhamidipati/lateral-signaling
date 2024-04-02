@@ -12,12 +12,17 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-sacred_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity", "sacred")
+lsig.set_growth_params()
+
+# sacred_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity", "sacred")
+sacred_dir = lsig.simulation_dir.joinpath("20240401_increasingdensity/sacred")
 
 
 def main(
     plot_days=[],
     vmax_R_scale=1.0,
+    scalebar_units="um",
+    scalebar_value=75,
     print_updates=False,
     save_dir=lsig.plot_dir,
     save=False,
@@ -91,7 +96,8 @@ def main(
     plot_kwargs["sender_idx"] = sender_idx
 
     # Turn on scalebar
-    plot_kwargs["scalebar"] = True
+    plot_kwargs["sbar_kwargs"]["fixed_units"] = scalebar_units
+    plot_kwargs["sbar_kwargs"]["fixed_value"] = scalebar_value
 
     # Axis title
     plot_kwargs["title"] = ""
@@ -153,11 +159,10 @@ def main(
         row = i // pcols
         col = i % pcols
 
-        # Hide scalebar text except first image
-        kw["sbar_kwargs"]["font_properties"] = dict(
-            weight=(i == 0) * 1000,
-            size=(i == 0) * 10,
-        )
+        # Hide scalebar except for first image
+        kw["scalebar"] = i == 0
+        if i == 0:
+            print(f"Plotting scalebar of length {scalebar_value} {scalebar_units}")
 
         # Update kwargs
         update_var_kw(row, col)
@@ -193,15 +198,21 @@ def main(
     plt.tight_layout()
 
     if save:
-        _fpath = save_dir.joinpath(f"increasing_density_imlayout.{fmt}")
+        from datetime import datetime
+
+        today = datetime.now().strftime("%y%m%d")
+        _fpath = save_dir.joinpath(f"{today}_increasing_density_imlayout.{fmt}")
         print("Writing to:", _fpath.resolve().absolute())
         plt.savefig(_fpath, dpi=dpi, transparent=transparent)
 
 
 if __name__ == "__main__":
+    save_dir = lsig.plot_dir.joinpath("long_time_course")
+    save_dir.mkdir(exist_ok=True)
     main(
         print_updates=True,
-        save=True,
         plot_days=np.arange(1, 8),
         vmax_R_scale=0.4,
+        save=True,
+        save_dir=save_dir,
     )

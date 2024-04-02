@@ -3,7 +3,7 @@ from os import PathLike
 import pandas as pd
 
 
-@dataclass(frozen=True)
+@dataclass
 class MLEGrowthParams:
     """Stores growth parameters of logistic equation. Parameterized using MLE."""
 

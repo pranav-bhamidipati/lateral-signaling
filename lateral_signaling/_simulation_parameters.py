@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-@dataclass(frozen=True)
+@dataclass
 class SimulationParameters:
     """Container for parameters used in signaling phase calculations."""
 

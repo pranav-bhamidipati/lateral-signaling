@@ -194,15 +194,12 @@ hexa2hex = np.vectorize(_hexa2hex)
 ####### Lattice coordinates
 
 # Vertices of a regular hexagon centered at (0,0) with width 1.
-_hex_vertices = (
-    np.array(
-        [
-            np.cos(np.arange(0, 2 * np.pi, np.pi / 3) + np.pi / 6),
-            np.sin(np.arange(0, 2 * np.pi, np.pi / 3) + np.pi / 6),
-        ]
-    ).T
-    / np.sqrt(3)
-)
+_hex_vertices = np.array(
+    [
+        np.cos(np.arange(0, 2 * np.pi, np.pi / 3) + np.pi / 6),
+        np.sin(np.arange(0, 2 * np.pi, np.pi / 3) + np.pi / 6),
+    ]
+).T / np.sqrt(3)
 
 _hex_x, _hex_y = _hex_vertices.T
 
@@ -221,7 +218,7 @@ sbar_kwargs = dict(
     color="w",
     box_color="w",
     box_alpha=0,
-    font_properties=dict(weight=1000, size=10),
+    scale_loc="none",
     width_fraction=0.03,
     location="lower right",
 )

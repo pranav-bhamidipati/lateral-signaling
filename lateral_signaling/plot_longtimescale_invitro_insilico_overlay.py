@@ -11,8 +11,11 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-sim_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity", "sacred")
-invitro_data_csv = lsig.data_dir.joinpath("single_spots", "singlespot_timeseries.csv")
+lsig.set_growth_params()
+
+# sim_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity/sacred")
+sim_dir = lsig.simulation_dir.joinpath("20240401_increasingdensity/sacred")
+invitro_data_csv = lsig.data_dir.joinpath("single_spots/singlespot_timeseries.csv")
 
 
 def main(
@@ -24,6 +27,8 @@ def main(
     save=False,
     fmt="png",
     dpi=300,
+    save_curve_data=False,
+    curve_data_dir=lsig.analysis_dir,
 ):
 
     ## Read invitro data from file
@@ -50,7 +55,7 @@ def main(
     agg_data["r_prop_mm_std_norm"] = agg_data["r_prop_mm_std"] / data["r_prop_mm"].max()
 
     ## Read simulated data
-    run_dir = [d for d in sim_dir.glob("*") if d.joinpath("config.json").exists()]
+    run_dir = next(d for d in sim_dir.glob("*") if d.joinpath("config.json").exists())
 
     # Expression threshold
     k = json.load(run_dir.joinpath("config.json").open("r"))["k"]
@@ -101,6 +106,16 @@ def main(
         # "sqrtA_mm" : sqrtA_t[::sample_every],
         "r_prop_mm": r_prop_t[::sample_every],
     }
+
+    if save_curve_data:
+        from datetime import datetime
+
+        today = datetime.today().strftime("%y%m%d")
+        csv = curve_data_dir.joinpath(
+            f"{today}_long_timecourse_insilico_curve_data.csv"
+        )
+        print(f"Writing to: {csv.resolve().absolute()}")
+        pd.DataFrame(curve_data).to_csv(csv, index=False)
 
     # Plot
     points = hv.Scatter(
@@ -159,6 +174,12 @@ def main(
 
 
 if __name__ == "__main__":
+
+    save_dir = lsig.plot_dir.joinpath("long_time_course")
+    save_dir.mkdir(exist_ok=True)
+
     main(
-        save=True,
+        # save=True,
+        # save_dir=save_dir,
+        save_curve_data=True,
     )

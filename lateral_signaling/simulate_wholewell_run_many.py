@@ -17,8 +17,10 @@ def run_one_task(config_updates):
 
 
 def main(
-    rho_0s=[1.0, 2.0, 4.0],
+    mle_csv,
+    rho_0s=[1.0],
     save_skip=10,
+    treatments: list[str] = ["10% FBS", "50 µM Y-27632", "250 ng/mL FGF2"],
     local_dir=local_dir,
     memory_allocation_percentage=0.85,
     client_kwargs=_dask_client_default_kwargs,
@@ -28,11 +30,15 @@ def main(
     import os
     import psutil
     import pandas as pd
-    from lateral_signaling import analysis_dir
 
     # Read in growth parameters
-    mle_csv = analysis_dir.joinpath("growth_parameters_MLE.csv")
     mle_params_df = pd.read_csv(mle_csv, index_col=0)
+    mle_params_df = mle_params_df.loc[mle_params_df.treatment.isin(treatments)]
+    mle_params_df["treatment"] = pd.Categorical(
+        mle_params_df["treatment"], categories=treatments, ordered=True
+    )
+    mle_params_df = mle_params_df.sort_values("treatment")
+
     conds, gs, rho_maxs = mle_params_df.loc[
         :, ["treatment", "g_ratio", "rho_max_ratio"]
     ].values.T
@@ -77,7 +83,18 @@ def main(
 
 
 if __name__ == "__main__":
+    from lateral_signaling import analysis_dir
+
+    # mle_csv = analysis_dir.joinpath("growth_parameters_MLE.csv")
+    mle_csv = analysis_dir.joinpath("240327_growth_parameters_MLE.csv")
+
+    # Uncomment to run locally
+    local_dir = Path("/tmp/dask-worker-space")
+    local_dir.mkdir(exist_ok=True)
+
     main(
+        mle_csv=mle_csv,
         n_workers=3,
         memory_limit="18 GiB",
+        local_dir=local_dir,
     )

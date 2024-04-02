@@ -1,27 +1,21 @@
-import os
-from glob import glob
 import json
-from copy import deepcopy
 import h5py
-
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
-import colorcet as cc
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 import holoviews as hv
 
 hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
+lsig.set_growth_params()
+
 sim_dir = lsig.simulation_dir.joinpath(
-    "20220204_phase_perturbations_growthrate", "sacred"
+    # "20220204_phase_perturbations_growthrate/sacred"
+    "20240401_wholewell_phase_perturbations/sacred"
 )
 data_csv = lsig.data_dir.joinpath(
-    "whole_wells", "drug_conditions_propagation_and_cellcount.csv"
+    "whole_wells/drug_conditions_propagation_and_cellcount.csv"
 )
 
 
@@ -32,10 +26,11 @@ def main(
     pad=0.05,
     sample_every=5,
     save_dir=lsig.plot_dir,
-    prefix="growthrate_perturbation_pctarea",
     save=False,
     fmt="png",
     dpi=300,
+    save_curve_data=False,
+    curve_save_dir=lsig.analysis_dir,
 ):
 
     ## Read invitro data from file
@@ -114,7 +109,10 @@ def main(
     invitro_plot = hv.Overlay([invitro_curves, invitro_points]).opts(**opts)
 
     if save:
-        _fpath = save_dir.joinpath(f"{prefix}_invitro.{fmt}")
+        from datetime import datetime
+
+        today = datetime.today().strftime("%y%m%d")
+        _fpath = save_dir.joinpath(f"{today}_growthrate_perturbation_invitro.{fmt}")
         print(f"Writing to: {_fpath.resolve().absolute()}")
         hv.save(invitro_plot, _fpath, fmt=fmt, dpi=dpi)
 
@@ -207,6 +205,16 @@ def main(
         "sqrtA_mm": sqrtA_ts[:, ::sample_every].flatten(),
     }
 
+    if save_curve_data:
+        from datetime import datetime
+
+        today = datetime.today().strftime("%y%m%d")
+        csv = curve_save_dir.joinpath(
+            f"{today}_growthrate_perturbation_insilico_curve_data.csv"
+        )
+        print(f"Writing to: {csv.resolve().absolute()}")
+        pd.DataFrame(insilico_data).to_csv(csv, index=False)
+
     # Plot curves
     insilico_plot = (
         hv.Curve(
@@ -226,12 +234,23 @@ def main(
     )
 
     if save:
-        _fpath = save_dir.joinpath(f"{prefix}_insilico.{fmt}")
+        from datetime import datetime
+
+        today = datetime.today().strftime("%y%m%d")
+        _fpath = save_dir.joinpath(
+            f"{today}_growthrate_perturbation_pctarea_insilico.{fmt}"
+        )
         print(f"Writing to: {_fpath}")
         hv.save(insilico_plot, _fpath, fmt=fmt, dpi=dpi)
 
 
 if __name__ == "__main__":
+
+    save_dir = lsig.plot_dir.joinpath("growth_perturbations")
+    save_dir.mkdir(exist_ok=True)
+
     main(
         save=True,
+        save_dir=save_dir,
+        save_curve_data=True,
     )

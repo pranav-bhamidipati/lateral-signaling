@@ -17,6 +17,8 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
+lsig.set_growth_params()
+
 sim_dir = lsig.simulation_dir.joinpath("20220802_phase_perturbations", "sacred")
 data_csv = lsig.data_dir.joinpath(
     "whole_wells", "drug_conditions_propagation_and_cellcount.csv"
@@ -154,7 +156,7 @@ def main(
             opts["xlim"] = t_days[0], opts["xlim"][1]
             opts["xticks"] = tuple([0] + list(opts["xticks"]))
 
-            # Index of sender cell
+            # Sender
             n_senders = int(np.asarray(f["n_senders"]))
 
             # Density vs. time

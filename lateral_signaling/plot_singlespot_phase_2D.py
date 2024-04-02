@@ -16,6 +16,7 @@ import matplotlib as mpl
 
 import lateral_signaling as lsig
 
+lsig.set_growth_params()
 lsig.set_simulation_params()
 
 
@@ -25,7 +26,8 @@ examples_dir = lsig.simulation_dir.joinpath("20211209_phase_examples/sacred")
 examples_json = lsig.simulation_dir.joinpath("phase_examples.json")
 
 # Reading growth parameter estimation data
-mle_fpath = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
+# mle_fpath = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
+mle_fpath = lsig.analysis_dir.joinpath("240401_growth_parameters_MLE_fixed_rhomax.csv")
 pert_clr_json = lsig.data_dir.joinpath("growth_curves_MLE", "perturbation_colors.json")
 
 
@@ -60,7 +62,7 @@ def main(
     legend_bgcol="#bebebe",
     legend_width=0.8,
     legend_pt_ypos=0.5,
-    save_dir=lsig.plot_dir,
+    save_dir=lsig.plot_dir.joinpath("single_spot_phase"),
     save=False,
     prefix="phase_diagram_2D",
     fmt="png",
@@ -526,6 +528,13 @@ def main(
 
     # Make dataframe with growth parameters for all perturbations
     pdf = pd.read_csv(mle_fpath, index_col=0)
+    pdf["treatment"] = pdf["treatment"].replace(
+        {
+            "10% FBS": "untreated",
+            "250 ng/mL FGF2": "FGF2",
+            "50 µM Y-27632": "RI",
+        }
+    )
     pdf = pdf.merge(pd.DataFrame(ks, columns=["treatment", "rho_0"]))
 
     # Assign colors

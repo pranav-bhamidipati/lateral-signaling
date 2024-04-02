@@ -61,6 +61,7 @@ def do_one_simulation(
     t_days = np.linspace(0, tmax_days, nt)
 
     # Convert to dimensionless units for simulation
+    lsig.set_growth_params()
     t = t_days / lsig.t_to_units(1)
     dt = t[1] - t[0]
 

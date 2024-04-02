@@ -1,6 +1,6 @@
 #!/bin/bash --login
 
-#Submit this script with: sbatch submit_simulations_phase_arrayjob.sh
+#Submit this script with: sbatch submit_analysis_PIV_arrayjob.sh
 
 #SBATCH --time=04:00:00   # walltime
 #SBATCH --ntasks=1   # number of processor cores per job in array (i.e. tasks)

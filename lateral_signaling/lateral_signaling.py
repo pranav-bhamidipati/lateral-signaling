@@ -1,5 +1,6 @@
 """Contact-dependent signaling between cells on a hexagonal lattice.
 """
+
 __version__ = "0.0.1"
 __author__ = "Pranav Bhamidipati"
 __email__ = "pbhamidi@caltech.edu"
@@ -97,7 +98,7 @@ def set_simulation_params(
     simulation_params_json: PathLike = simulation_dir.joinpath("sim_parameters.json"),
 ):
     """Set simulation parameters from a JSON file."""
-    simulation_params = sp.SimulationParameters.update_from_json(simulation_params_json)
+    simulation_params.update_from_json(simulation_params_json)
 
 
 ### Wild-type growth parameters are read from file
@@ -106,21 +107,41 @@ mle_params = gp.MLEGrowthParams.empty()
 
 def set_growth_params(
     growth_params_csv: PathLike = analysis_dir.joinpath(
-        "231221_growth_parameters_MLE.csv"
+        "240327_growth_parameters_MLE.csv"
     ),
 ):
     """Set growth parameters from a CSV file."""
-    gp.MLEGrowthParams.update_from_csv(growth_params_csv)
+    mle_params.update_from_csv(growth_params_csv, reference_treatment="10% FBS")
 
 
 ### Steady-state expression is inferred empirically from simulations
 # Define dummy functions for steady-state expression
-get_steady_state_mean = lambda *args, **kwargs: np.nan
-get_steady_state_std = lambda *args, **kwargs: np.nan
-get_steady_state_reps = lambda *args, **kwargs: np.nan
-get_steady_state_ci_lo = lambda *args, **kwargs: np.nan
-get_steady_state_ci_hi = lambda *args, **kwargs: np.nan
-get_steady_state_ci = lambda *args, **kwargs: (np.nan, np.nan)
+class DynamicFunction:
+    def __init__(self, func=None):
+        if func is None:
+            self.func = lambda *args, **kwargs: np.nan
+        else:
+            self.func = func
+
+    def __call__(self, *args, **kwargs):
+        return self.func(*args, **kwargs)
+
+    def set_func(self, func):
+        self.func = func
+
+
+get_steady_state_mean = DynamicFunction()
+get_steady_state_std = DynamicFunction()
+get_steady_state_reps = DynamicFunction()
+get_steady_state_ci_lo = DynamicFunction()
+get_steady_state_ci_hi = DynamicFunction()
+get_steady_state_ci = DynamicFunction()
+# get_steady_state_mean = lambda *args, **kwargs: np.nan
+# get_steady_state_std = lambda *args, **kwargs: np.nan
+# get_steady_state_reps = lambda *args, **kwargs: np.nan
+# get_steady_state_ci_lo = lambda *args, **kwargs: np.nan
+# get_steady_state_ci_hi = lambda *args, **kwargs: np.nan
+# get_steady_state_ci = lambda *args, **kwargs: (np.nan, np.nan)
 rho_crit_low = np.nan
 rho_crit_high = np.nan
 
@@ -140,11 +161,16 @@ def set_steady_state_data(
         rho_crit_low,
         rho_crit_high,
     ) = ss._initialize(ss_sacred_dir)
-    get_steady_state_mean = numba.vectorize(_get_steady_state_mean)
-    get_steady_state_std = numba.vectorize(_get_steady_state_std)
-    get_steady_state_reps = numba.vectorize(_get_steady_state_replicates)
-    get_steady_state_ci_lo = numba.vectorize(_get_steady_state_ci_lo)
-    get_steady_state_ci_hi = numba.vectorize(_get_steady_state_ci_hi)
+    # get_steady_state_mean = numba.vectorize(_get_steady_state_mean)
+    # get_steady_state_std = numba.vectorize(_get_steady_state_std)
+    # get_steady_state_reps = numba.vectorize(_get_steady_state_replicates)
+    # get_steady_state_ci_lo = numba.vectorize(_get_steady_state_ci_lo)
+    # get_steady_state_ci_hi = numba.vectorize(_get_steady_state_ci_hi)
+    get_steady_state_mean.set_func(numba.vectorize(_get_steady_state_mean))
+    get_steady_state_std.set_func(numba.vectorize(_get_steady_state_std))
+    get_steady_state_reps.set_func(numba.vectorize(_get_steady_state_replicates))
+    get_steady_state_ci_lo.set_func(numba.vectorize(_get_steady_state_ci_lo))
+    get_steady_state_ci_hi.set_func(numba.vectorize(_get_steady_state_ci_hi))
 
     def get_steady_state_ci(rho, conf_int=0.8):
         return get_steady_state_ci_lo(rho, conf_int), get_steady_state_ci_hi(
@@ -240,9 +266,7 @@ def signal_rhs(
 
     # Calculate dE/dt
     dS_dt = (
-        lambda_
-        + alpha * (S_bar**p) / (k**p + (delta * S_delay) ** p + S_bar**p)
-        - S
+        lambda_ + alpha * (S_bar**p) / (k**p + (delta * S_delay) ** p + S_bar**p) - S
     )
 
     # Set sender cell to zero
@@ -636,11 +660,6 @@ def t_to_units(dimless_time, ref_growth_rate=None):
     return _t_to_units(dimless_time, ref_growth_rate)
 
 
-@numba.njit
-def _g_to_units(dimless_growth_rate, ref_growth_rate):
-    return dimless_growth_rate * ref_growth_rate
-
-
 def g_to_units(dimless_growth_rate, ref_growth_rate=None):
     """Convert dimensionless growth rate to real units for a growth process.
 
@@ -665,7 +684,7 @@ def g_to_units(dimless_growth_rate, ref_growth_rate=None):
     """
     if ref_growth_rate is None:
         ref_growth_rate = mle_params.g_inv_days
-    return _g_to_units(dimless_growth_rate, ref_growth_rate)
+    return dimless_growth_rate * ref_growth_rate
 
 
 @numba.njit

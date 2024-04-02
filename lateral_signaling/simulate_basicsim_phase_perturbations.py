@@ -8,13 +8,14 @@ from lateral_signaling import analysis_dir
 ex.add_config(dict(drug_condition=""))
 
 # Read in MLE growth parameters
-mle_fpath = analysis_dir.joinpath("growth_parameters_MLE.csv")
+# mle_fpath = analysis_dir.joinpath("growth_parameters_MLE.csv")
+mle_fpath = analysis_dir.joinpath("240401_growth_parameters_MLE_fixed_rhomax.csv")
 mle_df = pd.read_csv(mle_fpath, index_col=0)
 
-# Get drug conditions and intrinsic prolif rates
+# Get drug treatments and their intrinsic proliferation rates
 idx = np.arange(mle_df.shape[0])
-conds = mle_df.condition.values
-gs = mle_df.g_ratio.values
+conds = mle_df["treatment"].values
+gs = mle_df["g_ratio"].values
 
 # Initial densities
 rho_0s = [1.0, 2.0, 4.0]

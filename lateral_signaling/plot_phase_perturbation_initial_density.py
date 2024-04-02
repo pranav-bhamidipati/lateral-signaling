@@ -10,10 +10,13 @@ hv.extension("matplotlib")
 
 import lateral_signaling as lsig
 
-sacred_dir = lsig.simulation_dir.joinpath("20220114_phase_perturbations/sacred")
-data_fname = lsig.data_dir.joinpath("single_spots/singlespot_timeseries.csv")
+lsig.set_growth_params()
 
-save_dir = lsig.plot_dir
+# sacred_dir = lsig.simulation_dir.joinpath("20220114_phase_perturbations/sacred")
+sacred_dir = lsig.simulation_dir.joinpath(
+    "20240401_singlespot_init_density_perturbations/sacred"
+)
+data_fname = lsig.data_dir.joinpath("single_spots/singlespot_timeseries.csv")
 
 
 def main(
@@ -22,10 +25,12 @@ def main(
     pad=0.05,
     seed=2021,
     sample_every=1,
-    save_dir=save_dir,
+    save_dir=lsig.plot_dir,
     save=False,
     fmt="png",
     dpi=300,
+    save_curve_data=False,
+    curve_save_dir=lsig.analysis_dir,
 ):
 
     # Set random seed
@@ -122,8 +127,10 @@ def main(
     invitro_plot = hv.Overlay([c * e for c, e in zip(curves, errors)]).opts(**opts)
 
     if save:
+        from datetime import datetime
 
-        _fpath = save_dir.joinpath(f"density_perturbation_prop_radius_invitro.{fmt}")
+        today = datetime.today().strftime("%y%m%d")
+        _fpath = save_dir.joinpath(f"{today}_density_perturbation_rprop_invitro.{fmt}")
         print(f"Writing to: {_fpath.resolve().absolute()}")
         hv.save(invitro_plot, _fpath, dpi=dpi)
 
@@ -154,13 +161,19 @@ def main(
     #     s=45,
     #     alpha=0.6,
     # )
-    max_points = hv.Scatter(max_data, kdims=["jitter_xval"], vdims=["r_prop_mm"],).opts(
+    max_points = hv.Scatter(
+        max_data,
+        kdims=["jitter_xval"],
+        vdims=["r_prop_mm"],
+    ).opts(
         c="k",
         s=45,
         alpha=0.6,
     )
 
-    mean_max_segs = hv.Segments(mean_max_arr,).opts(
+    mean_max_segs = hv.Segments(
+        mean_max_arr,
+    ).opts(
         color=lsig.viz.cols_blue[-2],
         linewidth=4,
     )
@@ -177,9 +190,11 @@ def main(
     )
 
     if save:
+        from datetime import datetime
 
+        today = datetime.today().strftime("%y%m%d")
         _fpath = save_dir.joinpath(
-            f"density_perturbation_prop_radius_invitro_max.{fmt}"
+            f"{today}_density_perturbation_max_radius_invitro.{fmt}"
         )
         print(f"Writing to: {_fpath.resolve().absolute()}")
         hv.save(invitro_max_plot, _fpath, dpi=dpi)
@@ -200,7 +215,7 @@ def main(
             config = json.load(c)
 
             # Check if run matches conditions
-            if config["drug_condition"] != "untreated":
+            if config["drug_condition"] != "10% FBS":
                 continue
 
             # Expression threshold
@@ -255,6 +270,16 @@ def main(
         "r_prop_mm": r_prop_ts[:, ::sample_every].flatten(),
     }
 
+    if save_curve_data:
+        from datetime import datetime
+
+        today = datetime.today().strftime("%y%m%d")
+        csv = curve_save_dir.joinpath(
+            f"{today}_insilico_initial_density_perturbation_curve_data.csv"
+        )
+        print(f"Writing to: {csv.resolve().absolute()}")
+        pd.DataFrame(insilico_data).to_csv(csv, index=False)
+
     # Plot curves
     insilico_plot = (
         hv.Curve(
@@ -275,14 +300,21 @@ def main(
     )
 
     if save:
+        from datetime import datetime
 
-        _fpath = save_dir.joinpath(f"density_perturbation_prop_radius_insilico.{fmt}")
+        today = datetime.today().strftime("%y%m%d")
+        _fpath = save_dir.joinpath(f"{today}_density_perturbation_rprop_insilico.{fmt}")
         print(f"Writing to: {_fpath.resolve().absolute()}")
         hv.save(insilico_plot, _fpath, dpi=dpi)
 
 
 if __name__ == "__main__":
+
+    save_dir = lsig.plot_dir.joinpath("initial_density_perturbations")
+    save_dir.mkdir(exist_ok=True)
+
     main(
         save=True,
-        save_dir=lsig.temp_plot_dir,
+        save_dir=save_dir,
+        save_curve_data=True,
     )

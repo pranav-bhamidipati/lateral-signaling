@@ -55,6 +55,7 @@ def do_one_simulation(
     t_days = np.linspace(0, tmax_days, nt)
 
     # Convert to dimensionless units for simulation
+    lsig.set_growth_params()
     t = t_days / lsig.t_to_units(1)
     dt = t[1] - t[0]
 
@@ -173,9 +174,9 @@ def do_one_simulation(
         plot_kw_S["scalebar"] = True
         plot_kw_S["sbar_kwargs"]["fixed_value"] = sbar_value
         plot_kw_S["sbar_kwargs"]["fixed_units"] = sbar_units
+        plot_kw_S["sbar_kwargs"]["scale_loc"] = "none"
 
-        # Turn off scalebar text
-        plot_kw_S["sbar_kwargs"]["font_properties"]["weight"] = 0
+        print(f"Scalebar: {sbar_value} {sbar_units}")
 
         # Axis limits
         plot_kw_S["xlim"] = X_t[-1, :, 0].min(), X_t[-1, :, 1].max()
@@ -248,7 +249,8 @@ def do_one_simulation(
                 var_t = (S_t, R_t)[i]
                 plot_kw = (plot_kw_S, plot_kw_R)[i]
 
-                for f in save_frames:
+                for j, f in enumerate(save_frames):
+                    plot_kw["scalebar"] = i == 0 and j == 0
 
                     # Plot frame
                     fig, ax = plt.subplots(figsize=(3, 3))
@@ -284,19 +286,6 @@ def do_one_simulation(
                 f.create_dataset("sender_idx", data=sender_idx)
                 f.create_dataset("S_t", data=S_t[::save_skip])
                 f.create_dataset("R_t", data=R_t[::save_skip])
-
-            # # Dump data to a JSON file
-            # data_dump_dict = {
-            # "t": t.tolist(),
-            # "X": X.tolist(),
-            # "sender_idx": float(sender_idx),
-            # "rho_t": rho_t.tolist(),
-            # "S_t": S_t.tolist(),
-            # "R_t": R_t.tolist(),
-            # }
-            # with open(data_dump_fname, "w") as f:
-            # print("Saving:", data_dump_fname)
-            # json.dump(data_dump_dict, f, indent=4)
 
             # Add data dump to Sacred
             artifacts.append(data_dump_fname)
