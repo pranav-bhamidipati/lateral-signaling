@@ -109,9 +109,12 @@ def set_growth_params(
     growth_params_csv: PathLike = analysis_dir.joinpath(
         "240327_growth_parameters_MLE.csv"
     ),
+    reference_treatment="10% FBS",
 ):
     """Set growth parameters from a CSV file."""
-    mle_params.update_from_csv(growth_params_csv, reference_treatment="10% FBS")
+    mle_params.update_from_csv(
+        growth_params_csv, reference_treatment=reference_treatment
+    )
 
 
 ### Steady-state expression is inferred empirically from simulations
@@ -136,14 +139,8 @@ get_steady_state_reps = DynamicFunction()
 get_steady_state_ci_lo = DynamicFunction()
 get_steady_state_ci_hi = DynamicFunction()
 get_steady_state_ci = DynamicFunction()
-# get_steady_state_mean = lambda *args, **kwargs: np.nan
-# get_steady_state_std = lambda *args, **kwargs: np.nan
-# get_steady_state_reps = lambda *args, **kwargs: np.nan
-# get_steady_state_ci_lo = lambda *args, **kwargs: np.nan
-# get_steady_state_ci_hi = lambda *args, **kwargs: np.nan
-# get_steady_state_ci = lambda *args, **kwargs: (np.nan, np.nan)
-rho_crit_low = np.nan
-rho_crit_high = np.nan
+rho_crit_low = DynamicFunction()
+rho_crit_high = DynamicFunction()
 
 
 def set_steady_state_data(
@@ -158,8 +155,8 @@ def set_steady_state_data(
             _get_steady_state_ci_lo,
             _get_steady_state_ci_hi,
         ),
-        rho_crit_low,
-        rho_crit_high,
+        _rho_crit_low,
+        _rho_crit_high,
     ) = ss._initialize(ss_sacred_dir)
     # get_steady_state_mean = numba.vectorize(_get_steady_state_mean)
     # get_steady_state_std = numba.vectorize(_get_steady_state_std)
@@ -171,6 +168,8 @@ def set_steady_state_data(
     get_steady_state_reps.set_func(numba.vectorize(_get_steady_state_replicates))
     get_steady_state_ci_lo.set_func(numba.vectorize(_get_steady_state_ci_lo))
     get_steady_state_ci_hi.set_func(numba.vectorize(_get_steady_state_ci_hi))
+    rho_crit_low.set_func(lambda *_: _rho_crit_low)
+    rho_crit_high.set_func(lambda *_: _rho_crit_high)
 
     def get_steady_state_ci(rho, conf_int=0.8):
         return get_steady_state_ci_lo(rho, conf_int), get_steady_state_ci_hi(

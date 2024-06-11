@@ -13,23 +13,25 @@ import seaborn as sns
 
 def main(
     bootstrap_mle_replicates_hdf,
+    treatment_names=None,
+    param_names=["g", "rho_max", "sigma"],
     figsize=(5, 5),
-    save_dir=lsig.plot_dir.joinpath("cornerplots"),
+    save_dir=lsig.plot_dir,
     save=False,
     dpi=300,
     fmt="png",
 ):
 
-    param_names = ["g", "rho_max", "sigma"]
-
     # Load bootstrap MLEs of parameters
     treatments = []
     bs_reps_list = []
 
-    def collect_hdf_contents(name, obj):
+    def collect_hdf_contents(name_with_prefix, obj):
         if isinstance(obj, h5py.Dataset):
-            treatments.append(name.removeprefix("bs_reps_"))
-            bs_reps_list.append(np.array(obj))
+            name = name_with_prefix.removeprefix("bs_reps_")
+            if treatment_names is None or name in treatment_names:
+                treatments.append(name)
+                bs_reps_list.append(np.array(obj))
 
     with h5py.File(bootstrap_mle_replicates_hdf, "r") as f:
         f.visititems(collect_hdf_contents)
@@ -74,16 +76,27 @@ def main(
 
 if __name__ == "__main__":
 
+    # # Untreated condition (10% FBS)
+    # bs_reps_hdf = lsig.analysis_dir.joinpath(
+    #     "240327_growth_curve_bootstrap_replicates.hdf5"
+    # )
+    # # save_dir = lsig.plot_dir.joinpath("cornerplots")
+    # treatment_names = ["10% FBS"]
+    # param_names = ["g", "rho_max", "sigma"]
+
+    # ROCK-inhibitor and FGF2 conditions
     bs_reps_hdf = lsig.analysis_dir.joinpath(
-        # "growth_curve_bootstrap_replicates.hdf5"
-        # "231221_growth_curve_bootstrap_replicates.hdf5"
-        # "240327_growth_curve_bootstrap_replicates.hdf5"
-        "240401_growth_curve_bootstrap_replicates_fixed_rhomax.hdf5"
+        "240402_growth_curve_bootstrap_replicates_fixed_rhomax.hdf5"
     )
+    # save_dir = lsig.plot_dir.joinpath("fixed_rhomax_cornerplots")
+    treatment_names = None
+    param_names = ["g", "sigma"]
 
     main(
         bootstrap_mle_replicates_hdf=bs_reps_hdf,
+        treatment_names=treatment_names,
+        param_names=param_names,
         save=True,
         # fmt="pdf",
-        save_dir=lsig.plot_dir.joinpath("fixed_rhomax_cornerplots"),
+        # save_dir=save_dir,
     )

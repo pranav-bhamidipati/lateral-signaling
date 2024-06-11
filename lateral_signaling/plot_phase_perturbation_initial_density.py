@@ -14,7 +14,7 @@ lsig.set_growth_params()
 
 # sacred_dir = lsig.simulation_dir.joinpath("20220114_phase_perturbations/sacred")
 sacred_dir = lsig.simulation_dir.joinpath(
-    "20240401_singlespot_init_density_perturbations/sacred"
+    "20240403_singlespot_init_density_perturbations/sacred"
 )
 data_fname = lsig.data_dir.joinpath("single_spots/singlespot_timeseries.csv")
 

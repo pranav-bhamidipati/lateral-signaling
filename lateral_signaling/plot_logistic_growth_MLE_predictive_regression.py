@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tqdm import tqdm
 
+lsig.set_growth_params()
+
 
 def fix_name_for_saving(name):
     return name.replace(" ", "_").replace("(", "").replace(")", "").replace("/", "_")
@@ -17,7 +19,8 @@ def fix_name_for_saving(name):
 def main(
     growth_curve_data_csv,
     bootstrap_mle_replicates_hdf,
-    rho_0s=[1250.0, 2500.0, 5000.0],  # cells / mm^2
+    treatment_names=None,
+    rho_0s=[1250.0],  # cells / mm^2
     rho_0_labels=["1x", "2x", "4x"],
     percentiles=[68, 80, 90],
     overlay_ptile=80,
@@ -31,7 +34,12 @@ def main(
     fmt="png",
     save_plotting_data=False,
     save_data_dir=lsig.analysis_dir,
+    rho_max=None,
+    return_data=False,
 ):
+
+    if rho_max is None:
+        rho_max = lsig.mle_params.rho_max_inv_mm2
 
     if overlay_colors is None:
         overlay_colors = [lsig.viz.rgb2hex(rgb) for rgb in sns.color_palette()]
@@ -47,10 +55,16 @@ def main(
     treatments = []
     bs_reps_list = []
 
-    def collect_hdf_contents(name, obj):
+    def collect_hdf_contents(name_with_prefix, obj):
         if isinstance(obj, h5py.Dataset):
-            treatments.append(name.removeprefix("bs_reps_"))
-            bs_reps_list.append(np.array(obj))
+            name = name_with_prefix.removeprefix("bs_reps_")
+            if treatment_names is None or name in treatment_names:
+                treatments.append(name)
+                bs_mle = np.array(obj)
+                if bs_mle.shape[1] == 2:
+                    # Assume rho_max was fixed to the MLE value and make a column for it
+                    bs_mle = np.insert(bs_mle, 1, rho_max, axis=1)
+                bs_reps_list.append(bs_mle)
 
     with h5py.File(bootstrap_mle_replicates_hdf, "r") as f:
         f.visititems(collect_hdf_contents)
@@ -195,16 +209,29 @@ def main(
 
     pbar.close()
 
+    df = pd.concat(dfs, ignore_index=True)
+    df = df.rename({"__x": "days"}, axis=1)
+    df = df.rename(
+        lambda x: f"{float(x):.1f}_percentile" if str(x)[0] in "0123456789" else x,
+        axis=1,
+    )
+
     if save_plotting_data:
-        df = pd.concat(dfs, ignore_index=True)
-        df = df.rename({"__x": "days"}, axis=1)
-        df = df.rename(
-            lambda x: f"{float(x):.1f}_percentile" if str(x)[0] in "0123456789" else x,
-            axis=1,
-        )
-        fpath = save_data_dir.joinpath(f"{bs_mle_reps_hdf.stem}_regression_data.csv")
+        from datetime import datetime
+
+        today = datetime.today().strftime("%y%m%d")
+
+        # Save data with the correct date
+        stem = bs_mle_reps_hdf.stem
+        if set(stem[:6]).issubset(set("0123456789")):
+            stem = stem[6:].lstrip("_")
+
+        fpath = save_data_dir.joinpath(f"{today}_{stem}_regression_data.csv")
         print("Writing to:", fpath.resolve().absolute())
         df.to_csv(fpath, index=False)
+
+    if return_data:
+        return df
 
 
 if __name__ == "__main__":
@@ -217,25 +244,70 @@ if __name__ == "__main__":
     #     "growth_curve_bootstrap_replicates.hdf5"
     # )
 
-    # # Results from parameter fitting with free rho_max
-    # growth_curve_data_csv = lsig.data_dir.joinpath(
-    #     "growth_curves_MLE/231219_growth_curves.csv"
-    # )
-    # bs_mle_reps_hdf = lsig.analysis_dir.joinpath(
-    #     "240327_growth_curve_bootstrap_replicates.hdf5"
-    # )
+    # Results from parameter fitting for untreated condition (10% FBS)
+    growth_curve_data_csv = lsig.data_dir.joinpath(
+        "growth_curves_MLE/231219_growth_curves.csv"
+    )
+    bs_mle_reps_hdf = lsig.analysis_dir.joinpath(
+        "240327_growth_curve_bootstrap_replicates.hdf5"
+    )
+    treatment_names = ["10% FBS"]
+
+    data_untreated = main(
+        growth_curve_data_csv=growth_curve_data_csv,
+        bootstrap_mle_replicates_hdf=bs_mle_reps_hdf,
+        treatment_names=treatment_names,
+        save=True,
+        save_plotting_data=True,
+        return_data=True,
+    )
 
     # Results from parameter fitting with fixed rho_max
     growth_curve_data_csv = lsig.data_dir.joinpath(
         "growth_curves_MLE/231219_growth_curves.csv"
     )
     bs_mle_reps_hdf = lsig.analysis_dir.joinpath(
-        "240401_growth_curve_bootstrap_replicates_fixed_rhomax.hdf5"
+        # "240401_growth_curve_bootstrap_replicates_fixed_rhomax.hdf5"
+        "240402_growth_curve_bootstrap_replicates_fixed_rhomax.hdf5"
     )
+    treatment_names = None
 
-    main(
+    data_fixed_rhomax = main(
         growth_curve_data_csv=growth_curve_data_csv,
         bootstrap_mle_replicates_hdf=bs_mle_reps_hdf,
+        treatment_names=treatment_names,
         save=True,
         # save_plotting_data=True,
+        return_data=True,
+    )
+
+    # Save combined data
+    from datetime import datetime
+
+    data_combined = pd.concat([data_untreated, data_fixed_rhomax], ignore_index=True)
+    today = datetime.today().strftime("%y%m%d")
+    fpath = lsig.analysis_dir.joinpath(f"{today}_growth_regression_data_combined.csv")
+    print("Writing to:", fpath.resolve().absolute())
+    data_combined.to_csv(fpath, index=False)
+
+    # Plot overlay of multiple densities in untreated condition (includes Marco's data)
+
+    # Results from parameter fitting for untreated condition (10% FBS)
+    growth_curve_data_csv = lsig.data_dir.joinpath(
+        "growth_curves_MLE/231219_growth_curves.csv"
+    )
+    bs_mle_reps_hdf = lsig.analysis_dir.joinpath(
+        "240327_growth_curve_bootstrap_replicates.hdf5"
+    )
+    treatment_names = ["10% FBS"]
+    initial_densities = [1250.0, 2500.0, 5000.0]
+
+    data_untreated = main(
+        growth_curve_data_csv=growth_curve_data_csv,
+        bootstrap_mle_replicates_hdf=bs_mle_reps_hdf,
+        treatment_names=treatment_names,
+        rho_0s=initial_densities,
+        save=True,
+        # save_plotting_data=True,
+        # return_data=True,
     )

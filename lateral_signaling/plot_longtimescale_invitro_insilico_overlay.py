@@ -13,14 +13,10 @@ import lateral_signaling as lsig
 
 lsig.set_growth_params()
 
-# sim_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity/sacred")
-sim_dir = lsig.simulation_dir.joinpath("20240401_increasingdensity/sacred")
-invitro_data_csv = lsig.data_dir.joinpath("single_spots/singlespot_timeseries.csv")
-
 
 def main(
-    sim_dir=sim_dir,
-    invitro_data_csv=invitro_data_csv,
+    sim_dir,
+    invitro_data_csv,
     pad=0.05,
     sample_every=20,
     save_dir=lsig.plot_dir,
@@ -175,10 +171,17 @@ def main(
 
 if __name__ == "__main__":
 
+    # sim_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity/sacred")
+    # sim_dir = lsig.simulation_dir.joinpath("20240401_increasingdensity/sacred")
+    sim_dir = lsig.simulation_dir.joinpath("20240403_increasingdensity/sacred")
+    invitro_data_csv = lsig.data_dir.joinpath("single_spots/singlespot_timeseries.csv")
+
     save_dir = lsig.plot_dir.joinpath("long_time_course")
     save_dir.mkdir(exist_ok=True)
 
     main(
+        sim_dir,
+        invitro_data_csv,
         # save=True,
         # save_dir=save_dir,
         save_curve_data=True,

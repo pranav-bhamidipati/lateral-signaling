@@ -25,9 +25,6 @@ sacred_dir = lsig.simulation_dir.joinpath("20211209_phase_2D/sacred")
 examples_dir = lsig.simulation_dir.joinpath("20211209_phase_examples/sacred")
 examples_json = lsig.simulation_dir.joinpath("phase_examples.json")
 
-# Reading growth parameter estimation data
-# mle_fpath = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
-mle_fpath = lsig.analysis_dir.joinpath("240401_growth_parameters_MLE_fixed_rhomax.csv")
 pert_clr_json = lsig.data_dir.joinpath("growth_curves_MLE", "perturbation_colors.json")
 
 
@@ -54,6 +51,12 @@ def get_phase(actnum_t, v_init, v_init_thresh, rho_0):
 
 
 def main(
+    mle_fpaths,
+    treatment_names,
+    sacred_dir=sacred_dir,
+    examples_dir=examples_dir,
+    examples_json=examples_json,
+    pert_clr_json=pert_clr_json,
     pad=0.05,
     area_ceiling=1,
     bg_alpha=0.8,
@@ -527,15 +530,21 @@ def main(
         rhos = np.sort([k[1] for k in ks])
 
     # Make dataframe with growth parameters for all perturbations
-    pdf = pd.read_csv(mle_fpath, index_col=0)
-    pdf["treatment"] = pdf["treatment"].replace(
-        {
-            "10% FBS": "untreated",
-            "250 ng/mL FGF2": "FGF2",
-            "50 µM Y-27632": "RI",
-        }
-    )
-    pdf = pdf.merge(pd.DataFrame(ks, columns=["treatment", "rho_0"]))
+    perturbation_dfs = []
+    for mle_fpath, t_names in zip(mle_fpaths, treatment_names):
+        _pdf = pd.read_csv(mle_fpath, index_col=0)
+        if t_names is not None:
+            _pdf = _pdf.loc[_pdf["treatment"].isin(t_names)]
+        _pdf["treatment"] = _pdf["treatment"].replace(
+            {
+                "10% FBS": "untreated",
+                "250 ng/mL FGF2": "FGF2",
+                "50 µM Y-27632": "RI",
+            }
+        )
+        _pdf = _pdf.merge(pd.DataFrame(ks, columns=["treatment", "rho_0"]))
+        perturbation_dfs.append(_pdf)
+    pdf = pd.concat(perturbation_dfs).reset_index(drop=True)
 
     # Assign colors
     pdf["color"] = [
@@ -585,6 +594,17 @@ def main(
 
 
 if __name__ == "__main__":
+
+    # Growth parameter estimation data
+    # mle_fpath = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
+    mle_fpaths = [
+        lsig.analysis_dir.joinpath("240327_growth_parameters_MLE.csv"),
+        lsig.analysis_dir.joinpath("240402_growth_parameters_MLE_fixed_rhomax.csv"),
+    ]
+    treatment_names = [["10% FBS"], None]
+
     main(
+        mle_fpaths=mle_fpaths,
+        treatment_names=treatment_names,
         save=True,
     )

@@ -16,7 +16,6 @@ lsig.set_simulation_params()
 lsig.set_steady_state_data()
 lsig.viz.default_rcParams()
 
-mle_csv = lsig.analysis_dir.joinpath("growth_parameters_MLE.csv")
 im_png = Path("./culture_well.png")
 
 save_dir = lsig.temp_plot_dir
@@ -26,7 +25,7 @@ save_prefix = save_dir.joinpath("signaling_gradient_schematic")
 @numba.njit
 def get_rho_x_0(x, psi, rho_bar):
     """Number density of cells at time zero."""
-    return np.log(psi) / (psi - 1) * rho_bar * psi ** x
+    return np.log(psi) / (psi - 1) * rho_bar * psi**x
 
 
 @numba.njit
@@ -78,7 +77,6 @@ def make_schematic_1_no_callouts(
 
 
 def main(
-    mle_csv=mle_csv,
     im_png=im_png,
     figsize1_nc=(4, 2),
     figsize1=(5, 3),
@@ -99,9 +97,7 @@ def main(
     dpi=300,
     fmt="png",
 ):
-    rho_max = pd.read_csv(mle_csv, index_col="treatment").loc[
-        "untreated", "rho_max_ratio"
-    ]
+    rho_max = lsig.mle_params.rho_max_ratio
 
     # bias_scaled = label_bias * scale
 
@@ -253,7 +249,7 @@ def main(
     # Make a circle to clip the gradient into a circle
     rad = (nx - 1) / 2
     xx = np.linspace(0, nx - 1, nx * 2)
-    yy = np.sqrt(rad ** 2 - (xx - rad) ** 2)
+    yy = np.sqrt(rad**2 - (xx - rad) ** 2)
     circle = plt.fill_between(xx, rad + yy, rad - yy, lw=0, color="none")
 
     # axs = [ax1]
@@ -274,7 +270,7 @@ def main(
         plt.text(
             rad,
             2.5 * rad,
-            fr"$t_{i + 1}$",
+            rf"$t_{i + 1}$",
             ha="center",
             va="center",
             fontdict=dict(color="w", size=18),

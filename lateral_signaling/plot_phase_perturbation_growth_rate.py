@@ -12,7 +12,7 @@ lsig.set_growth_params()
 
 sim_dir = lsig.simulation_dir.joinpath(
     # "20220204_phase_perturbations_growthrate/sacred"
-    "20240401_wholewell_phase_perturbations/sacred"
+    "20240403_wholewell_phase_perturbations/sacred"
 )
 data_csv = lsig.data_dir.joinpath(
     "whole_wells/drug_conditions_propagation_and_cellcount.csv"

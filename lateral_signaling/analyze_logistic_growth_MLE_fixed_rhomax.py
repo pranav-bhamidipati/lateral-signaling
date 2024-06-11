@@ -14,15 +14,14 @@ from lateral_signaling import data_dir, analysis_dir, logistic
 
 
 @njit
-def logistic_resid(params, t, rhos, rho_0s, which_treatment: np.ndarray):
+def logistic_resid(params, t, rhos, rho_0s, rho_max, which_treatment: np.ndarray):
     """
     Residual for a logistic growth model as a function of
     carrying capacity and intrinsic prolif. rate, given
     initial populations and time-points.
     Used to compute estimates for growth parameters.
     """
-    g = params[:-1][which_treatment]
-    rho_max = params[-1]
+    g = params[which_treatment]
     means = logistic(t, g, rho_0s[which_treatment], rho_max)
     return rhos - means
 
@@ -32,36 +31,37 @@ def rms(vals):
     return np.sqrt(np.mean(vals**2))
 
 
-def compute_least_squares_logistic_mle(t, rho, rho_0, which_treatment, initial_guesses):
+def compute_least_squares_logistic_mle(
+    t, rho, rho_0, rho_max, which_treatment, initial_guesses
+):
     """Compute MLE for carrying capacity, intrinsic prolif. rate, and RMSD of the
     logistic growth model."""
+
+    n_treatments = np.unique(which_treatment).size
 
     # Get the maximum likelihood estimate (MLE) parameters
     res = scipy.optimize.least_squares(
         fun=logistic_resid,
         x0=initial_guesses,
         bounds=(
-            [0, 0, 0, 0],  # Lower bounds for g and rho_max
-            [12.0, 12.0, 12.0, 25_000],  # Upper bounds for g and rho_max
+            [0, 0],  # Lower bounds for g
+            [12.0, 12.0],  # Upper bounds for g
         ),
-        args=(t, rho, rho_0, which_treatment),
+        args=(t, rho, rho_0, rho_max, which_treatment),
     )
 
     # Get residuals using MLE parameters
-    resid = logistic_resid(res.x, t, rho, rho_0, which_treatment)
+    resid = logistic_resid(res.x, t, rho, rho_0, rho_max, which_treatment)
 
     # Compute root-mean-squared deviation (RMSD)
-    sigma_mles = np.zeros((3,), dtype=np.float64)
-    for i in range(3):
+    sigma_mles = np.zeros((n_treatments,), dtype=np.float64)
+    for i in range(n_treatments):
         sigma_mles[i] = rms(resid[which_treatment == i])
 
     # Return MLE parameters and RMSD
-    *gs, rho_max = res.x
-
-    mles = np.zeros((3, 3), dtype=np.float64)
-    mles[:, 0] = gs
-    mles[:, 1] = rho_max
-    mles[:, 2] = sigma_mles
+    mles = np.zeros((n_treatments, 2), dtype=np.float64)
+    mles[:, 0] = res.x
+    mles[:, 1] = sigma_mles
     return mles
 
 
@@ -82,6 +82,7 @@ def bootstrap_logistic_mle(
     residuals,
     t,
     rho_0,
+    rho_max,
     which_treatment,
     initial_guesses,
     seed_and_task_id=(None, 0),
@@ -119,7 +120,7 @@ def bootstrap_logistic_mle(
     rg = np.random.default_rng([seed, task_id])
     rho_bs = bootstrap_by_residuals(rho_fit, residuals, rg)
     return compute_least_squares_logistic_mle(
-        t, rho_bs, rho_0, which_treatment, initial_guesses=initial_guesses
+        t, rho_bs, rho_0, rho_max, which_treatment, initial_guesses=initial_guesses
     )
 
 
@@ -128,6 +129,7 @@ def draw_logistic_mle_bootstraps(
     residuals,
     t,
     rho_0,
+    rho_max,
     which_treatment,
     initial_guesses,
     n_bootstrap=1,
@@ -142,6 +144,7 @@ def draw_logistic_mle_bootstraps(
         residuals,
         t,
         rho_0,
+        rho_max,
         which_treatment,
         initial_guesses,
     )
@@ -180,19 +183,16 @@ def main(
     n_bootstrap=1_000_000,
     n_procs=1,
     CI_pct=90,
+    treatment_names: list[str] = ["50 µM Y-27632", "250 ng/mL FGF2"],
     initial_guesses=np.array(
         [
             1.0,  # Intrinsic proliferation rate (days ^ -1)
             1.0,
-            1.0,
-            5000,  # Carrying capacity (mm ^ -2)
         ]
     ),
     reference_treatment="10% FBS",
-    reference_density_inv_mm2=1250.0,
-    chunksize=100,
-    treatment_names: list[str] = ["10% FBS", "50 µM Y-27632", "250 ng/mL FGF2"],
     progress_bar=True,
+    chunksize=1000,
     save=False,
     save_dir=Path(analysis_dir),
 ):
@@ -210,29 +210,36 @@ def main(
     rho_0s = df["initial cell density (mm^-2)"].values
     which_treatment = df["treatment"].cat.codes.values
 
+    # Get carrying capacity from MLE of reference treatment
+    import lateral_signaling as lsig
+
+    lsig.set_growth_params(reference_treatment=reference_treatment)
+    rho_max = lsig.mle_params.rho_max_inv_mm2
+
     # Get least-squares estimate of MLE
+    n_treatments = len(treatment_names)
     mle_results = compute_least_squares_logistic_mle(
-        t, rho, rho_0s, which_treatment, initial_guesses=initial_guesses
+        t, rho, rho_0s, rho_max, which_treatment, initial_guesses=initial_guesses
     )
-    for i in range(3):
-        g, rho_max, sigma = mle_results[i]
+    for i in range(n_treatments):
+        g, sigma = mle_results[i]
         print(f"MLE results for {treatment_names[i]}:")
         print(f"\tg (days^-1): {g:.3e}")
-        print(f"\trho_max (mm^-2): {rho_max:.3e}")
         print(f"\tsigma (mm^-2): {sigma:.3e}")
+        print(f"\trho_max (mm^-2): {rho_max:.3e}")
         print()
 
     # Bootstrap replicates of maximum likelihood estimation
     print(f"Drawing {n_bootstrap} bootstrap replicates of MLE...")
     g_mles = mle_results[:, 0]
-    rho_max_mle = mle_results[0, 1]
-    rho_fit = logistic(t, g_mles[which_treatment], rho_0s[which_treatment], rho_max_mle)
+    rho_fit = logistic(t, g_mles[which_treatment], rho_0s[which_treatment], rho_max)
     residuals = rho - rho_fit
     bootstrap_mle = draw_logistic_mle_bootstraps(
         rho_fit,
         residuals,
         t,
         rho_0s,
+        rho_max,
         which_treatment,
         initial_guesses=initial_guesses,
         n_bootstrap=n_bootstrap,
@@ -247,46 +254,58 @@ def main(
     # Compute confidence intervals
     CI_bounds = 50 - CI_pct / 2, 50 + CI_pct / 2
     conf_ints = np.percentile(bootstrap_mle, CI_bounds, axis=0)
-    conf_ints = conf_ints.transpose((0, 2, 1)).reshape(-1, len(treatment_names))
+    conf_ints = conf_ints.transpose((0, 2, 1)).reshape(-1, n_treatments)
 
     # Package MLE of params
-    g_inv_days, rho_max_inv_mm2, sigma_inv_mm2 = mle_results.T
+    g_inv_days, sigma_inv_mm2 = mle_results.T
 
     # MLE in dimensionless units
-    which_reference = treatment_names.index(reference_treatment)
     g_inv_days = np.array(g_inv_days)
-    g_ratio = g_inv_days / g_inv_days[which_reference]
-    rho_max_inv_mm2 = np.array(rho_max_inv_mm2)
-    rho_max_ratio = rho_max_inv_mm2 / reference_density_inv_mm2
+    g_ratio = g_inv_days / lsig.mle_params.g_inv_days
 
     # MLE of doubling time
     doubling_time_days = np.log(2) / g_inv_days
     doubling_time_hours = doubling_time_days * 24
 
     # Package into dataframe
+    CI_pct_int = int(CI_pct)
     mle_data = {
         "treatment": treatment_names,
         "g_inv_days": g_inv_days,
-        "rho_max_inv_mm2": rho_max_inv_mm2,
         "sigma_inv_mm2": sigma_inv_mm2,
         "g_ratio": g_ratio,
-        "rho_max_ratio": rho_max_ratio,
         "doubling_time_days": doubling_time_days,
         "doubling_time_hours": doubling_time_hours,
+        "rho_max_inv_mm2": rho_max,
+        "rho_max_ratio": lsig.mle_params.rho_max_ratio,
     } | dict(
         zip(
             [
-                f"g_inv_days_{int(CI_pct)}CI_lo",
-                f"rho_max_inv_mm2_{int(CI_pct)}CI_lo",
-                f"sigma_inv_mm2_{int(CI_pct)}CI_lo",
-                f"g_inv_days_{int(CI_pct)}CI_hi",
-                f"rho_max_inv_mm2_{int(CI_pct)}CI_hi",
-                f"sigma_inv_mm2_{int(CI_pct)}CI_hi",
+                f"g_inv_days_{CI_pct_int}CI_lo",
+                f"sigma_inv_mm2_{CI_pct_int}CI_lo",
+                f"g_inv_days_{CI_pct_int}CI_hi",
+                f"sigma_inv_mm2_{CI_pct_int}CI_hi",
             ],
             conf_ints,
         )
     )
     mle_df = pd.DataFrame(mle_data)
+
+    print("MLE of growth parameters holding rho_max fixed:")
+    print(
+        mle_df[
+            [
+                "treatment",
+                "g_inv_days",
+                "doubling_time_hours",
+                f"g_inv_days_{CI_pct_int}CI_lo",
+                f"g_inv_days_{CI_pct_int}CI_hi",
+                "sigma_inv_mm2",
+                f"sigma_inv_mm2_{CI_pct_int}CI_lo",
+                f"sigma_inv_mm2_{CI_pct_int}CI_hi",
+            ]
+        ]
+    )
 
     if save:
         today = datetime.today().strftime("%y%m%d")
@@ -304,7 +323,7 @@ def main(
         # Save bootstrap replicates
         print("Writing to:", bs_reps_dump_fpath)
         with h5py.File(bs_reps_dump_fpath, "w") as f:
-            for i in range(3):
+            for i in range(n_treatments):
                 f.create_dataset(
                     f"bs_reps_{treatment_names[i]}", data=bootstrap_mle[:, i]
                 )
@@ -319,6 +338,5 @@ if __name__ == "__main__":
         n_procs=13,
         seed=2023,
         # n_bootstrap=10_000,
-        chunksize=1000,
         save=True,
     )

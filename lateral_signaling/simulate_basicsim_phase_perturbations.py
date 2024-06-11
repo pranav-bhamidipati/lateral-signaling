@@ -9,8 +9,12 @@ ex.add_config(dict(drug_condition=""))
 
 # Read in MLE growth parameters
 # mle_fpath = analysis_dir.joinpath("growth_parameters_MLE.csv")
-mle_fpath = analysis_dir.joinpath("240401_growth_parameters_MLE_fixed_rhomax.csv")
+# mle_fpath = analysis_dir.joinpath("240402_growth_parameters_MLE_fixed_rhomax.csv")
+mle_fpath = analysis_dir.joinpath("240327_growth_parameters_MLE.csv")
 mle_df = pd.read_csv(mle_fpath, index_col=0)
+
+# Only run simulations for the untreated condition
+mle_df = mle_df.loc[mle_df["treatment"] == "10% FBS"]
 
 # Get drug treatments and their intrinsic proliferation rates
 idx = np.arange(mle_df.shape[0])

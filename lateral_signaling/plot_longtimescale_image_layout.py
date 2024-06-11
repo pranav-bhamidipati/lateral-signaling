@@ -15,7 +15,7 @@ import lateral_signaling as lsig
 lsig.set_growth_params()
 
 # sacred_dir = lsig.simulation_dir.joinpath("20220113_increasingdensity", "sacred")
-sacred_dir = lsig.simulation_dir.joinpath("20240401_increasingdensity/sacred")
+sacred_dir = lsig.simulation_dir.joinpath("20240403_increasingdensity/sacred")
 
 
 def main(
